@@ -27,7 +27,7 @@ nonisolated struct AgentPromptStore {
             pending.append((key, event, now))
             return true
         }
-        guard event.sessionID != nil || event.kind == .clear, let index = pending.firstIndex(where: { $0.key == key }) else { return false }
+        guard event.kind != .toolStart, event.sessionID != nil || event.kind == .clear, let index = pending.firstIndex(where: { $0.key == key }) else { return false }
         pending.remove(at: index)
         return true
     }

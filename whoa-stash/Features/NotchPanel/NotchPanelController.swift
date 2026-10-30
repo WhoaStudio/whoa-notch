@@ -99,6 +99,9 @@ final class NotchPanelController {
     /// Une demande dont la session a disparu sans prévenir (processus tué) expire après ce délai.
     private let agentPromptLifetime: Duration = .seconds(600)
     private var agentPromptExpiryTask: Task<Void, Never>?
+    /// Ce que fait chaque session ; l'onglet AI montre la plus récente quand aucune demande n'attend.
+    private var agentActivities = AgentActivityStore()
+    private var agentActivityExpiryTask: Task<Void, Never>?
 
     /// Courrier arrivé : visible `mailMessageDuration`, puis il se retire.
     private let mailMessageDuration: Duration = .seconds(6)
@@ -212,6 +215,9 @@ final class NotchPanelController {
         agentPrompts = AgentPromptStore()
         agentPromptExpiryTask?.cancel()
         agentPromptExpiryTask = nil
+        agentActivityExpiryTask?.cancel()
+        agentActivityExpiryTask = nil
+        agentActivities = AgentActivityStore()
         mailMessageTask?.cancel()
         mailMessageTask = nil
         mailMessageDisplay = nil
@@ -306,6 +312,13 @@ final class NotchPanelController {
             let window = windows[displayID]
         else { return }
 
+        // La carte d'activité suit chaque événement ; un outil qui démarre n'a pas de pastille.
+        if agentActivities.apply(event) {
+            windows.values.forEach { $0.apply(agentActivity: agentActivities.current) }
+            scheduleAgentActivityExpiry()
+        }
+        if event.kind == .toolStart { return }
+
         let previous = agentPrompts.current
         let changed = agentPrompts.apply(event)
         if changed {
@@ -313,7 +326,7 @@ final class NotchPanelController {
             scheduleAgentPromptExpiry()
         }
 
-        if event.kind == .clear {
+        if event.kind.resolvesPrompt {
             // Rien à montrer pour un « clear » ; si la demande affichée vient de partir, on la retire
             // ou on laisse place à la précédente.
             guard changed, previous != agentPrompts.current else { return }
@@ -372,6 +385,22 @@ final class NotchPanelController {
             presentAgentEvent(remaining, on: displayID, window: window, sound: false)
         } else {
             dismissAgentEvent(on: displayID, window: window)
+        }
+    }
+
+    /// Une activité sans nouvelle (session plantée, tour fini) disparaît : on regarde chaque
+    /// 30 s, tant qu'il en reste une.
+    private func scheduleAgentActivityExpiry() {
+        agentActivityExpiryTask?.cancel()
+        agentActivityExpiryTask = nil
+        guard agentActivities.current != nil else { return }
+        agentActivityExpiryTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(30))
+            guard !Task.isCancelled, let self else { return }
+            if self.agentActivities.expire() {
+                self.windows.values.forEach { $0.apply(agentActivity: self.agentActivities.current) }
+            }
+            self.scheduleAgentActivityExpiry()
         }
     }
 
@@ -660,6 +689,7 @@ final class NotchPanelController {
                 window.updateNowPlayingPlayer(nowPlayingPlayer)
                 window.apply(playingNext: playingNext)
                 window.apply(agentPrompt: agentPrompts.current)
+                window.apply(agentActivity: agentActivities.current)
                 window.onAgentDecision = { [weak self] event, decision in
                     self?.onAgentDecision?(event, decision)
                     if let id = event.replyID { self?.agentPromptEnded(replyID: id) }

@@ -30,6 +30,9 @@ final class NotchUsageTabView: NSView {
     /// Demande de Claude en attente : remplace la carte, les pastilles et l'activité, le temps qu'elle attend.
     private let promptCard = AgentPromptCardView()
     private var isShowingPrompt = false
+    /// Ce que fait l'agent : passe après une demande en attente, avant la carte d'utilisation.
+    private let activityCard = AgentActivityCardView()
+    private var agentActivity: AgentActivity?
 
     private var selectedProvider: NotchUsageProvider = .claude
     private var readings: [NotchUsageProvider: NotchUsageReading] = [
@@ -52,6 +55,8 @@ final class NotchUsageTabView: NSView {
         [header, card, activity].forEach(addSubview)
         pills.forEach(addSubview)
         promptCard.isHidden = true
+        activityCard.isHidden = true
+        addSubview(activityCard)
         addSubview(promptCard)
 
         header.onSelect = { [weak self] provider in self?.select(provider, animated: true) }
@@ -77,10 +82,25 @@ final class NotchUsageTabView: NSView {
     func apply(agentPrompt event: AgentEvent?) {
         if let event { promptCard.apply(event) }
         isShowingPrompt = event != nil
-        promptCard.isHidden = event == nil
-        card.isHidden = event != nil
-        pills.forEach { $0.isHidden = event != nil }
-        activity.isHidden = event != nil
+        refreshTakeover()
+    }
+
+    func apply(agentActivity: AgentActivity?) {
+        self.agentActivity = agentActivity
+        if let agentActivity { activityCard.apply(agentActivity) }
+        refreshTakeover()
+    }
+
+    /// Une demande ou une activité d'agent prend la place de la carte, des pastilles et de l'activité
+    /// d'utilisation : la demande d'abord.
+    private func refreshTakeover() {
+        let showsActivity = !isShowingPrompt && agentActivity != nil
+        let takeover = isShowingPrompt || showsActivity
+        promptCard.isHidden = !isShowingPrompt
+        activityCard.isHidden = !showsActivity
+        card.isHidden = takeover
+        pills.forEach { $0.isHidden = takeover }
+        activity.isHidden = takeover
         needsLayout = true
     }
 
@@ -142,9 +162,11 @@ final class NotchUsageTabView: NSView {
         }
         top -= NotchUsageFilterPillView.height + sectionGap
 
-        if isShowingPrompt {
+        if isShowingPrompt || agentActivity != nil {
             let cardTop = header.frame.minY - sectionGap
-            promptCard.frame = NSRect(x: 0, y: bounds.minY, width: bounds.width, height: max(0, cardTop - bounds.minY))
+            let takeover = NSRect(x: 0, y: bounds.minY, width: bounds.width, height: max(0, cardTop - bounds.minY))
+            promptCard.frame = takeover
+            activityCard.frame = takeover
         }
 
         activity.frame = NSRect(x: 0, y: bounds.minY, width: bounds.width, height: max(0, top - bounds.minY))

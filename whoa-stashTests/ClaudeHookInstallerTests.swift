@@ -99,4 +99,23 @@ import Testing
         #expect(event == AgentEvent(kind: .finished, project: "mon-projet", sessionID: "1"))
         #expect(AgentEvent.decode(Data(#"{"kind":"autre"}"#.utf8)) == nil)
     }
+
+    @Test func uneInstallationAncienneEstRemplaceeSansDoublon() throws {
+        let legacy = """
+            {"hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "'LEGACY' clear"}]}]}}
+            """
+        let (installer, _) = try makeInstaller(settings: legacy)
+        var root = try readRoot(installer)
+        var hooks = try #require(root["hooks"] as? [String: Any])
+        hooks["UserPromptSubmit"] = [["hooks": [["type": "command", "command": "'\(installer.scriptURL.path)' clear"]]]]
+        root["hooks"] = hooks
+        try JSONSerialization.data(withJSONObject: root).write(to: installer.settingsURL)
+
+        try installer.install()
+        let after = try #require(try readRoot(installer)["hooks"] as? [String: Any])
+        let groups = try #require(after["UserPromptSubmit"] as? [[String: Any]])
+        #expect(groups.count == 1)
+        let command = ((groups[0]["hooks"] as? [[String: Any]])?.first?["command"] as? String) ?? ""
+        #expect(command.hasSuffix(" turn"))
+    }
 }

@@ -10,19 +10,29 @@ nonisolated struct AgentEvent: Equatable, Sendable {
         case desktopReply
         /// La session n'attend plus rien (outil exécuté, prompt envoyé, session close) : ne s'affiche pas.
         case clear
+        /// Un outil démarre : fait avancer la carte d'activité, sans pastille.
+        case toolStart
+        /// Un nouveau prompt part : la carte d'activité repart de zéro.
+        case turnStart
+        case sessionEnd
 
         var statusText: String {
             switch self {
             case .finished: "Finished"
             case .needsInput: "Needs input"
             case .desktopReply: "Reply ready"
-            case .clear: ""
+            case .clear, .toolStart, .turnStart, .sessionEnd: ""
             }
+        }
+
+        /// Les événements qui lèvent la demande en attente de leur session.
+        var resolvesPrompt: Bool {
+            self == .clear || self == .turnStart || self == .sessionEnd
         }
 
         var symbolName: String {
             switch self {
-            case .finished, .desktopReply, .clear: "checkmark.circle.fill"
+            case .finished, .desktopReply, .clear, .toolStart, .turnStart, .sessionEnd: "checkmark.circle.fill"
             case .needsInput: "questionmark.bubble.fill"
             }
         }
@@ -67,10 +77,12 @@ nonisolated struct AgentEvent: Equatable, Sendable {
     var replyID: String?
     /// `tool_input` tel que reçu : une réponse à `AskUserQuestion` le renvoie avec les `answers`.
     var toolInput: Data?
+    /// L'appel d'outil d'un événement `toolStart`.
+    var tool: ToolCall?
 
     init(
         kind: Kind, project: String, sessionID: String? = nil, prompt: Prompt? = nil,
-        replyID: String? = nil, toolInput: Data? = nil
+        replyID: String? = nil, toolInput: Data? = nil, tool: ToolCall? = nil
     ) {
         self.kind = kind
         self.project = project
@@ -78,6 +90,7 @@ nonisolated struct AgentEvent: Equatable, Sendable {
         self.prompt = prompt
         self.replyID = replyID
         self.toolInput = toolInput
+        self.tool = tool
     }
 
     /// La ligne que le script de hook rend à Claude Code pour appliquer la décision, ou `nil` si elle
@@ -125,6 +138,14 @@ nonisolated struct AgentEvent: Equatable, Sendable {
             return AgentEvent(kind: .finished, project: project, sessionID: session)
         case "clear":
             return AgentEvent(kind: .clear, project: project, sessionID: session)
+        case "turn":
+            return AgentEvent(kind: .turnStart, project: project, sessionID: session)
+        case "end":
+            return AgentEvent(kind: .sessionEnd, project: project, sessionID: session)
+        case "tool":
+            guard let name = payload?["tool_name"] as? String, name != "AskUserQuestion" else { return nil }
+            let call = ToolCall(name: name, input: payload?["tool_input"] as? [String: Any] ?? [:], cwd: cwd)
+            return AgentEvent(kind: .toolStart, project: project, sessionID: session, tool: call)
         case "permission":
             guard let tool = payload?["tool_name"] as? String else { return nil }
             let input = payload?["tool_input"] as? [String: Any] ?? [:]
@@ -179,7 +200,7 @@ nonisolated struct AgentEvent: Equatable, Sendable {
         text.count > limit ? String(text.prefix(limit)) + "…" : text
     }
 
-    /// `--agent-event=stop|notify|permission|question|clear[,projet]` substitue un événement fixe aux
+    /// `--agent-event=stop|notify|permission|permission-long|question|clear|work[,projet]` substitue un événement fixe aux
     /// hooks, pour vérifier la notification sans lancer Claude Code.
     static func fromLaunchArguments(_ arguments: [String] = CommandLine.arguments) -> AgentEvent? {
         guard let argument = arguments.first(where: { $0.hasPrefix("--agent-event=") }) else { return nil }
@@ -190,10 +211,27 @@ nonisolated struct AgentEvent: Equatable, Sendable {
         case "stop": return AgentEvent(kind: .finished, project: project)
         case "notify": return AgentEvent(kind: .needsInput, project: project)
         case "clear": return AgentEvent(kind: .clear, project: project)
-        case "permission":
+        case "work":
+            let code = """
+                import { Item } from './types'
+
+                const TVA = 0.196
+
+                export function total(items: Item[]) {
+                  const sum = items.reduce((s, i) => s + i.price, 0)
+                  return sum * (1 + TVA)
+                }
+                """
+            let call = ToolCall(
+                name: "Edit", step: .edit, filePath: "src/invoice.ts", snippet: ToolCall.lines(of: code), startLine: 10)
+            return AgentEvent(kind: .toolStart, project: project, tool: call)
+        case "permission", "permission-long":
+            let detail = kind == "permission"
+                ? "git push origin main"
+                : "rm -rf node_modules .next dist && npm install --legacy-peer-deps && npm run build -- --profile --verbose"
             return AgentEvent(
-                kind: .needsInput, project: project,
-                prompt: .tool(name: "Bash", detail: "rm -rf node_modules && npm install"))
+                kind: .needsInput, project: project, prompt: .tool(name: "Bash", detail: detail),
+                replyID: "simulated")
         case "question":
             let options = [
                 Option(label: "React", detail: "Component library"),

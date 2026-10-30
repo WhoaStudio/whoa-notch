@@ -122,9 +122,13 @@ struct NowPlayingViewModelTests {
 
         model.receive(nil)
         #expect(emitted.count == 1)
-        try await Task.sleep(for: .milliseconds(150))
+        // Attente bornée plutôt qu'un délai fixe : un runner CI chargé peut dépasser 100 ms.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while emitted.count < 2, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         #expect(emitted.count == 2)
-        #expect(emitted[1] == nil)
+        #expect(emitted.last == .some(nil))
     }
 
     @Test("une pause garde le titre affiché le temps du délai, et reprendre annule le masquage")

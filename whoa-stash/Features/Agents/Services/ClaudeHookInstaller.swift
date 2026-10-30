@@ -36,11 +36,13 @@ nonisolated struct ClaudeHookInstaller {
         ("Notification", "notify", "permission_prompt|idle_prompt|elicitation_dialog"),
         ("PermissionRequest", "permission", nil),
         ("PreToolUse", "question", "AskUserQuestion"),
+        // Chaque outil qui démarre fait avancer la carte d'activité de l'onglet AI.
+        ("PreToolUse", "tool", nil),
         // La demande se lève au premier événement suivant de la session : aucun hook ne signale la réponse.
         ("PostToolUse", "clear", nil),
         ("PostToolUseFailure", "clear", nil),
-        ("UserPromptSubmit", "clear", nil),
-        ("SessionEnd", "clear", nil),
+        ("UserPromptSubmit", "turn", nil),
+        ("SessionEnd", "end", nil),
     ]
 
     let settingsURL: URL
@@ -67,27 +69,34 @@ nonisolated struct ClaudeHookInstaller {
 
     // MARK: - Installation
 
+    /// Remplace nos entrées par celles d'aujourd'hui : une installation plus ancienne, aux arguments
+    /// différents, ne laisse pas de doublon. Les hooks des autres ne bougent pas.
     func install() throws {
         var root = try readRoot()
         let original = try? Data(contentsOf: settingsURL)
 
         try writeScript()
-        var changed = false
         var hooks = root["hooks"] as? [String: Any] ?? [:]
-        for event in Self.events where !hasEntry(in: root, event: event.name, argument: event.argument) {
+        for (name, value) in hooks {
+            guard let groups = value as? [[String: Any]] else { continue }
+            let kept = withoutOurs(groups)
+            hooks[name] = kept.isEmpty ? nil : kept
+        }
+        for event in Self.events {
             var group: [String: Any] = ["hooks": [["type": "command", "command": command(event.argument)]]]
             if let matcher = event.matcher { group["matcher"] = matcher }
             hooks[event.name] = (hooks[event.name] as? [Any] ?? []) + [group]
-            changed = true
         }
-        guard changed else { return }
+        var updated = root
+        updated["hooks"] = hooks
+        guard !NSDictionary(dictionary: updated).isEqual(to: root) else { return }
 
         // Un seul `.bak` : le premier, celui du fichier d'avant nous. Une seconde installation
         // qui ne change rien n'arrive pas jusqu'ici.
         if let original, !FileManager.default.fileExists(atPath: backupURL.path) {
             try original.write(to: backupURL, options: .atomic)
         }
-        root["hooks"] = hooks
+        root = updated
         try write(root)
     }
 
@@ -96,13 +105,7 @@ nonisolated struct ClaudeHookInstaller {
         if var hooks = root["hooks"] as? [String: Any] {
             for event in Self.events {
                 guard let groups = hooks[event.name] as? [[String: Any]] else { continue }
-                let kept = groups.compactMap { group -> [String: Any]? in
-                    var group = group
-                    let remaining = (group["hooks"] as? [[String: Any]] ?? []).filter { !isOurs($0) }
-                    if remaining.isEmpty { return nil }
-                    group["hooks"] = remaining
-                    return group
-                }
+                let kept = withoutOurs(groups)
                 hooks[event.name] = kept.isEmpty ? nil : kept
             }
             root["hooks"] = hooks.isEmpty ? nil : hooks
@@ -155,6 +158,17 @@ nonisolated struct ClaudeHookInstaller {
         "'\(scriptURL.path)' \(argument)"
     }
 
+    /// Les groupes de hooks sans nos entrées ; un groupe qui n'avait que les nôtres disparaît.
+    private func withoutOurs(_ groups: [[String: Any]]) -> [[String: Any]] {
+        groups.compactMap { group in
+            var group = group
+            let remaining = (group["hooks"] as? [[String: Any]] ?? []).filter { !isOurs($0) }
+            if remaining.isEmpty { return nil }
+            group["hooks"] = remaining
+            return group
+        }
+    }
+
     private func isOurs(_ hook: [String: Any]) -> Bool {
         (hook["command"] as? String)?.contains(scriptURL.path) == true
     }
@@ -168,6 +182,10 @@ nonisolated struct ClaudeHookInstaller {
 
     /// Le script ne bloque jamais Claude Code : il sort toujours en 0, et sans l'app il ne fait rien.
     /// Il met le JSON du hook sur une ligne, que le serveur lit jusqu'au `\n`.
+    ///
+    /// Les événements d'activité (`tool`, `clear`, `stop`…) sont réduits aux champs utiles et à
+    /// 3 000 caractères par valeur : le serveur lit 64 Ko au plus, et un `Write` ou un résultat de
+    /// lecture dépasse vite. `permission` garde l'entrée entière : la réponse la renvoie.
     ///
     /// Pour `permission`, il reste connecté et attend la réponse de l'encoche, qu'il rend telle quelle
     /// sur sa sortie : Claude Code l'applique et ferme sa boîte de dialogue. La boîte s'ouvre sans
@@ -185,6 +203,18 @@ nonisolated struct ClaudeHookInstaller {
         local $/;
         my $in = <STDIN>;
         $in = "{}" unless defined $in && length $in;
+        if ($kind ne "permission" && $kind ne "question") {
+            require JSON::PP;
+            my $d = eval { JSON::PP::decode_json($in) };
+            if (ref $d eq "HASH") {
+                my %o = map { $_ => $d->{$_} } grep { defined $d->{$_} && !ref $d->{$_} } qw(session_id cwd tool_name);
+                if (ref $d->{tool_input} eq "HASH") {
+                    my $i = $d->{tool_input};
+                    $o{tool_input} = { map { my $v = $i->{$_}; ($_ => (defined $v && !ref $v && length $v > 3000 ? substr($v, 0, 3000) : $v)) } keys %$i };
+                }
+                $in = JSON::PP->new->utf8->canonical->encode(\%o);
+            }
+        }
         $in =~ s/\n//g;
         socket(my $s, PF_UNIX, SOCK_STREAM, 0) or exit 0;
         connect($s, pack_sockaddr_un($path)) or exit 0;

@@ -141,6 +141,11 @@ final class NotchPanelWindow {
         contentView.apply(agentPrompt: agentPrompt)
     }
 
+    /// Ce que fait l'agent ; `nil` retire la carte d'activité.
+    func apply(agentActivity: AgentActivity?) {
+        contentView.apply(agentActivity: agentActivity)
+    }
+
     func showMailMessage(_ message: MailMessage) {
         contentView.showMailMessage(message)
     }

@@ -759,6 +759,10 @@ final class NotchPanelContentView: NSView {
         usageTab.apply(agentPrompt: agentPrompt)
     }
 
+    func apply(agentActivity: AgentActivity?) {
+        usageTab.apply(agentActivity: agentActivity)
+    }
+
     func showAgentEvent(_ event: AgentEvent) {
         guard !isExpanded else { return }
         hideDeviceStatus(animated: false)

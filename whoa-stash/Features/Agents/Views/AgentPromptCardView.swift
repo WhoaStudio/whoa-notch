@@ -25,6 +25,16 @@ final class AgentPromptCardView: NSView {
 
     private let inset: CGFloat = 18
 
+    /// Demande d'outil avec réponse possible : une pastille d'une ligne (point, « Allow: … ? »,
+    /// Allow, Deny, logo) au lieu de la carte.
+    private let pillView = NSView()
+    private let pillDot = NSView()
+    private let pillLabel = NSTextField(labelWithString: "")
+    private let pillLogoBox = NSView()
+    private let pillLogo = NSImageView()
+    private var isPill = false
+    private let pillHeight: CGFloat = 46
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -56,6 +66,41 @@ final class AgentPromptCardView: NSView {
         hintLabel.textColor = NSColor.white.withAlphaComponent(0.45)
         hintLabel.alignment = .center
         [dotView, projectLabel, sourceLabel, kindLabel, bodyBox, hintLabel].forEach(addSubview)
+
+        let gold = NSColor(calibratedRed: 1, green: 0.72, blue: 0.25, alpha: 1)
+        pillView.wantsLayer = true
+        pillView.layer?.cornerRadius = pillHeight / 2
+        pillView.layer?.backgroundColor = NSColor(calibratedWhite: 0.04, alpha: 1).cgColor
+        pillView.layer?.shadowColor = gold.cgColor
+        pillView.layer?.shadowOpacity = 0.35
+        pillView.layer?.shadowRadius = 8
+        pillView.layer?.shadowOffset = .zero
+        pillDot.wantsLayer = true
+        pillDot.layer?.backgroundColor = NSColor.systemOrange.cgColor
+        pillDot.layer?.cornerRadius = 5
+        pillDot.layer?.shadowColor = NSColor.systemOrange.cgColor
+        pillDot.layer?.shadowOpacity = 0.9
+        pillDot.layer?.shadowRadius = 4
+        pillDot.layer?.shadowOffset = .zero
+        pillLabel.font = .systemFont(ofSize: 13, weight: .bold)
+        pillLabel.textColor = .white
+        pillLabel.lineBreakMode = .byTruncatingTail
+        pillLogoBox.wantsLayer = true
+        pillLogoBox.layer?.cornerRadius = 15
+        pillLogoBox.layer?.backgroundColor = NSColor(calibratedWhite: 0.1, alpha: 1).cgColor
+        pillLogoBox.layer?.borderWidth = 1
+        pillLogoBox.layer?.borderColor = gold.withAlphaComponent(0.6).cgColor
+        pillLogoBox.layer?.shadowColor = gold.cgColor
+        pillLogoBox.layer?.shadowOpacity = 0.6
+        pillLogoBox.layer?.shadowRadius = 6
+        pillLogoBox.layer?.shadowOffset = .zero
+        pillLogo.image = NSImage(named: "ClaudeLogo")
+            ?? NSImage(systemSymbolName: "sparkle", accessibilityDescription: nil)
+        pillLogo.imageScaling = .scaleProportionallyUpOrDown
+        pillLogoBox.addSubview(pillLogo)
+        [pillDot, pillLabel, pillLogoBox].forEach(pillView.addSubview)
+        pillView.isHidden = true
+        addSubview(pillView)
     }
 
     @available(*, unavailable)
@@ -65,6 +110,19 @@ final class AgentPromptCardView: NSView {
 
     func apply(_ event: AgentEvent) {
         self.event = event
+        if case .tool(let name, let detail) = event.prompt, event.replyID != nil {
+            isPill = true
+            let command = (detail.isEmpty ? name : detail)
+                .components(separatedBy: .newlines).joined(separator: " ")
+            pillLabel.stringValue = "Allow: \(command)?"
+            pillView.toolTip = detail.isEmpty ? name : detail
+        } else {
+            isPill = false
+            pillView.toolTip = nil
+        }
+        layer?.backgroundColor = (isPill ? NSColor.clear : NSColor.white.withAlphaComponent(0.07)).cgColor
+        pillView.isHidden = !isPill
+        [dotView, projectLabel, sourceLabel, kindLabel, bodyBox, hintLabel].forEach { $0.isHidden = isPill }
         rebuildButtons(for: event)
         projectLabel.stringValue = event.project
         let body = NSMutableAttributedString()
@@ -109,11 +167,11 @@ final class AgentPromptCardView: NSView {
         guard event.replyID != nil else { return [] }
         switch event.prompt {
         case .tool:
-            return [("Deny", .secondary, .deny), ("Allow", .primary, .allow)]
+            return [("Allow", .allow, .allow), ("Deny", .deny, .deny)]
         case .questions(let questions):
             guard questions.count == 1, let question = questions.first, !question.multiSelect else { return [] }
             return question.options.prefix(4).map {
-                ($0.label, .primary, .answer([question.text: $0.label]))
+                ($0.label, .allow, .answer([question.text: $0.label]))
             }
         default:
             return []
@@ -128,15 +186,19 @@ final class AgentPromptCardView: NSView {
                 guard let self, let event = self.event else { return }
                 self.onDecision?(event, action.decision)
             }
-            addSubview(button)
+            (isPill ? pillView : self).addSubview(button)
             return button
         }
-        hintLabel.isHidden = !buttons.isEmpty
+        hintLabel.isHidden = isPill || !buttons.isEmpty
         needsLayout = true
     }
 
     override func layout() {
         super.layout()
+        if isPill {
+            layoutPill()
+            return
+        }
         let top = bounds.maxY - 14
         dotView.frame = NSRect(x: inset, y: top - 16 + 5, width: 8, height: 8)
         projectLabel.sizeToFit()
@@ -163,13 +225,34 @@ final class AgentPromptCardView: NSView {
         bodyLabel.preferredMaxLayoutWidth = bodyBox.bounds.width - 20
         bodyLabel.frame = bodyBox.bounds.insetBy(dx: 10, dy: 8)
     }
+
+    /// Seul le texte rétrécit : boutons et logo gardent leur largeur, une longue commande est tronquée.
+    private func layoutPill() {
+        pillView.frame = NSRect(x: 0, y: bounds.maxY - pillHeight, width: bounds.width, height: pillHeight)
+        let h = pillView.bounds.height
+        let buttonSize = CGSize(width: 66, height: 30)
+        let logoSize: CGFloat = 30
+        let gap: CGFloat = 8
+        pillLogoBox.frame = NSRect(x: pillView.bounds.maxX - 10 - logoSize, y: (h - logoSize) / 2, width: logoSize, height: logoSize)
+        pillLogo.frame = pillLogoBox.bounds.insetBy(dx: 5, dy: 5)
+        var right = pillLogoBox.frame.minX - gap - 2
+        for button in buttons.reversed() {
+            right -= buttonSize.width
+            button.frame = NSRect(origin: NSPoint(x: right, y: (h - buttonSize.height) / 2), size: buttonSize)
+            right -= gap
+        }
+        pillDot.frame = NSRect(x: 18, y: (h - 10) / 2, width: 10, height: 10)
+        let labelHeight = pillLabel.intrinsicContentSize.height
+        let labelX = pillDot.frame.maxX + 10
+        pillLabel.frame = NSRect(x: labelX, y: (h - labelHeight) / 2, width: max(0, right - labelX), height: labelHeight)
+    }
 }
 
 
 /// Bouton plat de la carte : fond arrondi, plus clair au survol.
 private final class PromptButton: NSView {
 
-    enum Style { case primary, secondary }
+    enum Style { case allow, deny }
 
     var onClick: (() -> Void)?
 
@@ -182,9 +265,10 @@ private final class PromptButton: NSView {
         label = NSTextField(labelWithString: title)
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 10
         label.font = .systemFont(ofSize: 13, weight: .semibold)
-        label.textColor = style == .primary ? .black : .white
+        label.textColor = style == .allow
+            ? NSColor(calibratedRed: 0.12, green: 0.30, blue: 0.10, alpha: 1)
+            : NSColor(calibratedRed: 1, green: 0.62, blue: 0.64, alpha: 1)
         label.alignment = .center
         label.lineBreakMode = .byTruncatingTail
         addSubview(label)
@@ -198,13 +282,16 @@ private final class PromptButton: NSView {
 
     override func layout() {
         super.layout()
+        layer?.cornerRadius = bounds.height / 2
         let height = label.intrinsicContentSize.height
         label.frame = NSRect(x: 8, y: (bounds.height - height) / 2, width: max(0, bounds.width - 16), height: height)
     }
 
     private func updateBackground() {
-        let base: NSColor = style == .primary ? .systemOrange : NSColor.white.withAlphaComponent(0.14)
-        layer?.backgroundColor = (isHovered ? base.withAlphaComponent(style == .primary ? 0.85 : 0.24) : base).cgColor
+        let base = style == .allow
+            ? NSColor(calibratedRed: 0.78, green: 0.91, blue: 0.62, alpha: 1)
+            : NSColor(calibratedRed: 0.26, green: 0.12, blue: 0.11, alpha: 1)
+        layer?.backgroundColor = (isHovered ? base.withAlphaComponent(0.8) : base).cgColor
     }
 
     override func updateTrackingAreas() {
