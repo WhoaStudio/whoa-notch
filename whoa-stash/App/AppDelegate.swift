@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var claudeUsageViewModel: ClaudeUsageViewModel?
     private var copilotUsageViewModel: CopilotUsageViewModel?
     private var calendarAgendaViewModel: CalendarAgendaViewModel?
+    private var codexUsageViewModel: CodexUsageViewModel?
+    private var agentActivityViewModel: AgentActivityViewModel?
     private var overlayPaletteSettings: OverlayPaletteSettings?
     private var shortcutCancellable: AnyCancellable?
     private var knockController: KnockController?
@@ -317,9 +319,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         calendarAgendaViewModel = calendarViewModel
 
         calendarViewModel.onStateChanged = { [weak self] in
+        let codexProvider: CodexUsageProviding = MockCodexUsageProvider.fromLaunchArguments() ?? CodexUsageService()
+        let codexViewModel = CodexUsageViewModel(provider: codexProvider)
+        codexUsageViewModel = codexViewModel
+
+        codexViewModel.onStateChanged = { [weak self] in
+            guard let self, let state = self.codexUsageViewModel?.state else { return }
+            self.notchPanelController?.apply(codexUsageState: state)
+        }
+
+        codexViewModel.activate()
+
+        // Activité des agents : un seul modèle lit les journaux pour tous les panneaux ; les
+        // filtres se recalculent dans la vue, sans relire.
+        let activityProvider: AgentActivityProviding =
+            MockAgentActivityProvider.fromLaunchArguments() ?? LocalAgentActivityService()
+        let activityViewModel = AgentActivityViewModel(provider: activityProvider)
+        agentActivityViewModel = activityViewModel
+        activityViewModel.onChanged = { [weak self] in
+            guard let self, let model = self.agentActivityViewModel else { return }
+            self.notchPanelController?.apply(activityRecords: model.records, isLoading: model.isLoading)
+        }
+        notchPanelController?.onLoadActivity = { [weak self] offset in
+            self?.agentActivityViewModel?.load(monthOffset: offset)
+        }
+        activityViewModel.load()
+
             guard let self, let state = self.calendarAgendaViewModel?.state else { return }
             self.notchPanelController?.apply(agendaState: state)
         }
+            self?.codexUsageViewModel?.refresh()
+            self?.agentActivityViewModel?.load()
 
         calendarViewModel.activate()
 

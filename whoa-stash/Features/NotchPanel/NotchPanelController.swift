@@ -46,6 +46,9 @@ final class NotchPanelController {
 
     private var usageState: ClaudeUsageState = .loading
     private var copilotUsageState: CopilotUsageState = .loading
+    private var codexUsageState: CodexUsageState = .loading
+    private var activityRecords: [ActivityRecord] = []
+    private var isLoadingActivity = true
 
     /// Dernier agenda connu, rejoué sur chaque panneau neuf : il y en a un par écran, et un
     /// écran branché après la première lecture ne doit pas rester sur un widget vide.
@@ -287,6 +290,21 @@ final class NotchPanelController {
         deviceStatusTask?.cancel()
         if let previous = deviceStatusDisplay, previous != displayID {
             windows[previous]?.hideDeviceStatus()
+    var onLoadActivity: ((Int) -> Void)? {
+        didSet { windows.values.forEach { $0.onLoadActivity = onLoadActivity } }
+    }
+
+    func apply(activityRecords records: [ActivityRecord], isLoading: Bool) {
+        activityRecords = records
+        isLoadingActivity = isLoading
+        windows.values.forEach { $0.apply(activityRecords: records, isLoading: isLoading) }
+    }
+
+    func apply(codexUsageState newState: CodexUsageState) {
+        codexUsageState = newState
+        windows.values.forEach { $0.apply(codexUsageState: newState) }
+    }
+
         }
         deviceStatusDisplay = displayID
         window.showDeviceStatus(status)
@@ -573,6 +591,8 @@ final class NotchPanelController {
             let window = windows[displayID]
         else {
             collapseActive()
+        window.apply(codexUsageState: codexUsageState)
+        window.apply(activityRecords: activityRecords, isLoading: isLoadingActivity)
             return
         }
 
@@ -654,6 +674,8 @@ final class NotchPanelController {
 
     // MARK: - Écrans
 
+        window.apply(codexUsageState: codexUsageState)
+        window.apply(activityRecords: activityRecords, isLoading: isLoadingActivity)
     private func rebuildWindows() {
         var connected: Set<CGDirectDisplayID> = []
 
@@ -721,7 +743,10 @@ final class NotchPanelController {
         guard pollTimer == nil else { return }
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.handleCursor(at: NSEvent.mouseLocation) }
+        window.apply(codexUsageState: codexUsageState)
+        window.apply(activityRecords: activityRecords, isLoading: isLoadingActivity)
         }
+                window.onLoadActivity = onLoadActivity
         RunLoop.main.add(timer, forMode: .common)
         pollTimer = timer
     }

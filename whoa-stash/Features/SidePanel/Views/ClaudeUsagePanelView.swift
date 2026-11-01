@@ -131,7 +131,7 @@ final class ClaudeUsagePanelView: NSView {
         case .loading:
             sessionRow.applyPlaceholder(detail: "Loading…")
             allModelsRow.applyPlaceholder(detail: "Loading…")
-        case .unavailable(let reason):
+        case .unavailable(let reason), .expired(let reason):
             sessionRow.applyPlaceholder(detail: reason)
             allModelsRow.applyPlaceholder(detail: "")
         }

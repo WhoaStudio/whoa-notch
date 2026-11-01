@@ -44,7 +44,9 @@ final class CodexUsageViewModel {
             do {
                 self.state = .loaded(try await provider.fetchSnapshot())
             } catch {
-                if self.state.snapshot == nil {
+                if CodexUsageState.requiresLogin(error) {
+                    self.state = .expired(reason: error.localizedDescription)
+                } else if self.state.snapshot == nil {
                     self.state = .unavailable(reason: error.localizedDescription)
                 }
                 Log.sidePanel.error("rafraîchissement de l'utilisation Codex échoué — \(error.localizedDescription, privacy: .public)")

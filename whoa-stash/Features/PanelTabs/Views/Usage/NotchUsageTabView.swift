@@ -23,6 +23,9 @@ final class NotchUsageTabView: NSView {
         set { promptCard.onDecision = newValue }
     }
 
+    /// Demande la lecture des journaux jusqu'au mois `offset` (0 : le mois en cours).
+    var onLoadActivity: ((Int) -> Void)?
+
     private let header = NotchUsageHeaderView()
     private let card = NotchUsageCardView()
     private let pills: [NotchUsageFilterPillView]
@@ -34,10 +37,15 @@ final class NotchUsageTabView: NSView {
     private let activityCard = AgentActivityCardView()
     private var agentActivity: AgentActivity?
 
+    private var activityRecords: [ActivityRecord] = []
+    private var isLoadingActivity = true
+    private var filter = ActivityFilter()
+    private let calendar = Calendar.current
+
     private var selectedProvider: NotchUsageProvider = .claude
     private var readings: [NotchUsageProvider: NotchUsageReading] = [
         .claude: .loading(windowLabel: "5H"),
-        .codex: .codex,
+        .codex: .loading(windowLabel: "7D"),
         .copilot: .loading(windowLabel: "MO"),
     ]
 
@@ -45,8 +53,6 @@ final class NotchUsageTabView: NSView {
     private let pillGap: CGFloat = 8
 
     override init(frame frameRect: NSRect) {
-        // TODO: pastilles inertes tant qu'aucune source n'offre de période, d'agents, de modèles
-        // ni de projets à filtrer.
         pills = ["Month", "All agents", "All models", "All projects"].map {
             NotchUsageFilterPillView(title: $0)
         }
@@ -59,9 +65,21 @@ final class NotchUsageTabView: NSView {
         addSubview(activityCard)
         addSubview(promptCard)
 
+        let menus: [() -> NSMenu] = [
+            { [weak self] in self?.monthMenu() ?? NSMenu() },
+            { [weak self] in self?.agentMenu() ?? NSMenu() },
+            { [weak self] in self?.modelMenu() ?? NSMenu() },
+            { [weak self] in self?.projectMenu() ?? NSMenu() },
+        ]
+        for (pill, menu) in zip(pills, menus) {
+            pill.makeMenu = menu
+            pill.onTitleChanged = { [weak self] in self?.needsLayout = true }
+        }
+
         header.onSelect = { [weak self] provider in self?.select(provider, animated: true) }
         for provider in NotchUsageProvider.allCases { refresh(provider) }
         header.select(selectedProvider)
+        updateActivity()
     }
 
     @available(*, unavailable)
@@ -73,6 +91,10 @@ final class NotchUsageTabView: NSView {
 
     func apply(claude state: ClaudeUsageState) {
         update(.claude, NotchUsageReading.claude(state))
+    }
+
+    func apply(codex state: CodexUsageState) {
+        update(.codex, NotchUsageReading.codex(state))
     }
 
     func apply(copilot state: CopilotUsageState) {
@@ -104,9 +126,118 @@ final class NotchUsageTabView: NSView {
         needsLayout = true
     }
 
-    /// Remet le mois à jour — appelé à chaque dépliage.
+    /// Remet le mois à jour et relit les journaux — appelé à chaque dépliage.
     func refreshPeriod() {
         activity.refreshPeriod()
+        onLoadActivity?(filter.monthOffset)
+    }
+
+    /// Requêtes lues dans les journaux : les mesures et les menus de filtre en sont recalculés.
+    func apply(activityRecords records: [ActivityRecord], isLoading: Bool) {
+        activityRecords = records
+        isLoadingActivity = isLoading
+        updateActivity()
+    }
+
+    // MARK: - Filtres
+
+    private static let monthTitleFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMM yyyy")
+        return formatter
+    }()
+
+    private func monthStart(offset: Int) -> Date {
+        ActivityAggregator.month(offset: offset, now: Date(), calendar: calendar).start
+    }
+
+    /// Entrée de menu dont l'action est une closure, rangée dans `representedObject`.
+    private final class MenuAction {
+        let run: () -> Void
+        init(_ run: @escaping () -> Void) { self.run = run }
+    }
+
+    private func menuItem(title: String, isSelected: Bool, handler: @escaping () -> Void) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(menuItemChosen(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = MenuAction(handler)
+        item.state = isSelected ? .on : .off
+        return item
+    }
+
+    @objc private func menuItemChosen(_ item: NSMenuItem) {
+        (item.representedObject as? MenuAction)?.run()
+    }
+
+    private func monthMenu() -> NSMenu {
+        let menu = NSMenu()
+        for offset in 0..<6 {
+            let title = Self.monthTitleFormatter.string(from: monthStart(offset: offset))
+            menu.addItem(menuItem(title: title, isSelected: filter.monthOffset == offset) { [weak self] in
+                guard let self else { return }
+                filter = ActivityFilter(monthOffset: offset, agent: filter.agent)
+                onLoadActivity?(offset)
+                updateActivity()
+            })
+        }
+        return menu
+    }
+
+    private func agentMenu() -> NSMenu {
+        let menu = NSMenu()
+        let choices: [(String, ActivityAgent?)] = [("All agents", nil)] + ActivityAgent.allCases.map { ($0.title, $0) }
+        for (title, agent) in choices {
+            menu.addItem(menuItem(title: title, isSelected: filter.agent == agent) { [weak self] in
+                guard let self else { return }
+                // Modèles et projets proposés dépendent de l'agent : on repart de zéro.
+                filter = ActivityFilter(monthOffset: filter.monthOffset, agent: agent)
+                updateActivity()
+            })
+        }
+        return menu
+    }
+
+    private func modelMenu() -> NSMenu {
+        valueMenu(allTitle: "All models", values: options().models, selected: filter.model) { $0.filter.model = $1 }
+    }
+
+    private func projectMenu() -> NSMenu {
+        valueMenu(allTitle: "All projects", values: options().projects, selected: filter.project) { $0.filter.project = $1 }
+    }
+
+    private func valueMenu(
+        allTitle: String, values: [String], selected: String?,
+        assign: @escaping (NotchUsageTabView, String?) -> Void
+    ) -> NSMenu {
+        let menu = NSMenu()
+        let choices: [(String, String?)] = [(allTitle, nil)] + values.map { ($0, $0) }
+        for (title, value) in choices {
+            menu.addItem(menuItem(title: title, isSelected: selected == value) { [weak self] in
+                guard let self else { return }
+                assign(self, value)
+                updateActivity()
+            })
+        }
+        return menu
+    }
+
+    private func options() -> ActivityOptions {
+        ActivityAggregator.options(records: activityRecords, filter: filter, now: Date(), calendar: calendar)
+    }
+
+    /// Recalcule les mesures et le libellé des pastilles à partir des requêtes déjà lues : changer
+    /// un filtre ne relit rien.
+    private func updateActivity() {
+        let summary = isLoadingActivity && activityRecords.isEmpty
+            ? nil
+            : ActivityAggregator.summarize(records: activityRecords, filter: filter, now: Date(), calendar: calendar)
+        activity.apply(summary: summary, period: monthStart(offset: filter.monthOffset))
+
+        pills[0].title = filter.monthOffset == 0
+            ? "Month" : Self.monthTitleFormatter.string(from: monthStart(offset: filter.monthOffset))
+        pills[1].title = filter.agent?.title ?? "All agents"
+        pills[2].title = filter.model ?? "All models"
+        pills[3].title = filter.project ?? "All projects"
     }
 
     private func update(_ provider: NotchUsageProvider, _ reading: NotchUsageReading) {

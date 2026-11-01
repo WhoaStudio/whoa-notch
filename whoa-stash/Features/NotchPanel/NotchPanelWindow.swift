@@ -145,6 +145,19 @@ final class NotchPanelWindow {
     func apply(agentActivity: AgentActivity?) {
         contentView.apply(agentActivity: agentActivity)
     }
+    var onLoadActivity: ((Int) -> Void)? {
+        get { contentView.onLoadActivity }
+        set { contentView.onLoadActivity = newValue }
+    }
+
+    func apply(activityRecords: [ActivityRecord], isLoading: Bool) {
+        contentView.apply(activityRecords: activityRecords, isLoading: isLoading)
+    }
+
+    func apply(codexUsageState: CodexUsageState) {
+        contentView.apply(codexUsageState: codexUsageState)
+    }
+
 
     func showMailMessage(_ message: MailMessage) {
         contentView.showMailMessage(message)

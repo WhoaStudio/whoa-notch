@@ -276,6 +276,18 @@ final class NotchPanelContentView: NSView {
         case .mirror: mirrorTab
         case .ai: usageTab
         }
+    var onLoadActivity: ((Int) -> Void)? {
+        didSet { usageTab.onLoadActivity = onLoadActivity }
+    }
+
+    func apply(activityRecords: [ActivityRecord], isLoading: Bool) {
+        usageTab.apply(activityRecords: activityRecords, isLoading: isLoading)
+    }
+
+    func apply(codexUsageState: CodexUsageState) {
+        usageTab.apply(codex: codexUsageState)
+    }
+
     }
 
     func apply(clipboardItems: [ClipboardItem]) {

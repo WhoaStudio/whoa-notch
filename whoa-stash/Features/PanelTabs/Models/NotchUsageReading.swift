@@ -14,6 +14,23 @@ enum NotchUsageProvider: Int, CaseIterable {
         }
     }
 
+    /// Commande qui rouvre la connexion de l'agent.
+    var loginCommand: String {
+        switch self {
+        case .claude: "claude"
+        case .codex: "codex"
+        case .copilot: "gh auth login"
+        }
+    }
+
+    var windowLabel: String {
+        switch self {
+        case .claude: "5H"
+        case .codex: "7D"
+        case .copilot: "MO"
+        }
+    }
+
     var mark: UsageMarkPath {
         switch self {
         case .claude: .claude
@@ -43,6 +60,8 @@ struct NotchUsageReading: Equatable {
     let resetsAt: Date?
     /// Ligne sous la barre, quand la source en fournit une vraie.
     let secondaryLine: String?
+    /// Vrai quand seule une reconnexion répare l'état : la carte propose alors de la lancer.
+    var needsReauth = false
 
     var remainingPercentage: Int? { remaining.map { Int(($0 * 100).rounded()) } }
 
@@ -71,6 +90,10 @@ struct NotchUsageReading: Equatable {
             return .loading(windowLabel: "5H")
         case let .unavailable(reason):
             return .unavailable(windowLabel: "5H", reason: reason)
+        case let .expired(reason):
+            var reading = NotchUsageReading.unavailable(windowLabel: "5H", reason: reason)
+            reading.needsReauth = true
+            return reading
         case let .loaded(snapshot):
             let weekly = Int(((1 - snapshot.allModels.utilization) * 100).rounded())
             return .loaded(
@@ -90,7 +113,42 @@ struct NotchUsageReading: Equatable {
         }
     }
 
-    /// TODO: Codex n'a aucune source de données (`ringSlots` le marque non branché). Tant qu'il
-    /// n'en a pas, son onglet reste vide plutôt que d'afficher un chiffre inventé.
-    static let codex = NotchUsageReading.unavailable(windowLabel: "7D", reason: "Not connected")
+    /// Codex : la fenêtre hebdomadaire porte l'onglet, la session de 5 h passe sous la barre. Un
+    /// forfait qui n'expose que la session de 5 h la montre à la place.
+    static func codex(_ state: CodexUsageState) -> NotchUsageReading {
+        switch state {
+        case .loading:
+            return .loading(windowLabel: "7D")
+        case let .unavailable(reason):
+            return .unavailable(windowLabel: "7D", reason: reason)
+        case let .expired(reason):
+            var reading = NotchUsageReading.unavailable(windowLabel: "7D", reason: reason)
+            reading.needsReauth = true
+            return reading
+        case let .loaded(snapshot):
+            if let weekly = snapshot.weekly {
+                let session = snapshot.fiveHour.map { "5H \(Int(((1 - $0.utilization) * 100).rounded()))% remaining" }
+                return .loaded(windowLabel: "7D", window: weekly, secondaryLine: session)
+            }
+            if let fiveHour = snapshot.fiveHour {
+                return .loaded(windowLabel: "5H", window: fiveHour)
+            }
+            return .unavailable(windowLabel: "7D", reason: "Codex n'a renvoyé aucun quota.")
+        }
+    }
+
+    /// Un fournisseur en échec garde son propre état d'erreur, avec la raison réelle et, quand
+    /// seule une reconnexion y remédie, l'action qui la propose.
+    static func failure(of provider: NotchUsageProvider, error: Error) -> NotchUsageReading {
+        var reading = NotchUsageReading.unavailable(windowLabel: provider.windowLabel, reason: error.localizedDescription)
+        switch provider {
+        case .claude:
+            if case ClaudeUsageCredentialError.expired = error { reading.needsReauth = true }
+        case .codex:
+            reading.needsReauth = CodexUsageState.requiresLogin(error)
+        case .copilot:
+            break
+        }
+        return reading
+    }
 }
