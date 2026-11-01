@@ -17,14 +17,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
     private var clipboardHistoryViewModel: ClipboardHistoryViewModel?
+    private var notesViewModel: NotesViewModel?
+    private var stayAwakeViewModel: StayAwakeViewModel?
     private var deviceStatusCoordinator: DeviceStatusCoordinator?
     private var nowPlayingViewModel: NowPlayingViewModel?
     private var playingNextViewModel: PlayingNextViewModel?
     private var claudeUsageViewModel: ClaudeUsageViewModel?
     private var copilotUsageViewModel: CopilotUsageViewModel?
-    private var calendarAgendaViewModel: CalendarAgendaViewModel?
     private var codexUsageViewModel: CodexUsageViewModel?
     private var agentActivityViewModel: AgentActivityViewModel?
+    private var calendarAgendaViewModel: CalendarAgendaViewModel?
     private var overlayPaletteSettings: OverlayPaletteSettings?
     private var shortcutCancellable: AnyCancellable?
     private var knockController: KnockController?
@@ -100,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // indépendant de la bande du bord droit, que le réglage Général permet de couper.
         notchPanelController = NotchPanelController(storage: settings)
         notchPanelController?.activate()
+        notchPanelController?.showLaunchGreeting()
 
         // Pastille d'état d'un appareil audio Bluetooth qui se connecte, affichée sous l'encoche.
         // `--simulate-bluetooth-device=airpodsmax,82` en simule un (voir `DeviceStatus`).
@@ -157,6 +160,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notchPanelController?.clipboardImageURL = { [weak clipboard] item in clipboard?.store.imageURL(for: item) }
         clipboard.activate()
         clipboardHistoryViewModel = clipboard
+
+        // Notes de l'onglet Notes, stockées dans Application Support.
+        let notes = NotesViewModel()
+        notes.onStateChanged = { [weak self] notes in
+            self?.notchPanelController?.apply(notes: notes)
+        }
+        notchPanelController?.onCreateNote = { [weak notes] in notes?.create() }
+        notchPanelController?.onEditNote = { [weak notes] id, text in notes?.update(id: id, text: text) }
+        notchPanelController?.onDeleteNote = { [weak notes] id in notes?.delete(id: id) }
+        notes.activate()
+        notesViewModel = notes
+
+        // Stay Awake : garde le Mac (et l'écran, au choix) éveillé le temps demandé. Relâché à la fin
+        // du minuteur, à « Turn Off » et à la fermeture de l'app. `--stay-awake=mock` branche une
+        // fausse source qui ne touche pas à la gestion d'énergie.
+        let stayAwake = StayAwakeViewModel(
+            provider: MockStayAwakeProvider.fromLaunchArguments() ?? IOKitStayAwakeProvider())
+        stayAwake.onStateChanged = { [weak self] state in
+            self?.notchPanelController?.apply(stayAwakeState: state)
+        }
+        notchPanelController?.onStayAwakeAction = { [weak stayAwake] action in stayAwake?.handle(action) }
+        stayAwake.activate()
+        stayAwakeViewModel = stayAwake
 
         // Détection de coups sur le châssis par l'accéléromètre : une action par motif (simple,
         // double), réglée dans les Préférences. `--knock=single|double` en simule un (voir
@@ -249,6 +275,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.$settings.map { DockWorkspaceState(list: $0.dock.workspaces, activeID: $0.dock.activeWorkspaceID) }
             .removeDuplicates()
             .sink { [weak dock] in dock?.apply(workspaces: $0.list, activeID: $0.activeID) }.store(in: &dockCancellables)
+        dock.apply(theme: settings.settings.dock.theme)
+        settings.$settings.map(\.dock.theme).removeDuplicates()
+            .sink { [weak dock] in dock?.apply(theme: $0) }.store(in: &dockCancellables)
         settings.$settings.map(\.dock.autoHide).removeDuplicates()
             .sink { [weak dock] in dock?.apply(autoHide: $0) }.store(in: &dockCancellables)
         // Raccourci du dock : montre/cache le dock en basculant « Show dock ».
@@ -303,22 +332,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         copilotViewModel.activate()
 
-        notchPanelController?.onRefreshUsage = { [weak self] in
-            self?.claudeUsageViewModel?.refresh()
-            self?.copilotUsageViewModel?.refresh()
-        }
-
-        // Agenda du jour : une seule lecture des calendriers alimente tous les panneaux, il y en
-        // a un par écran.
-        // `--calendar-agenda=denied` substitue une journée fixe à la vraie source (voir
-        // `MockCalendarAgendaProvider`), pour atteindre l'écriteau d'accès refusé sans révoquer
-        // l'autorisation de l'app dans les Réglages Système.
-        let calendarProvider: CalendarAgendaProviding =
-            MockCalendarAgendaProvider.fromLaunchArguments() ?? EventKitCalendarService()
-        let calendarViewModel = CalendarAgendaViewModel(provider: calendarProvider)
-        calendarAgendaViewModel = calendarViewModel
-
-        calendarViewModel.onStateChanged = { [weak self] in
         let codexProvider: CodexUsageProviding = MockCodexUsageProvider.fromLaunchArguments() ?? CodexUsageService()
         let codexViewModel = CodexUsageViewModel(provider: codexProvider)
         codexUsageViewModel = codexViewModel
@@ -345,11 +358,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         activityViewModel.load()
 
+        notchPanelController?.onRefreshUsage = { [weak self] in
+            self?.claudeUsageViewModel?.refresh()
+            self?.copilotUsageViewModel?.refresh()
+            self?.codexUsageViewModel?.refresh()
+            self?.agentActivityViewModel?.load()
+        }
+
+        // Agenda du jour : une seule lecture des calendriers alimente tous les panneaux, il y en
+        // a un par écran.
+        // `--calendar-agenda=denied` substitue une journée fixe à la vraie source (voir
+        // `MockCalendarAgendaProvider`), pour atteindre l'écriteau d'accès refusé sans révoquer
+        // l'autorisation de l'app dans les Réglages Système.
+        let calendarProvider: CalendarAgendaProviding =
+            MockCalendarAgendaProvider.fromLaunchArguments() ?? EventKitCalendarService()
+        let calendarViewModel = CalendarAgendaViewModel(provider: calendarProvider)
+        calendarAgendaViewModel = calendarViewModel
+
+        calendarViewModel.onStateChanged = { [weak self] in
             guard let self, let state = self.calendarAgendaViewModel?.state else { return }
             self.notchPanelController?.apply(agendaState: state)
         }
-            self?.codexUsageViewModel?.refresh()
-            self?.agentActivityViewModel?.load()
 
         calendarViewModel.activate()
 
@@ -387,6 +416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Le Dock macOS doit revenir tel que l'utilisateur l'avait, même si le réglage reste actif :
         // au prochain lancement il sera masqué de nouveau.
         systemDockService?.restore()
+        stayAwakeViewModel?.turnOff()
         agentHookServer.stop()
     }
 }

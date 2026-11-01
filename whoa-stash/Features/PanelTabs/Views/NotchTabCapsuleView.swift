@@ -26,7 +26,7 @@ final class NotchTabCapsuleView: NSView {
     /// Largeur de la capsule : les bulles des onglets, leurs écarts, et les deux marges. Une constante — rien de ce qu'elle porte ne change de taille —, dont
     /// le panneau se sert pour centrer la capsule sous lui.
     static var width: CGFloat {
-        let count = CGFloat(NotchTab.allCases.count)
+        let count = CGFloat(NotchTab.barTabs.count)
         return 2 * TabBarMetrics.capsuleHorizontalPadding
             + count * TabBarMetrics.bubbleSize
             + max(0, count - 1) * TabBarMetrics.bubbleSpacing
@@ -34,7 +34,7 @@ final class NotchTabCapsuleView: NSView {
 
     init(selectedTab: NotchTab) {
         self.selectedTab = selectedTab
-        items = NotchTab.allCases.map(NotchTabBubbleView.init(tab:))
+        items = NotchTab.barTabs.map(NotchTabBubbleView.init(tab:))
         super.init(frame: .zero)
         wantsLayer = true
         setUp()
@@ -90,10 +90,17 @@ final class NotchTabCapsuleView: NSView {
             item.setActive(item.tab == selectedTab)
         }
 
-        guard let active = items.first(where: { $0.tab == selectedTab }) else { return }
+        // Un onglet hors de la capsule (Stay Awake) n'a pas de bulle : le cercle s'efface, et
+        // revient sans glisser depuis une place qui n'est plus celle de personne.
+        guard let active = items.first(where: { $0.tab == selectedTab }) else {
+            circleLayer.opacity = 0
+            return
+        }
         let target = active.frame
+        let wasHidden = circleLayer.opacity == 0
+        circleLayer.opacity = 1
 
-        guard animated, !circleLayer.frame.isEmpty else {
+        guard animated, !wasHidden, !circleLayer.frame.isEmpty else {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             circleLayer.frame = target

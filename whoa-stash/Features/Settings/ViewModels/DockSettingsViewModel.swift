@@ -52,6 +52,10 @@ final class DockSettingsViewModel: ObservableObject {
         storage.settings.dock.autoHide = hide
     }
 
+    func setTheme(_ theme: DockTheme) {
+        storage.settings.dock.theme = theme
+    }
+
     func setToggleHotkey(_ hotkey: DockHotkey) {
         storage.settings.dock.toggleHotkey = hotkey
     }

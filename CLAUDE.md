@@ -13,7 +13,7 @@ macOS menu-bar app (Swift 6, AppKit with a SwiftUI `App` shell) that shows overl
 ## Architecture
 
 - `App/AppDelegate.swift` is the only composition root: it builds every controller and view model and wires their state callbacks together. Add new surfaces there.
-- Features: Brightness, EdgeSlider, Volume, SidePanel, NotchPanel, PanelTabs (notch tab contents), Clipboard, NowPlaying, DeviceStatus, Knock, Settings.
+- Features: Brightness, EdgeSlider, Volume, SidePanel, NotchPanel, PanelTabs (notch tab contents), Clipboard, Notes, Terminal, NowPlaying, DeviceStatus, Knock, StayAwake (IOKit power assertion, opened from the cup button in the notch header), Settings.
 - Features that own windows have a `…Controller` that owns its `NSPanel`s and exposes `activate()`, plus `togglePinnedReveal()` and `apply(…State:)` where relevant. View models push state through `onStateChanged`; they don't hold controllers.
 - Side panel and notch panel keep one window per connected screen and rebuild them when the screen configuration changes.
 - Details: [docs/architecture.md](docs/architecture.md). Network, Keychain and permissions: [docs/external-interfaces.md](docs/external-interfaces.md).

@@ -1,55 +1,20 @@
-# Whoa Stash — icon
+# Whoa Stash — hexagonal chest
 
-A drawer pulled out of its bay on a dark panel: the stash itself, sliding out of the edge
-of the screen. One object, three shapes, no fine detail — it survives down to 16 px.
+The purple open chest is traced geometrically from the supplied reference. All SVG artwork is made of paths, without embedded bitmaps, text or filters.
 
-## Files
+- `icon-master.svg`: colour master; named groups `lid`, `lid-interior`, `clasp`, `body`, `opening`, `eyes` can be animated independently.
+- `icon-small.svg`: colour export source for 16 and 32 px.
+- `menubar.svg`: black and alpha template; eye cutouts use even-odd filling. An 18 pt canvas includes clear space around the silhouette.
+- `icon-1024.png`: rendered colour master.
 
-| File | What it is |
-|---|---|
-| `icon-master.svg` | The master, 1024 canvas. Drives every size from 64 px up. |
-| `icon-small.svg` | Small-size cut for 16 and 32 px: the bay is dropped, the drawer is larger. |
-| `menubar.svg` | Menu-bar template glyph, 18 pt square. Opaque areas get tinted by AppKit, so the handle is a real hole (`fill-rule="evenodd"`). |
-| `icon-1024.png` | Rendered master, for stores and marketing. |
+App icon PNGs live in `whoa-stash/Resources/Assets.xcassets/AppIcon.appiconset`. Settings uses this application icon automatically. Menu bar PNGs at 18 and 36 px live in `MenuBarIcon.imageset`; both the asset and `StatusBarController` enable template rendering so AppKit supplies normal and highlighted colours.
 
-## Colour
+To regenerate PNGs, render each SVG on a transparent square canvas at the destination size. App icon sizes are 16, 32, 64, 128, 256, 512 and 1024 px; use `icon-small.svg` for 16 and 32 px.
 
-| Role | HEX |
-|---|---|
-| Shell, deepest | `#04281C` |
-| Shell, mid | `#0C7A50` |
-| Shell, bright | `#17B873` |
-| Shell, highlight | `#39FF88` |
-| Panel | `#15181A` → `#06080A` |
-| Drawer | `#FFFFFF` |
-| Handle | `#0A0C0E` |
+## Menu animation
 
-`#39FF88` is a brighter, softer green than `OverlayPalette.activeGreen` (`#00FF00`), the active
-tick colour in the brightness and volume overlays. TODO: the icon and the overlays were meant to share one green; they no longer do.
+`MenuBarLid.imageset` and `MenuBarBody.imageset` contain the separate vector template parts from `menubar.svg`. Keep these in sync when changing the glyph. `StatusBarController` composites them at 18 pt, lifting the lid during native menu tracking and closing it on dismissal (180 ms). Reduce Motion switches directly between states.
 
-## Construction
+## Launch greeting
 
-- 1024 canvas; the tile is an 824 px superellipse (`n = 5`), centred, leaving the 100 px
-  margin macOS expects. A drop shadow is baked into `icon-master.svg` for the PNG export.
-- The dark panel is centred horizontally and sits against the top of the tile, so the green
-  reads as a band along the bottom rather than an even frame.
-- No live text, no rasters. The only filter is the macOS drop shadow on the master.
-
-## Where it is wired
-
-- `whoa-stash/Resources/Assets.xcassets/AppIcon.appiconset` — app icon, 16 → 1024.
-  `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` already points at it.
-- `whoa-stash/Resources/Assets.xcassets/MenuBarIcon.imageset` — template glyph used by
-  `StatusBarController`.
-
-## Regenerating
-
-`icon-master.svg` and `icon-small.svg` are the source of truth. Export at 16, 32, 64, 128,
-256, 512 and 1024 with transparency, using the small cut for 16 and 32, then drop the PNGs
-into `AppIcon.appiconset` as `icon_<size>.png`.
-
-## Not covered
-
-- No trademark search was done. Run one before using this commercially.
-- `AppIcons/` at the repo root is an older generated pack (the purple ring) and is now out
-  of date; it is not what the app builds with.
+`LaunchChest.imageset` is the colour master without its eyes; `LaunchEyes.imageset` contains the eyes cropped to viewBox `76 148 104 48`. Keep both in sync with `icon-master.svg`. The notch shows these parts once at launch in its left wing for 3.4 seconds, with finite blink, gaze and head-tilt animations. Reduce Motion and the overlay animation setting keep the mascot still.

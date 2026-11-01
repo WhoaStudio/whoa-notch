@@ -101,6 +101,8 @@ struct DockSettings: Codable, Equatable, Sendable {
     var launchExcluded: [String] = []
     /// Les widgets du dock quand aucun espace n'est actif (« All Apps »). Chaque espace a les siens.
     var widgets: [DockWidgetPlacement] = []
+    /// Fond du dock : `dark` (d'origine) ou `liquidGlass`.
+    var theme: DockTheme = .dark
 
     /// Les applis que « Launch all » ouvre : la liste moins les exclues.
     var launchApps: [DockPinnedApp] { pinnedApps.filter { !launchExcluded.contains($0.bundleID) } }

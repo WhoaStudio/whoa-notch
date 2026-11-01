@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="purple" x2="0.8" y2="1"><stop stop-color="#aaa2ff"/><stop offset="0.45" stop-color="#6550ff"/><stop offset="1" stop-color="#3920dc"/></linearGradient>
+  </defs>
+  <g id="lid"><path d="M40 84 Q35 81 39 71 L46 49 Q48 44 54 41 L120 9 Q128 5 136 9 L202 41 Q208 44 210 49 L217 71 Q221 81 216 84 L198 99 H58 Z" fill="url(#purple)" stroke="#dedaff" stroke-width="3" stroke-linejoin="round"/></g>
+  <g id="lid-interior"><path d="M40 78 Q52 68 68 68 H188 Q204 68 216 78 L198 97 H58 Z" fill="#2914ad" stroke="#b9b0ff" stroke-width="3"/></g>
+  <g id="clasp"><path d="M107 69 H149 V79 Q149 88 140 88 H116 Q107 88 107 79 Z" fill="#d9d3ff"/></g>
+  <g id="body"><path d="M40 116 Q40 109 48 106 L68 99 H188 L208 106 Q216 109 216 116 V173 Q216 184 206 190 L138 226 Q128 232 118 226 L50 190 Q40 184 40 173 Z" fill="url(#purple)" stroke="#dedaff" stroke-width="3"/></g>
+  <g id="opening"><path d="M48 114 L67 104 H189 L208 114 L186 124 H70 Z" fill="#2914ad" stroke="#b9b0ff" stroke-width="3" stroke-linejoin="round"/></g>
+</svg>

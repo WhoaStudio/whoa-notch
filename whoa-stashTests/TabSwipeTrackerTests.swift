@@ -66,8 +66,10 @@ struct TabSwipeTrackerTests {
 
     @Test func lOngletVoisinNeReboucleJamais() {
         #expect(NotchTab.global.neighbor(.previous) == nil)
-        #expect(NotchTab.ai.neighbor(.next) == nil)
+        #expect(NotchTab.terminal.neighbor(.next) == nil)
+        #expect(NotchTab.ai.neighbor(.next) == .terminal)
         #expect(NotchTab.global.neighbor(.next) == .calendar)
         #expect(NotchTab.ai.neighbor(.previous) == .mirror)
+        #expect(NotchTab.terminal.neighbor(.previous) == .ai)
     }
 }

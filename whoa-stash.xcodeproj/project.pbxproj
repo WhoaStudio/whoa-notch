@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		3CBE5D032FFF95A20027578E /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 3CBE5D022FFF95A20027578E /* SwiftTerm */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		3CBE5B112FFF95A20027578E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -40,6 +44,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3CBE5D032FFF95A20027578E /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -92,6 +97,7 @@
 			);
 			name = "whoa-stash";
 			packageProductDependencies = (
+				3CBE5D022FFF95A20027578E /* SwiftTerm */,
 			);
 			productName = "whoa-stash";
 			productReference = 3CBE5A9E2FFF95A20027578E /* whoa-stash.app */;
@@ -148,6 +154,9 @@
 			);
 			mainGroup = 3CBE5A952FFF95A20027578E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3CBE5D012FFF95A20027578E /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3CBE5A9F2FFF95A20027578E /* Products */;
 			projectDirPath = "";
@@ -341,6 +350,7 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Whoa Stash";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAccessibilityUsageDescription = "whoa-stash a besoin de l'accessibilité pour suivre la position du Dock et synchroniser l'extension du Dock avec son apparition/disparition.";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "whoa-stash lit la liste de lecture d'Apple Musique pour afficher les prochains titres dans le panneau de l'encoche.";
@@ -383,6 +393,7 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Whoa Stash";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAccessibilityUsageDescription = "whoa-stash a besoin de l'accessibilité pour suivre la position du Dock et synchroniser l'extension du Dock avec son apparition/disparition.";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "whoa-stash lit la liste de lecture d'Apple Musique pour afficher les prochains titres dans le panneau de l'encoche.";
@@ -477,6 +488,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3CBE5D012FFF95A20027578E /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.99.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3CBE5D022FFF95A20027578E /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3CBE5D012FFF95A20027578E /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 3CBE5A962FFF95A20027578E /* Project object */;
 }

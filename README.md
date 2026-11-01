@@ -9,7 +9,7 @@ It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open
 | Volume dial | Top-left corner | Scroll to set the default output device's volume. |
 | Edge slider | Right edge | Volume slider. |
 | Side panel | Top-right corner | Usage rings for Claude Code and GitHub Copilot, one panel per screen. |
-| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (week strip, a Now Playing player, and a Playing Next column for Apple Music and Spotify), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **Clipboard** (history of the last 50 copies: text, links, images, videos, files), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only), **AI** (the same usage rings). While something plays, the folded notch shows "wings" with the track; a pill under the notch appears when a Bluetooth audio device (AirPods) connects. |
+| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (week strip, a Now Playing player, and a Playing Next column for Apple Music and Spotify), **Calendar** (month grid, agenda, three-week strip), **Tray** (a 4-file drop shelf), **Clipboard** (history of the last 50 copies: text, links, images, videos, files), **Notes** (plain-text notes: a list and an editor, saved in `Application Support/whoa-stash/Notes/`), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only), **AI** (the same usage rings), **Terminal** (your login shell in a real PTY, started the first time the tab is opened and kept alive across folds; the panel stays open while the terminal has the keyboard and folds on a click elsewhere or the shortcut). While something plays, the folded notch shows "wings" with the track; a pill under the notch appears when a Bluetooth audio device (AirPods) connects. |
 | Dock | Bottom centre | Custom dock: placeholder buttons and a "Building" pill (workspaces not built yet), then pinned and running apps (dot = running, globe = web app). Pinned apps are copied once from `com.apple.dock`, never written back. Clicking launches the app or brings its window forward and un-minimises it (needs Accessibility). Preferences ▸ Dock can hide the macOS Dock (auto-hide with a long delay) and restores your original values when turned off or on quit. |
 | Radial menu | Under the cursor, while a mouse button is held | Hold the middle (or back/forward) button, or rest three fingers on the trackpad: a round menu opens centred on the cursor and stays on screen near edges. Move toward an item and release to run it; a short press keeps it open so you can click an item instead. Esc or a click outside closes it. Items are apps (launched) and Shortcuts.app shortcuts (run), added and reordered in Preferences ▸ Radial Menu. Off by default; needs Accessibility, and the chosen button no longer reaches other apps while it is on. |
 | New mail | Notch wings, a few seconds | Sender, subject and the start of the text when a message reaches the inbox of an IMAP account set in Preferences ▸ Mail. The Mac connects directly to the mail server (IMAP IDLE, read-only); the password is in the Keychain. Off by default. Password or app password only, no OAuth yet. |
@@ -19,7 +19,7 @@ It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open
 
 - macOS 26.5 or later (the deployment target)
 - Xcode 26.6 (the version this README was checked with)
-- No Swift packages. The Now Playing source is a vendored copy of [mediaremote-adapter](Vendor/MediaRemoteAdapter/README.md), shipped as `MediaRemoteAdapter.bin` and a Perl script in `whoa-stash/Resources/MediaRemoteAdapter/`.
+- One Swift package: [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (Terminal tab). Xcode asks once to trust its `SwiftTermBuildInfoPlugin` build plugin; `xcodebuild` fails until you do. The Now Playing source is a vendored copy of [mediaremote-adapter](Vendor/MediaRemoteAdapter/README.md), shipped as `MediaRemoteAdapter.bin` and a Perl script in `whoa-stash/Resources/MediaRemoteAdapter/`.
 
 ## Build and run
 
@@ -58,7 +58,8 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 |---|---|
 | `--show-settings[=general\|brightness\|knock\|about]` | Opens Preferences on that pane (default `general`). |
 | `--show-notch-panel` | Unfolds the notch panel without hovering. |
-| `--notch-tab=global\|calendar\|tray\|clipboard\|mirror\|ai` | With `--show-notch-panel`, unfolds on that tab. |
+| `--notch-tab=global\|calendar\|tray\|clipboard\|notes\|mirror\|ai\|terminal\|stay-awake` | With `--show-notch-panel`, unfolds on that tab. |
+| `--stay-awake=mock` | Stay Awake tab with a fake power source: the UI works, no real assertion is taken. |
 | `--show-usage-panel` | Opens the side panel without hovering. |
 | `--dock=sample` | Dock with fixed running apps (Safari, Terminal, Finder) instead of the real ones. |
 | `--show-radial-menu` | Opens the radial menu under the cursor, left open, without the mouse button. |
@@ -73,6 +74,7 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 | `--simulate-bluetooth-device=airpodsmax\|airpodspro[,<battery>]` | Shows the Bluetooth device pill without hardware, for example `airpodsmax,82`. |
 | `--camera-mirror=granted\|denied\|notDetermined` | Fake camera for the Mirror tab: a gradient instead of video, with the given access state. |
 | `--calendar-agenda=granted\|denied\|notDetermined` | A fixed sample day with the given access state. |
+| `--logo-lid=closed\|peek\|open` | With the notch open on Global, freezes the logo's lid in that pose, with no hover or click, to check it. |
 
 ## Credits
 

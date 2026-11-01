@@ -18,11 +18,11 @@ import AppKit
 @MainActor
 final class NotchPanelWindow {
 
-    private let panel: NSPanel
+    private let panel: NotchKeyPanel
     private let contentView = NotchPanelContentView()
 
     init() {
-        panel = NSPanel(
+        panel = NotchKeyPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -41,6 +41,30 @@ final class NotchPanelWindow {
         panel.level = Self.restingLevel
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.contentView = contentView
+        contentView.onKeyboardNeedChanged = { [weak self] in self?.updateKeyboard() }
+    }
+
+    /// Le shell partagé de l'onglet Terminal.
+    var terminalSession: TerminalSession? {
+        get { contentView.terminalSession }
+        set { contentView.terminalSession = newValue }
+    }
+
+    /// Vrai tant que le clavier est dans le terminal ou l'éditeur de notes : le panneau ne doit pas
+    /// se replier sous la main qui tape quand le curseur s'écarte.
+    var holdsKeyboardFocus: Bool { contentView.wantsKeyboard && panel.isKeyWindow }
+
+    /// Le panneau ne prend le clavier que sur les onglets Terminal et Notes dépliés. `.nonactivatingPanel` :
+    /// l'app de devant reste active, seules les touches viennent ici.
+    private func updateKeyboard() {
+        let wants = contentView.wantsKeyboard
+        panel.acceptsKeyboard = wants
+        if wants {
+            panel.makeKey()
+            contentView.focusKeyboardTarget()
+        } else if panel.isKeyWindow {
+            panel.resignKey()
+        }
     }
 
     var frame: NSRect { panel.frame }
@@ -61,6 +85,34 @@ final class NotchPanelWindow {
     var canLaunchAll: Bool {
         get { contentView.canLaunchAll }
         set { contentView.canLaunchAll = newValue }
+    }
+
+    func apply(notes: [Note]) {
+        contentView.apply(notes: notes)
+    }
+
+    var onCreateNote: (() -> Void)? {
+        get { contentView.onCreateNote }
+        set { contentView.onCreateNote = newValue }
+    }
+
+    var onEditNote: ((UUID, String) -> Void)? {
+        get { contentView.onEditNote }
+        set { contentView.onEditNote = newValue }
+    }
+
+    var onDeleteNote: ((UUID) -> Void)? {
+        get { contentView.onDeleteNote }
+        set { contentView.onDeleteNote = newValue }
+    }
+
+    func apply(stayAwakeState: StayAwakeState) {
+        contentView.apply(stayAwakeState: stayAwakeState)
+    }
+
+    var onStayAwakeAction: ((StayAwakeAction) -> Void)? {
+        get { contentView.onStayAwakeAction }
+        set { contentView.onStayAwakeAction = newValue }
     }
 
     func apply(clipboardItems: [ClipboardItem]) {
@@ -102,6 +154,19 @@ final class NotchPanelWindow {
         set { contentView.onRefreshUsage = newValue }
     }
 
+    var onLoadActivity: ((Int) -> Void)? {
+        get { contentView.onLoadActivity }
+        set { contentView.onLoadActivity = newValue }
+    }
+
+    func apply(activityRecords: [ActivityRecord], isLoading: Bool) {
+        contentView.apply(activityRecords: activityRecords, isLoading: isLoading)
+    }
+
+    func apply(codexUsageState: CodexUsageState) {
+        contentView.apply(codexUsageState: codexUsageState)
+    }
+
     func apply(copilotUsageState: CopilotUsageState) {
         contentView.apply(copilotUsageState: copilotUsageState)
     }
@@ -113,6 +178,14 @@ final class NotchPanelWindow {
         contentView.interactiveFrame
             .offsetBy(dx: panel.frame.minX, dy: panel.frame.minY)
             .contains(location)
+    }
+
+    func showLaunchGreeting() {
+        contentView.showLaunchGreeting()
+    }
+
+    func hideLaunchGreeting() {
+        contentView.hideLaunchGreeting()
     }
 
     func showDeviceStatus(_ status: DeviceStatus) {
@@ -145,19 +218,6 @@ final class NotchPanelWindow {
     func apply(agentActivity: AgentActivity?) {
         contentView.apply(agentActivity: agentActivity)
     }
-    var onLoadActivity: ((Int) -> Void)? {
-        get { contentView.onLoadActivity }
-        set { contentView.onLoadActivity = newValue }
-    }
-
-    func apply(activityRecords: [ActivityRecord], isLoading: Bool) {
-        contentView.apply(activityRecords: activityRecords, isLoading: isLoading)
-    }
-
-    func apply(codexUsageState: CodexUsageState) {
-        contentView.apply(codexUsageState: codexUsageState)
-    }
-
 
     func showMailMessage(_ message: MailMessage) {
         contentView.showMailMessage(message)
@@ -272,4 +332,11 @@ final class NotchPanelWindow {
         contentView.stopCamera()
         panel.orderOut(nil)
     }
+}
+
+/// Panneau borderless qui ne peut devenir fenêtre clé que quand l'onglet Terminal le demande :
+/// partout ailleurs il ne vole jamais le clavier à l'app de devant.
+private final class NotchKeyPanel: NSPanel {
+    var acceptsKeyboard = false
+    override var canBecomeKey: Bool { acceptsKeyboard }
 }

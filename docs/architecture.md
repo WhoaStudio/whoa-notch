@@ -25,7 +25,7 @@ the `PanelTabs` views and reuses the `SidePanel` rings.
 1. Returns immediately under XCTest (tests are hosted in the app).
 2. Forces `.darkAqua` and builds `OverlayPaletteSettings` before any window, because views resolve the palette as they are built.
 3. Creates each controller with `SettingsStorage.shared` and calls `activate()`.
-4. Creates the device status coordinator, then the data view models: Now Playing, Playing Next, Clipboard history, Claude usage, Copilot usage and calendar agenda. Each picks a `Mock…Provider` when its launch flag is present, otherwise the real service. The Knock controller is built the same way, with `MockKnockSensor` or `SPUAccelerometerSensor`.
+4. Creates the device status coordinator, then the data view models: Now Playing, Playing Next, Clipboard history, Notes, Claude usage, Copilot usage and calendar agenda. Each picks a `Mock…Provider` when its launch flag is present, otherwise the real service. The Knock controller is built the same way, with `MockKnockSensor` or `SPUAccelerometerSensor`.
 5. Connects each view model's `onStateChanged` (or `onItemsChanged`, `onPlayerChanged`) to the controllers' `apply(…)`. One fetch feeds every screen's panel.
 6. Registers the global shortcut and applies the `--show-*` launch flags.
 
@@ -44,7 +44,7 @@ the notch panel.
 
 ## Persisted state
 
-Both blobs are in `UserDefaults.standard`. Nothing else writes defaults. Two other stores live elsewhere: clipboard history in `Application Support/whoa-stash/Clipboard/` (JSON and PNG files, via `ClipboardHistoryStore`), and Spotify tokens in the Keychain.
+Both blobs are in `UserDefaults.standard`. Nothing else writes defaults. Three other stores live elsewhere: clipboard history in `Application Support/whoa-stash/Clipboard/` (JSON and PNG files, via `ClipboardHistoryStore`), notes in `Application Support/whoa-stash/Notes/notes.json` (via `NotesStore`, written on every edit), and Spotify tokens in the Keychain.
 
 | Key | Owner | Contents |
 |---|---|---|
