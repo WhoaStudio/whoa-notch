@@ -22,6 +22,8 @@ jobs:
     env:
       # Runs without the maintainer's team: ad-hoc "Sign to Run Locally".
       SIGNING: DEVELOPMENT_TEAM= CODE_SIGN_IDENTITY=-
+      # No one can click "Trust" on a runner: SwiftTerm's SwiftTermBuildInfoPlugin (pinned in Package.resolved) must run unprompted.
+      PLUGINS: -skipPackagePluginValidation
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,9 +35,9 @@ jobs:
       - name: Build
         run: |
           xcodebuild -scheme whoa-stash -destination 'platform=macOS' \
-            -derivedDataPath DerivedData $SIGNING build
+            -derivedDataPath DerivedData $SIGNING $PLUGINS build
 
       - name: Test
         run: |
           xcodebuild -scheme whoa-stash -destination 'platform=macOS' \
-            -derivedDataPath DerivedData $SIGNING test
+            -derivedDataPath DerivedData $SIGNING $PLUGINS test
