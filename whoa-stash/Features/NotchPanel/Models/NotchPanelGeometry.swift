@@ -72,6 +72,18 @@ enum NotchPanelGeometry {
     /// c'est l'air qu'il garde au-dessus de lui, à régler pour le monter ou le descendre.
     static let gearDrop: CGFloat = 8
 
+    /// Côté du coffre à gauche de la semaine, dans l'onglet Global déplié (le rapport de l'image
+    /// est gardé).
+    static let homeLogoSize: CGFloat = 56
+
+    /// De combien le coffre est remonté par rapport au centre de la bande de la semaine : plus
+    /// grand qu'elle, il déborde surtout vers le haut, où la marge haute le laisse passer, et peu
+    /// vers le lecteur.
+    static let homeLogoLift: CGFloat = 4
+
+    /// Écart entre le coffre et le premier jour de la semaine.
+    static let homeLogoToWeekGap: CGFloat = 12
+
     /// Dont l'engrenage est rentré depuis le bord droit du contenu. Négatif : c'est le **glyphe**,
     /// et non sa bulle, qui tombe sur ce bord — le même que celui de tout ce que portent les onglets
     /// (volume du lecteur, grille, cartes), de sorte que tout s'aligne à droite sur l'engrenage.
@@ -139,6 +151,15 @@ enum NotchPanelGeometry {
     /// Onglet Tray : seul onglet à s'élargir pour ses vignettes de fichiers.
     static let trayTabWidth: CGFloat = 520
 
+    /// Onglet Terminal : aussi haut que l'onglet AI (la fenêtre ne grandit pas), et assez large
+    /// pour une soixantaine de colonnes.
+    static let terminalTabHeight: CGFloat = aiTabHeight
+
+    /// Onglet Notes : même gabarit que le Terminal (liste et éditeur côte à côte).
+    static let notesTabHeight: CGFloat = aiTabHeight
+    static let notesTabWidth: CGFloat = 520
+    static let terminalTabWidth: CGFloat = 520
+
     /// Onglet Mirror : le panneau prend la forme d'un U — en-tête rectangulaire, flancs droits,
     /// et pour fond le cercle de l'aperçu lui-même. Le cercle est donc aussi large que le corps
     /// du panneau, à un liseré près.
@@ -174,7 +195,9 @@ enum NotchPanelGeometry {
         case .ai: aiTabHeight
         case .mirror: mirrorTabHeight
         case .clipboard: clipboardTabHeight
-        case .global, .calendar, .tray: calendarTabHeight
+        case .terminal: terminalTabHeight
+        case .notes: notesTabHeight
+        case .global, .calendar, .tray, .stayAwake: calendarTabHeight
         }
     }
 
@@ -183,6 +206,8 @@ enum NotchPanelGeometry {
         switch tab {
         case .clipboard: clipboardTabWidth
         case .tray: trayTabWidth
+        case .terminal: terminalTabWidth
+        case .notes: notesTabWidth
         default: aiTabWidth
         }
     }
@@ -190,11 +215,11 @@ enum NotchPanelGeometry {
     /// Hauteur de l'onglet le plus haut : c'est elle qui dimensionne la fenêtre, dont le cadre ne
     /// change jamais. Les autres onglets laissent le surplus vide sous leur panneau.
     static var tabContentHeight: CGFloat {
-        max(calendarTabHeight, aiTabHeight, mirrorTabHeight, transformViewHeight, clipboardTabHeight)
+        max(calendarTabHeight, aiTabHeight, mirrorTabHeight, transformViewHeight, clipboardTabHeight, terminalTabHeight)
     }
 
     /// Largeur de l'onglet le plus large — AI ou Clipboard. C'est elle qui dimensionne la fenêtre.
-    static var tabContentWidth: CGFloat { max(aiTabWidth, clipboardTabWidth, trayTabWidth) }
+    static var tabContentWidth: CGFloat { max(aiTabWidth, clipboardTabWidth, trayTabWidth, terminalTabWidth) }
 
     /// Taille dépliée, capsule comprise : le cadre de la fenêtre porte les deux, et la hauteur
     /// est donc celle du panneau **plus** la bande basse où flotte la capsule.

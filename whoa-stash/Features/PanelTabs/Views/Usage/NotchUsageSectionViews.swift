@@ -20,9 +20,12 @@ final class NotchUsageCardView: NSView {
     private let titleLabel = NSTextField(labelWithString: "")
     private let resetLabel = NSTextField(labelWithString: "")
     private let detailLabel = NSTextField(labelWithString: "")
+    /// Relance Claude Code quand la session a expiré ; caché dans tous les autres états.
+    private let reauthButton = NSButton(title: "Reconnect", target: nil, action: nil)
     private let trackLayer = CALayer()
     private let fillLayer = CALayer()
     private var remaining: Double = 0
+    private var provider: NotchUsageProvider = .claude
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -45,7 +48,17 @@ final class NotchUsageCardView: NSView {
         layer?.addSublayer(trackLayer)
         layer?.addSublayer(fillLayer)
 
-        [markView, nameLabel, titleLabel, resetLabel, detailLabel].forEach(addSubview)
+        reauthButton.bezelStyle = .rounded
+        reauthButton.controlSize = .small
+        reauthButton.target = self
+        reauthButton.action = #selector(reauth)
+        reauthButton.isHidden = true
+
+        [markView, nameLabel, titleLabel, resetLabel, detailLabel, reauthButton].forEach(addSubview)
+    }
+
+    @objc private func reauth() {
+        AgentLoginLauncher.open(command: provider.loginCommand)
     }
 
     @available(*, unavailable)
@@ -54,9 +67,12 @@ final class NotchUsageCardView: NSView {
     }
 
     func apply(_ reading: NotchUsageReading, provider: NotchUsageProvider) {
+        self.provider = provider
         markView.mark = provider.mark
         markView.color = .white
         nameLabel.stringValue = provider.name
+        reauthButton.isHidden = !reading.needsReauth
+        titleLabel.lineBreakMode = .byTruncatingTail
 
         let bold = NSFont.systemFont(ofSize: 14, weight: .semibold)
         let regular = NSFont.systemFont(ofSize: 14, weight: .regular)
@@ -82,9 +98,11 @@ final class NotchUsageCardView: NSView {
             detailLabel.stringValue = ""
             remaining = 0
         case let .unavailable(reason):
-            titleLabel.stringValue = reason
+            // La raison complète va dans l'info-bulle : le titre tronque, la carte reste étroite.
+            titleLabel.stringValue = reading.needsReauth ? "Session expired" : reason
+            titleLabel.toolTip = reason
             resetLabel.stringValue = ""
-            detailLabel.stringValue = ""
+            detailLabel.stringValue = reading.needsReauth ? "Sign in again to \(provider.name)" : ""
             remaining = 0
         }
         needsLayout = true
@@ -119,6 +137,14 @@ final class NotchUsageCardView: NSView {
         detailLabel.frame = NSRect(
             x: columnX, y: barY - 9 - detail.height, width: right - columnX, height: detail.height)
 
+        reauthButton.sizeToFit()
+        reauthButton.frame.origin = NSPoint(
+            x: right - reauthButton.frame.width,
+            y: barY + 11 + (title.height - reauthButton.frame.height) / 2)
+        if reauthButton.frame.width > 0, !reauthButton.isHidden {
+            titleLabel.frame.size.width = max(0, reauthButton.frame.minX - columnX - 8)
+        }
+
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let track = NSRect(x: columnX, y: barY, width: right - columnX, height: barHeight)
@@ -132,11 +158,28 @@ final class NotchUsageCardView: NSView {
     }
 }
 
-/// Pastille de filtre (« Month », « All agents »…) : libellé et chevron.
-///
-/// TODO: aucun filtre n'existe côté données (pas de période, d'agents, de modèles ni de projets
-/// suivis). Les pastilles sont dessinées mais inertes.
+/// Pastille de filtre (« Month », « All agents »…) : libellé et chevron. Un clic ouvre le menu
+/// que construit `makeMenu`.
 final class NotchUsageFilterPillView: NSView {
+
+    /// Construit le menu à chaque clic : ses entrées dépendent des requêtes déjà lues.
+    var makeMenu: (() -> NSMenu)?
+    var onTitleChanged: (() -> Void)?
+
+    var title: String {
+        get { label.stringValue }
+        set {
+            guard newValue != label.stringValue else { return }
+            label.stringValue = newValue
+            needsLayout = true
+            onTitleChanged?()
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let menu = makeMenu?() else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -4), in: self)
+    }
 
     static let height: CGFloat = 30
 
@@ -164,21 +207,19 @@ final class NotchUsageFilterPillView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    var fittingWidth: CGFloat { 12 + ceil(label.intrinsicContentSize.width) + 8 + 10 + 11 }
+    var fittingWidth: CGFloat { 12 + min(ceil(label.intrinsicContentSize.width), 150) + 8 + 10 + 11 }
 
     override func layout() {
         super.layout()
         let size = label.intrinsicContentSize
+        label.lineBreakMode = .byTruncatingMiddle
         label.frame = NSRect(
-            x: 12, y: (bounds.height - size.height) / 2, width: ceil(size.width), height: size.height)
+            x: 12, y: (bounds.height - size.height) / 2, width: min(ceil(size.width), 150), height: size.height)
         chevron.frame = NSRect(x: label.frame.maxX + 8, y: (bounds.height - 10) / 2, width: 10, height: 10)
     }
 }
 
-/// Section « Activity » : mois courant et quatre mesures.
-///
-/// TODO: ni jetons, ni coût, ni prévision, ni jours actifs n'existent dans les modèles de
-/// données ; chaque mesure affiche « — » plutôt qu'un chiffre inventé.
+/// Section « Activity » : le mois choisi et quatre mesures tirées des journaux des agents.
 final class NotchUsageActivityView: NSView {
 
     private static let monthFormatter: DateFormatter = {
@@ -192,10 +233,9 @@ final class NotchUsageActivityView: NSView {
     private let metrics: [(value: NSTextField, caption: NSTextField)]
 
     override init(frame frameRect: NSRect) {
-        // TODO: valeurs réelles (Tokens, Cost, Forecast, Active days) quand une source existera.
         let captions = ["Tokens", "Cost", "Forecast", "Active days"]
         metrics = captions.map { caption in
-            let value = NSTextField(labelWithString: "—")
+            let value = NSTextField(labelWithString: "…")
             value.font = .systemFont(ofSize: 21, weight: .regular)
             value.textColor = .white
             let label = NSTextField(labelWithString: caption)
@@ -231,6 +271,27 @@ final class NotchUsageActivityView: NSView {
     /// Le mois peut changer pendant que le panneau reste en mémoire : relu à chaque dépliage.
     func refreshPeriod() {
         periodLabel.stringValue = Self.monthFormatter.string(from: Date())
+        needsLayout = true
+    }
+
+    /// Montre les mesures du mois `period`. `summary` à `nil` : journaux en cours de lecture.
+    func apply(summary: ActivitySummary?, period: Date) {
+        periodLabel.stringValue = Self.monthFormatter.string(from: period)
+        guard let summary else {
+            metrics.forEach { $0.value.stringValue = "…"; $0.value.toolTip = nil }
+            needsLayout = true
+            return
+        }
+        let values = [
+            ActivityFormatting.tokens(summary.tokens),
+            ActivityFormatting.money(summary.cost),
+            ActivityFormatting.money(summary.forecast),
+            ActivityFormatting.activeDays(summary),
+        ]
+        for (metric, value) in zip(metrics, values) { metric.value.stringValue = value }
+        let unpriced = summary.cost == nil ? "Aucun tarif connu pour les modèles de cette période." : nil
+        metrics[1].value.toolTip = unpriced
+        metrics[2].value.toolTip = unpriced
         needsLayout = true
     }
 

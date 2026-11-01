@@ -19,6 +19,12 @@ final class NotchGearButtonView: NSView {
         didSet { applyTint() }
     }
 
+    /// Teinte imposée, au repos comme au survol — le bouton tasse s'allume ainsi tant que le Mac
+    /// est tenu éveillé. `nil` : les teintes de la palette.
+    var tintOverride: NSColor? {
+        didSet { applyTint() }
+    }
+
     init(symbolName: String = "gearshape", description: String = "Settings") {
         self.symbolName = symbolName
         self.symbolDescription = description
@@ -51,7 +57,8 @@ final class NotchGearButtonView: NSView {
     }
 
     private func applyTint() {
-        iconView.contentTintColor = isHovered && isEnabled ? palette.tabActiveContent : palette.tabInactiveContent
+        iconView.contentTintColor = tintOverride
+            ?? (isHovered && isEnabled ? palette.tabActiveContent : palette.tabInactiveContent)
         iconView.alphaValue = isEnabled ? 1 : 0.4
     }
 

@@ -33,6 +33,8 @@ enum ClaudeUsageState: Equatable {
     case loading
     case loaded(ClaudeUsageSnapshot)
     case unavailable(reason: String)
+    /// Le jeton du trousseau est périmé : seule une reconnexion dans Claude Code y remédie.
+    case expired(reason: String)
 
     var snapshot: ClaudeUsageSnapshot? {
         if case let .loaded(snapshot) = self { return snapshot }

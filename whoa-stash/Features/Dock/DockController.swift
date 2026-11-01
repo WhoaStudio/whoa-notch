@@ -38,6 +38,10 @@ final class DockPanel {
         relayout(animated: true)
     }
 
+    func apply(theme: DockTheme) {
+        content.apply(theme: theme)
+    }
+
     func apply(appearance: DockAppearance) {
         content.apply(appearance: appearance)
         relayout(animated: false)
@@ -257,6 +261,10 @@ final class DockController {
 
     func apply(widgets: [DockWidgetPlacement]) {
         panel.apply(widgets: widgets)
+    }
+
+    func apply(theme: DockTheme) {
+        panel.apply(theme: theme)
     }
 
     func apply(enabled: Bool) {

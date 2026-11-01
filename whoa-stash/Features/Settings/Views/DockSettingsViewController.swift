@@ -17,12 +17,16 @@ final class DockSettingsViewController: SettingsSectionViewController {
     private let accessibilityButton = NSButton(title: "", target: nil, action: nil)
     private let hotkeyRecorder = HotkeyRecorderView()
     private let appsStack = NSStackView()
+    private let themePopUp = NSPopUpButton()
     private lazy var addAppButton = NSButton(title: "Add app…", target: self, action: #selector(addAppTapped))
 
     override func makeRows() -> [NSView] {
         accessibilityButton.bezelStyle = .rounded
         accessibilityButton.target = self
         accessibilityButton.action = #selector(accessibilityTapped)
+        themePopUp.target = self
+        themePopUp.action = #selector(themeChanged)
+        DockTheme.allCases.forEach { themePopUp.addItem(withTitle: $0.displayName) }
         hotkeyRecorder.onChange = { [weak self] in self?.viewModel.setToggleHotkey($0) }
 
         return [
@@ -30,6 +34,7 @@ final class DockSettingsViewController: SettingsSectionViewController {
             SettingsFormRowView(
                 title: "Auto-hide", control: autoHideCheckbox,
                 caption: "The dock slides away and comes back when the cursor touches the bottom edge, in the middle of the screen"),
+            SettingsFormRowView(title: "Theme", control: themePopUp, caption: "Dark keeps the solid background; Liquid Glass shows the desktop through the dock"),
             SettingsFormRowView(
                 title: "Hotkey", control: hotkeyRecorder, caption: "Click a modifier to switch it on or off, then click the last tile and press a key. Shows or hides the dock from anywhere", alignsTop: true),
             SettingsFormRowView(
@@ -60,6 +65,7 @@ final class DockSettingsViewController: SettingsSectionViewController {
         enabledCheckbox.state = settings.enabled ? .on : .off
         hideSystemCheckbox.state = settings.hideSystemDock ? .on : .off
         autoHideCheckbox.state = settings.autoHide ? .on : .off
+        themePopUp.selectItem(at: DockTheme.allCases.firstIndex(of: settings.theme) ?? 0)
         hotkeyRecorder.setHotkey(settings.toggleHotkey)
         refreshAccessibility()
         reloadApps(settings)
@@ -127,6 +133,10 @@ final class DockSettingsViewController: SettingsSectionViewController {
 
     @objc private func enabledChanged() {
         viewModel.setEnabled(enabledCheckbox.state == .on)
+    }
+
+    @objc private func themeChanged() {
+        viewModel.setTheme(DockTheme.allCases[themePopUp.indexOfSelectedItem])
     }
 
     @objc private func autoHideChanged() {

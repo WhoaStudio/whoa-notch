@@ -46,6 +46,9 @@ enum Log {
     nonisolated static let knock = Logger(subsystem: subsystem, category: "knock")
     nonisolated static let clipboard = Logger(subsystem: subsystem, category: "clipboard")
 
+    /// Onglet Notes : lecture et écriture des notes.
+    nonisolated static let notes = Logger(subsystem: subsystem, category: "notes")
+
     /// Son joué au clic sur un bouton : chargement du fichier et lecture.
     nonisolated static let sound = Logger(subsystem: subsystem, category: "sound")
 
@@ -58,6 +61,10 @@ enum Log {
 
     /// Courrier entrant (IMAP). Expéditeurs, objets et serveurs sont privés.
     nonisolated static let mail = Logger(subsystem: subsystem, category: "mail")
+    /// Onglet Terminal : démarrage et fin du shell. Le shell et le dossier sont privés.
+    nonisolated static let terminal = Logger(subsystem: subsystem, category: "terminal")
     /// Panneau de l'encoche : masquage de l'île quand une app est en plein écran.
     nonisolated static let notchPanel = Logger(subsystem: subsystem, category: "notch-panel")
+    /// Onglet Stay Awake : prise et relâchement de l'assertion d'énergie.
+    nonisolated static let stayAwake = Logger(subsystem: subsystem, category: "stay-awake")
 }

@@ -19,6 +19,11 @@ final class DockIconView: NSView, NSDraggingSource {
     private let badge = NSView()
     private let globe = NSImageView()
 
+    /// Teinte du point « en cours » : celle du thème du dock.
+    func setInk(_ ink: NSColor) {
+        dot.layer?.backgroundColor = ink.withAlphaComponent(0.65).cgColor
+    }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
@@ -269,6 +274,11 @@ private final class DockPopoverCellView: NSView {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
+    func setInk(_ ink: NSColor) {
+        iconView.setInk(ink)
+        label.textColor = ink.withAlphaComponent(0.75)
+    }
+
     func apply(_ item: DockItem) {
         iconView.apply(item)
         label.stringValue = item.name
@@ -303,9 +313,10 @@ final class DockContentView: NSView {
     var onWidgetsChanged: (([DockWidgetPlacement]) -> Void)?
 
     private(set) var dockLook = DockAppearance()
-    private let backdrop = NSView()
+    private(set) var theme = DockTheme.dark
+    private let backdrop = DockSurfaceView()
     /// La capsule du dossier : collée à celle du dock, de la même couleur.
-    private let folderBackdrop = NSView()
+    private let folderBackdrop = DockSurfaceView()
     private let divider = NSView()
     private var chips: [String: DockChipView] = [:]
     private var workspaces: [DockWorkspace] = []
@@ -318,7 +329,7 @@ final class DockContentView: NSView {
     /// La rangée d'icônes : applis et widgets, dans l'ordre d'affichage.
     private var row: [DockRowEntry] = []
     private let folderView = DockFolderView()
-    private let popover = NSView()
+    private let popover = DockSurfaceView()
     private var popoverCells: [String: DockPopoverCellView] = [:]
     private(set) var isExpanded = false
     private var collapseTask: Task<Void, Never>?
@@ -342,15 +353,9 @@ final class DockContentView: NSView {
         wantsLayer = true
 
         // Même fond que le panneau de l'encoche (`OverlayPalette.panelBackground`).
-        backdrop.wantsLayer = true
-        backdrop.layer?.backgroundColor = OverlayPalette.base.panelBackground
-        backdrop.layer?.borderWidth = 1
-        backdrop.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        backdrop.apply(theme: theme)
         addSubview(backdrop)
-        folderBackdrop.wantsLayer = true
-        folderBackdrop.layer?.backgroundColor = OverlayPalette.base.panelBackground
-        folderBackdrop.layer?.borderWidth = 1
-        folderBackdrop.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        folderBackdrop.apply(theme: theme)
         folderBackdrop.isHidden = true
         addSubview(folderBackdrop)
 
@@ -360,13 +365,17 @@ final class DockContentView: NSView {
         addSubview(divider)
         addSubview(folderView)
         folderView.isHidden = true
-        popover.wantsLayer = true
-        popover.layer?.backgroundColor = OverlayPalette.base.panelBackground
-        popover.layer?.borderWidth = 1
-        popover.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        popover.apply(theme: theme)
         popover.isHidden = true
         addSubview(popover)
         applyScaledStyle()
+        // Le vrai Dock suit le système : la teinte du verre aussi, sans relancer l'app. Le dock vit
+        // aussi longtemps que l'app (fenêtre unique), l'observateur n'est donc jamais retiré.
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshInk() }
+        }
         registerForDraggedTypes([.dockApp, .dockWidget, .fileURL])
     }
 
@@ -443,6 +452,20 @@ final class DockContentView: NSView {
 
     // MARK: - Mise à jour
 
+    func apply(theme newTheme: DockTheme) {
+        theme = newTheme
+        for surface in [backdrop, folderBackdrop, popover] { surface.apply(theme: newTheme) }
+        refreshInk()
+    }
+
+    /// Reteint ce qui se dessine sur le fond (points, séparateur, noms) selon le thème.
+    private func refreshInk() {
+        let ink = theme.ink
+        divider.layer?.backgroundColor = ink.withAlphaComponent(ink == .white ? 0.18 : 0.22).cgColor
+        iconViews.values.forEach { $0.setInk(ink) }
+        popoverCells.values.forEach { $0.setInk(ink) }
+    }
+
     func apply(appearance newAppearance: DockAppearance) {
         guard newAppearance != dockLook else { return }
         dockLook = newAppearance
@@ -451,8 +474,8 @@ final class DockContentView: NSView {
     }
 
     private func applyScaledStyle() {
-        backdrop.layer?.cornerRadius = 20 * k
-        folderBackdrop.layer?.cornerRadius = 20 * k
+        backdrop.cornerRadius = 20 * k
+        folderBackdrop.cornerRadius = 20 * k
         refreshChips()
     }
 
@@ -557,6 +580,7 @@ final class DockContentView: NSView {
             let cell = popoverCells[item.id] ?? {
                 let created = DockPopoverCellView()
                 configure(created.iconView, id: item.id)
+                created.setInk(theme.ink)
                 popover.addSubview(created)
                 popoverCells[item.id] = created
                 return created
@@ -572,6 +596,7 @@ final class DockContentView: NSView {
     private func makeIconView(for id: String) -> DockIconView {
         let view = DockIconView()
         configure(view, id: id)
+        view.setInk(theme.ink)
         addSubview(view)
         iconViews[id] = view
         return view
@@ -707,7 +732,7 @@ final class DockContentView: NSView {
             x: max(4, min(folderView.frame.maxX + 6 - size.width, bounds.width - size.width - 4)),
             y: capsuleHeight + 8, width: size.width, height: size.height)
         popover.frame = target
-        popover.layer?.cornerRadius = 20 * k
+        popover.cornerRadius = 20 * k
         let cell = popoverCellSize
         let rows = (overflow.count + popoverColumns - 1) / popoverColumns
         for (index, item) in overflow.enumerated() {

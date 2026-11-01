@@ -248,6 +248,7 @@ extension DockSettings {
         case activeWorkspaceID
         case launchExcluded
         case widgets
+        case theme
     }
 
     init(from decoder: Decoder) throws {
@@ -264,7 +265,8 @@ extension DockSettings {
             workspaces: container.value(.workspaces, defaults.workspaces),
             activeWorkspaceID: container.value(.activeWorkspaceID, defaults.activeWorkspaceID),
             launchExcluded: container.value(.launchExcluded, defaults.launchExcluded),
-            widgets: container.value(.widgets, defaults.widgets)
+            widgets: container.value(.widgets, defaults.widgets),
+            theme: container.value(.theme, defaults.theme)
         )
     }
 }

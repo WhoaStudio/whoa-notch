@@ -73,9 +73,13 @@ final class ClaudeUsageViewModel {
                 let snapshot = try await provider.fetchSnapshot()
                 self.state = .loaded(snapshot)
             } catch {
-                // Un échec ponctuel ne doit pas effacer un instantané déjà affiché : la bague
-                // garde sa dernière valeur connue et ne clignote pas à chaque coupure réseau.
-                if self.state.snapshot == nil {
+                if case ClaudeUsageCredentialError.expired = error {
+                    // Un jeton périmé ne se réparera pas tout seul : on le dit, même par-dessus un
+                    // instantané devenu trop vieux pour être fiable.
+                    self.state = .expired(reason: error.localizedDescription)
+                } else if self.state.snapshot == nil {
+                    // Un échec ponctuel ne doit pas effacer un instantané déjà affiché : la bague
+                    // garde sa dernière valeur connue et ne clignote pas à chaque coupure réseau.
                     self.state = .unavailable(reason: error.localizedDescription)
                 }
                 Log.sidePanel.error("rafraîchissement de l'utilisation Claude échoué — \(error.localizedDescription, privacy: .public)")

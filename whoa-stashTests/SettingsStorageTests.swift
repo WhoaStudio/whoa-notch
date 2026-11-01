@@ -53,6 +53,24 @@ struct SettingsStorageTests {
         #expect(storage.settings.notchPanel.enabled == false)
     }
 
+    @Test("le thème du dock est Dark par défaut, inconnu ou absent, et survit au relancement")
+    func dockThemePersistsAndFallsBack() {
+        let key = "com.whoastudio.whoa-stash.appSettings"
+        let missing = Self.makeDefaults()
+        missing.set(Data(#"{"dock":{"autoHide":false}}"#.utf8), forKey: key)
+        #expect(SettingsStorage(defaults: missing).settings.dock.theme == .dark)
+
+        let unknown = Self.makeDefaults()
+        unknown.set(Data(#"{"dock":{"theme":"neon","autoHide":false}}"#.utf8), forKey: key)
+        let fallback = SettingsStorage(defaults: unknown)
+        #expect(fallback.settings.dock.theme == .dark)
+        #expect(fallback.settings.dock.autoHide == false)
+
+        let defaults = Self.makeDefaults()
+        SettingsStorage(defaults: defaults).settings.dock.theme = .liquidGlass
+        #expect(SettingsStorage(defaults: defaults).settings.dock.theme == .liquidGlass)
+    }
+
     @Test("un blob illisible retombe sur les valeurs par défaut au lieu de planter")
     func corruptBlobFallsBackToDefaults() {
         let defaults = Self.makeDefaults()

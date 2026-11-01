@@ -105,6 +105,14 @@ struct NotchPanelGeometryTests {
         }
     }
 
+    /// La fenêtre garde un cadre fixe : l'onglet Terminal doit tenir dans celui que dimensionnent
+    /// les autres, sans le faire grandir.
+    @Test("l'onglet Terminal tient dans le cadre de la fenêtre")
+    func terminalTabFitsTheWindow() {
+        #expect(NotchPanelGeometry.contentHeight(for: .terminal) <= NotchPanelGeometry.tabContentHeight)
+        #expect(NotchPanelGeometry.contentWidth(for: .terminal) <= NotchPanelGeometry.tabContentWidth)
+    }
+
     /// Sur un Mac à encoche, le cadre de la fenêtre part du bord haut de la dalle : le contenu
     /// doit commencer sous l'encoche, qui couvre le haut du panneau.
     @Test("la marge haute dégage l'encoche matérielle")

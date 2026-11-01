@@ -46,11 +46,31 @@ final class NotchPanelController {
 
     private var usageState: ClaudeUsageState = .loading
     private var copilotUsageState: CopilotUsageState = .loading
+    private var codexUsageState: CodexUsageState = .loading
+    private var activityRecords: [ActivityRecord] = []
+    private var isLoadingActivity = true
 
     /// Dernier agenda connu, rejoué sur chaque panneau neuf : il y en a un par écran, et un
     /// écran branché après la première lecture ne doit pas rester sur un widget vide.
     private var agendaState: CalendarAgendaState = .loading
     private var clipboardItems: [ClipboardItem] = []
+    private var notes: [Note] = []
+
+    var onCreateNote: (() -> Void)? {
+        didSet { windows.values.forEach { $0.onCreateNote = onCreateNote } }
+    }
+    var onEditNote: ((UUID, String) -> Void)? {
+        didSet { windows.values.forEach { $0.onEditNote = onEditNote } }
+    }
+    var onDeleteNote: ((UUID) -> Void)? {
+        didSet { windows.values.forEach { $0.onDeleteNote = onDeleteNote } }
+    }
+
+    private var stayAwakeState = StayAwakeState()
+
+    var onStayAwakeAction: ((StayAwakeAction) -> Void)? {
+        didSet { windows.values.forEach { $0.onStayAwakeAction = onStayAwakeAction } }
+    }
 
     var onClearClipboard: (() -> Void)? {
         didSet { windows.values.forEach { $0.onClearClipboard = onClearClipboard } }
@@ -84,6 +104,7 @@ final class NotchPanelController {
 
     /// Pastille d'appareil Bluetooth : visible `deviceStatusDuration`, puis elle se retire.
     private let deviceStatusDuration: Duration = .seconds(3)
+    private var launchGreetingTask: Task<Void, Never>?
     private var deviceStatusTask: Task<Void, Never>?
     private var deviceStatusDisplay: CGDirectDisplayID?
 
@@ -113,6 +134,10 @@ final class NotchPanelController {
     /// n'arrive et le panneau resterait déplié. Ce rafraîchissement ne tourne que pendant qu'un
     /// panneau est déplié.
     private let pollInterval: TimeInterval = 0.25
+
+    /// Le shell de l'onglet Terminal, partagé par toutes les fenêtres : il survit aux replis et aux
+    /// reconstructions d'écrans.
+    private lazy var terminalSession = TerminalSession()
 
     init(storage: SettingsStorage = .shared) {
         self.storage = storage
@@ -206,6 +231,8 @@ final class NotchPanelController {
         fullScreenSettleTask = nil
         fullScreenDisplays = []
         revealedDisplays = []
+        launchGreetingTask?.cancel()
+        launchGreetingTask = nil
         deviceStatusTask?.cancel()
         deviceStatusTask = nil
         deviceStatusDisplay = nil
@@ -240,6 +267,16 @@ final class NotchPanelController {
         windows.values.forEach { $0.apply(clipboardItems: newItems) }
     }
 
+    func apply(notes newNotes: [Note]) {
+        notes = newNotes
+        windows.values.forEach { $0.apply(notes: newNotes) }
+    }
+
+    func apply(stayAwakeState newState: StayAwakeState) {
+        stayAwakeState = newState
+        windows.values.forEach { $0.apply(stayAwakeState: newState) }
+    }
+
     /// Relance les sources d'utilisation, depuis le bouton « actualiser » de l'onglet AI.
     var onRefreshUsage: (() -> Void)? {
         didSet { windows.values.forEach { $0.onRefreshUsage = onRefreshUsage } }
@@ -264,6 +301,21 @@ final class NotchPanelController {
         windows.values.forEach { $0.apply(playingNext: items) }
     }
 
+    var onLoadActivity: ((Int) -> Void)? {
+        didSet { windows.values.forEach { $0.onLoadActivity = onLoadActivity } }
+    }
+
+    func apply(activityRecords records: [ActivityRecord], isLoading: Bool) {
+        activityRecords = records
+        isLoadingActivity = isLoading
+        windows.values.forEach { $0.apply(activityRecords: records, isLoading: isLoading) }
+    }
+
+    func apply(codexUsageState newState: CodexUsageState) {
+        codexUsageState = newState
+        windows.values.forEach { $0.apply(codexUsageState: newState) }
+    }
+
     func apply(copilotUsageState newState: CopilotUsageState) {
         copilotUsageState = newState
         windows.values.forEach { $0.apply(copilotUsageState: newState) }
@@ -272,6 +324,22 @@ final class NotchPanelController {
     func apply(usageState newState: ClaudeUsageState) {
         usageState = newState
         windows.values.forEach { $0.apply(usageState: newState, animated: true) }
+    }
+
+    /// Salue une seule fois au lancement, sans recouvrir une app en plein écran.
+    func showLaunchGreeting() {
+        guard isActive,
+              let displayID = NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID,
+              let window = windows[displayID],
+              !isHiddenByFullScreen(displayID) else { return }
+        launchGreetingTask?.cancel()
+        window.showLaunchGreeting()
+        launchGreetingTask = Task { [weak self, weak window] in
+            try? await Task.sleep(for: .seconds(3.4))
+            guard !Task.isCancelled else { return }
+            window?.hideLaunchGreeting()
+            self?.launchGreetingTask = nil
+        }
     }
 
     /// Montre la pastille d'un appareil qui vient de se connecter, sur l'écran principal. Une
@@ -501,12 +569,12 @@ final class NotchPanelController {
         }
     }
 
-    /// Onglet demandé par `--notch-tab=<global|calendar|tray|clipboard|mirror|ai>`, `nil` sans le drapeau ou
-    /// avec un nom inconnu.
+    /// Onglet demandé par `--notch-tab=<global|calendar|tray|clipboard|notes|mirror|ai|terminal|stay-awake>`, `nil` sans le
+    /// drapeau ou avec un nom inconnu.
     private static func launchTab(_ arguments: [String] = CommandLine.arguments) -> NotchTab? {
         guard let argument = arguments.first(where: { $0.hasPrefix("--notch-tab=") }) else { return nil }
-        let name = argument.dropFirst("--notch-tab=".count)
-        return NotchTab.allCases.first { $0.title.lowercased() == name.lowercased() }
+        let name = argument.dropFirst("--notch-tab=".count).lowercased()
+        return NotchTab.allCases.first { $0.title.lowercased().replacingOccurrences(of: " ", with: "-") == name }
     }
 
     /// Déplie (ou replie) le panneau de l'écran qui contient le curseur — appelé par
@@ -534,6 +602,8 @@ final class NotchPanelController {
         hasVisitedPinnedPanel = false
         window.apply(usageState: usageState, animated: false)
         window.apply(copilotUsageState: copilotUsageState)
+        window.apply(codexUsageState: codexUsageState)
+        window.apply(activityRecords: activityRecords, isLoading: isLoadingActivity)
         window.apply(agendaState: agendaState)
         if let tab = Self.launchTab() { window.select(tab) }
         window.setExpanded(true)
@@ -563,6 +633,10 @@ final class NotchPanelController {
         // Tous les écrans, et pas seulement celui du curseur : un glisser traverse les écrans, et
         // le panneau qu'il survolera ensuite doit déjà être prêt à le recevoir.
         windows.values.forEach { $0.setFileDragActive(draggingFiles) }
+
+        // Le clavier est dans le terminal : le panneau reste déplié, curseur ou non, jusqu'à ce
+        // qu'on clique ailleurs (la fenêtre perd alors la touche) ou qu'on le replie au raccourci.
+        if let expandedDisplay, windows[expandedDisplay]?.holdsKeyboardFocus == true { return }
 
         // Un seul écran est testé, celui qui contient le curseur : avec plusieurs écrans
         // accolés, les zones sensibles du haut se touchent et tester toutes les zones déplierait
@@ -611,6 +685,8 @@ final class NotchPanelController {
         }
         window.apply(usageState: usageState, animated: false)
         window.apply(copilotUsageState: copilotUsageState)
+        window.apply(codexUsageState: codexUsageState)
+        window.apply(activityRecords: activityRecords, isLoading: isLoadingActivity)
         window.apply(agendaState: agendaState)
         // Une demande attend : le panneau s'ouvre sur l'onglet AI, où elle est lisible. Seulement à
         // l'ouverture, pour ne pas ramener l'onglet à chaque mouvement du curseur.
@@ -678,12 +754,21 @@ final class NotchPanelController {
                 window.canLaunchAll = !storage.settings.dock.launchApps.isEmpty
                 window.apply(usageState: usageState, animated: false)
                 window.apply(copilotUsageState: copilotUsageState)
+        window.apply(codexUsageState: codexUsageState)
+        window.apply(activityRecords: activityRecords, isLoading: isLoadingActivity)
                 window.onRefreshUsage = onRefreshUsage
+                window.onLoadActivity = onLoadActivity
                 window.apply(agendaState: agendaState)
                 window.onClearClipboard = onClearClipboard
                 window.onSelectClipboardItem = onSelectClipboardItem
                 window.clipboardImageURL = clipboardImageURL
                 window.apply(clipboardItems: clipboardItems)
+                window.onCreateNote = onCreateNote
+                window.onEditNote = onEditNote
+                window.onDeleteNote = onDeleteNote
+                window.apply(notes: notes)
+                window.onStayAwakeAction = onStayAwakeAction
+                window.apply(stayAwakeState: stayAwakeState)
                 window.onNowPlayingCommand = onNowPlayingCommand
                 window.showNowPlaying(nowPlayingState)
                 window.updateNowPlayingPlayer(nowPlayingPlayer)
@@ -695,6 +780,7 @@ final class NotchPanelController {
                     if let id = event.replyID { self?.agentPromptEnded(replyID: id) }
                 }
                 window.onExpanded = { [weak self] in self?.onPanelExpanded?() }
+                window.terminalSession = terminalSession
                 windows[displayID] = window
             }
 
