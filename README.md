@@ -181,7 +181,6 @@ whoa-stash/
 whoa-stashTests/  unit tests
 Vendor/           third-party sources (MediaRemoteAdapter), not built by the Xcode project
 Design/Icon/      icon source SVGs (see Design/Icon/README.md)
-AppIcons/         older generated icon pack, not used by the build
 docs/             architecture and debugging notes
 ```
 

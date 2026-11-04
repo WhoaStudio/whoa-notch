@@ -16,3 +16,25 @@ tmp/
 *.pem
 *.key
 id_rsa*
+
+# from .gitignore
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
+Build/
+.build/
+*.swiftpm/
+.swiftpm/
+.vscode/
+*.swp
+*.swo
+*~
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.keychain
+*.keychain-db
+Config/Local.xcconfig
+.claude/settings.local.json
+.claude/worktrees/

@@ -20,6 +20,14 @@ Build/
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.keychain
+*.keychain-db
 Config/Local.xcconfig
 
 # Claude Code (per-user)

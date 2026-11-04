@@ -15,7 +15,27 @@
       "Read(!.env.example)",
       "Read(*.pem)",
       "Read(*.key)",
-      "Read(id_rsa*)"
+      "Read(id_rsa*)",
+      "Read(/*.xcodeproj/xcuserdata/**)",
+      "Read(/*.xcodeproj/project.xcworkspace/xcuserdata/**)",
+      "Read(**/DerivedData/**)",
+      "Read(**/Build/**)",
+      "Read(**/.build/**)",
+      "Read(**/*.swiftpm/**)",
+      "Read(**/.swiftpm/**)",
+      "Read(**/.vscode/**)",
+      "Read(*.swp)",
+      "Read(*.swo)",
+      "Read(*~)",
+      "Read(*.p12)",
+      "Read(*.cer)",
+      "Read(*.mobileprovision)",
+      "Read(*.provisionprofile)",
+      "Read(*.keychain)",
+      "Read(*.keychain-db)",
+      "Read(/Config/Local.xcconfig)",
+      "Read(/.claude/settings.local.json)",
+      "Read(/.claude/worktrees/**)"
     ]
   },
   "hooks": {
