@@ -30,7 +30,7 @@ brew install --cask WhoaStudio/stash/whoa-stash
 
 If Homebrew requests tap trust, run `brew trust --cask WhoaStudio/stash/whoa-stash` and retry installation.
 
-The cask becomes usable after the first release. Release notes state whether the download is Developer ID signed and notarized. Without signing credentials, releases use an ad-hoc signature and are unnotarized; macOS may block them. After verifying the download source, use **System Settings → Privacy & Security → Open Anyway** if available.
+The cask becomes usable once the first release’s cask-update PR is merged. Release notes state whether the download is Developer ID signed and notarized. Without signing credentials, releases use an ad-hoc signature and are unnotarized; macOS may block them. After verifying the download source, use **System Settings → Privacy & Security → Open Anyway** if available.
 
 ## Releasing
 
@@ -44,7 +44,13 @@ Use one to three numeric components, such as `1`, `1.2`, or `1.2.3`, without `v`
 
 Alternatively, open **Actions → Release → Run workflow**, select **stable**, and enter the version without `v`. That run creates the commit/tag and completes the release itself. Pushing any `v*` tag also starts a release; the job rejects invalid versions and commits outside `stable`. The build always takes its version from the tag.
 
-The workflow builds a universal Release app, verifies and mounts the DMG, publishes it with `SHA256SUMS` and automatically generated commit/PR notes, then updates `version` and `sha256` in `Casks/whoa-stash.rb` on `stable`. Pull after a release before starting the next one. Repository rules must permit the maintainer and Actions bot to push release metadata/cask commits to `stable` and create tags; Actions needs read/write contents permission. A tag pushed without a version commit still supplies the build's version. Failed runs can be rerun: manual runs reuse only their own tag, published DMGs remain unchanged, and older releases cannot downgrade the cask.
+The workflow builds a universal Release app, verifies and mounts the DMG, publishes it with `SHA256SUMS` and automatically generated commit/PR notes, then opens a PR updating `version` and `sha256` in `Casks/whoa-stash.rb`. The cask PR must pass **Build and test** and receive the required approving review before merging into `stable`. Pull after a release before starting the next one.
+
+The version-commit step still requires the release caller to be allowed to push release metadata to `stable` and create tags. Cask updates never push directly to `stable`. Allow Actions to create pull requests in the repository’s Actions settings; the cask workflow requests contents and pull-request write permissions. A tag pushed without a version commit still supplies the build's version.
+
+To recover a cask update for an already published release, run **Actions → Update Homebrew cask → Run workflow** on `stable` and enter its version without `v` (for example `1.0`). This downloads the existing release DMG; it does not rebuild or republish it. With the default `GITHUB_TOKEN`, GitHub may require approval before running the PR’s CI. Optionally configure `CASK_PR_TOKEN` with a GitHub App installation token or fine-grained PAT permitted to write contents and pull requests to run PR checks without that workflow approval. The required PR review still applies.
+
+Failed runs can be rerun: manual runs reuse only their own tag, published DMGs remain unchanged, and older releases cannot downgrade the cask.
 
 To build and verify the same DMG locally without committing, tagging, or publishing:
 
@@ -58,7 +64,8 @@ Verify the release tooling without pushing:
 
 ```bash
 python3 scripts/tests/test-release.py
-actionlint .github/workflows/release.yml
+python3 scripts/tests/test-cask-pr.py
+actionlint .github/workflows/release.yml .github/workflows/update-cask.yml
 scripts/check-cask.sh
 ```
 
