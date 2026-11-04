@@ -8,6 +8,7 @@ final class DockPanel {
 
     private let panel: NSPanel
     let content = DockContentView()
+    let workspacePill = DockWorkspacePillPanel()
     private var presented = false
     private(set) var isRevealed = true
 
@@ -48,8 +49,33 @@ final class DockPanel {
     }
 
     func apply(workspaces: [DockWorkspace], activeID: String?) {
-        content.apply(workspaces: workspaces, activeID: activeID)
-        relayout(animated: true)
+        workspacePill.pill.apply(workspaces: workspaces, activeID: activeID)
+        updatePill()
+    }
+
+    /// Cadre de la pastille des espaces : centrée au-dessus du dock, au-dessus de la réserve des
+    /// icônes agrandies. `nil` sans espace de travail.
+    var pillScreenRect: NSRect? {
+        let size = workspacePill.pill.contentSize
+        guard size != .zero else { return nil }
+        let shown = shownFrame
+        return NSRect(
+            x: shown.midX - size.width / 2, y: shown.minY + content.capsuleHeight + content.magnificationReserve + 8,
+            width: size.width, height: size.height)
+    }
+
+    /// Montre ou retire la pastille ; elle ne se montre que si le dock est déployé.
+    func setPillVisible(_ visible: Bool) {
+        guard let rect = pillScreenRect else {
+            workspacePill.setShown(false, frame: .zero)
+            return
+        }
+        workspacePill.setShown(visible && presented && isRevealed, frame: rect)
+    }
+
+    /// Replace la pastille (si elle est montrée) après un changement de taille ou d'écran.
+    private func updatePill() {
+        setPillVisible(workspacePill.isShown)
     }
 
     /// Redimensionne la fenêtre à ce que demande le contenu, puis laisse les vues glisser de leur
@@ -74,6 +100,7 @@ final class DockPanel {
     func moveTo(_ screen: NSScreen, reveal: Bool) {
         targetDisplayID = screen.displayID
         content.setHover(nil)
+        setPillVisible(false)
         isRevealed = reveal
         guard presented else { return }
         if reveal {
@@ -110,6 +137,7 @@ final class DockPanel {
         let frame = isRevealed ? shownFrame : hiddenFrame
         guard frame != panel.frame else { return }
         panel.setFrame(frame, display: true)
+        updatePill()
     }
 
     /// Montre ou retire le dock (réglage « Show dock »). Il entre en glissant depuis le bord, en fondu.
@@ -120,6 +148,7 @@ final class DockPanel {
             guard !wasPresented else { return }
             if isRevealed { slideIn() } else { panel.setFrame(hiddenFrame, display: true) }
         } else {
+            setPillVisible(false)
             panel.orderOut(nil)
         }
     }
@@ -141,7 +170,10 @@ final class DockPanel {
         guard revealed != isRevealed else { return }
         isRevealed = revealed
         guard presented else { return }
-        if !revealed { content.setHover(nil) }
+        if !revealed {
+            content.setHover(nil)
+            setPillVisible(false)
+        }
         guard animated else {
             panel.alphaValue = revealed ? 1 : 0
             panel.setFrame(revealed ? shownFrame : hiddenFrame, display: true)
@@ -193,7 +225,10 @@ final class DockController {
     private let onPlaceApp: (DockPinnedApp, Int) -> Void
     private let onRemoveApp: (DockItem) -> Void
     private let onWidgetsChanged: ([DockWidgetPlacement]) -> Void
+    private let onAddWidget: (String) -> Void
     private var appearance = DockAppearance()
+    /// Réglage « Magnification » des Préférences : il l'emporte sur celui du Dock macOS.
+    private var magnification = true
     private var monitors: [Any] = []
     private var screenObserver: NSObjectProtocol?
     private var pendingToggle: Task<Void, Never>?
@@ -210,7 +245,8 @@ final class DockController {
         onSelectWorkspace: @escaping (String?) -> Void,
         onPlaceApp: @escaping (DockPinnedApp, Int) -> Void,
         onRemoveApp: @escaping (DockItem) -> Void,
-        onWidgetsChanged: @escaping ([DockWidgetPlacement]) -> Void = { _ in }
+        onWidgetsChanged: @escaping ([DockWidgetPlacement]) -> Void = { _ in },
+        onAddWidget: @escaping (String) -> Void = { _ in }
     ) {
         self.activator = activator
         self.readAppearance = readAppearance
@@ -219,9 +255,10 @@ final class DockController {
         self.onPlaceApp = onPlaceApp
         self.onRemoveApp = onRemoveApp
         self.onWidgetsChanged = onWidgetsChanged
+        self.onAddWidget = onAddWidget
         panel.content.onWidgetsChanged = { [weak self] in self?.onWidgetsChanged($0) }
         panel.content.onActivate = { [weak self] in self?.activate($0) }
-        panel.content.onSelectWorkspace = { [weak self] in self?.onSelectWorkspace($0) }
+        panel.workspacePill.pill.onSelect = { [weak self] in self?.onSelectWorkspace($0) }
         panel.content.onPlaceApp = { [weak self] app, index in self?.onPlaceApp(app, index) }
         panel.content.onRemoveApp = { [weak self] item, point in
             // L'icône part en fumée sous le curseur, comme dans le vrai Dock.
@@ -229,6 +266,8 @@ final class DockController {
             self?.onRemoveApp(item)
         }
         panel.content.onContextMenu = { [weak self] item, view, event in self?.showMenu(for: item, from: view, event: event) }
+        panel.content.onWidgetContextMenu = { [weak self] id, view, event in self?.showWidgetMenu(id: id, from: view, event: event) }
+        panel.content.onBackgroundContextMenu = { [weak self] event in self?.showBackgroundMenu(event: event) }
     }
 
     func activate() {
@@ -272,8 +311,14 @@ final class DockController {
     }
 
     /// Relit les réglages du Dock macOS ; appelé quand ils ont pu changer.
+    func apply(magnification: Bool) {
+        self.magnification = magnification
+        refreshAppearance()
+    }
+
     func refreshAppearance() {
-        let next = readAppearance()
+        var next = readAppearance()
+        next.magnification = magnification
         guard next != appearance else { return }
         appearance = next
         panel.apply(appearance: next)
@@ -289,6 +334,7 @@ final class DockController {
         wasInside = inside
         followCursorScreen(at: location)
         updateHover(at: location)
+        updatePill(at: location)
         updateHotZone(at: location)
         // Le Dock macOS ne surgit qu'au contact du bord du bas : inutile de l'interroger ailleurs.
         if let screen = NSScreen.underCursor, location.y <= screen.frame.minY + 160 { syncWithSystemDock() }
@@ -313,6 +359,21 @@ final class DockController {
         return zone.union(popover.offsetBy(dx: shown.minX, dy: shown.minY).insetBy(dx: -8, dy: -8))
     }
 
+    /// Le dock ou sa pastille d'espaces (affichée) : y rester ne cache pas le dock. L'espace entre les
+    /// deux en fait partie, pour passer de l'un à l'autre sans que la pastille disparaisse.
+    private func overDock(_ location: NSPoint) -> Bool {
+        if dockZone.contains(location) { return true }
+        guard panel.workspacePill.isShown, let pill = panel.pillScreenRect else { return false }
+        let gap = NSRect(x: pill.minX, y: dockZone.maxY, width: pill.width, height: max(0, pill.minY - dockZone.maxY))
+        return pill.insetBy(dx: -6, dy: -6).contains(location) || gap.contains(location)
+    }
+
+    /// La pastille suit le survol : elle se montre sur le dock et reste sur elle-même.
+    private func updatePill(at location: NSPoint) {
+        guard panel.isRevealed else { return }
+        panel.setPillVisible(dockZone.contains(location) || overDock(location))
+    }
+
     func apply(autoHide: Bool) {
         self.autoHide = autoHide
         hotActive = false
@@ -323,7 +384,7 @@ final class DockController {
     /// bouge pas (un glisser-déposer peut le frôler du bord d'un autre écran).
     private func followCursorScreen(at location: NSPoint) {
         guard let screen = NSScreen.underCursor, screen.displayID != panel.displayID,
-              !(panel.isRevealed && dockZone.contains(location))
+              !(panel.isRevealed && overDock(location))
         else { return }
         hideTask?.cancel()
         hideTask = nil
@@ -337,7 +398,7 @@ final class DockController {
     /// instant après.
     private func updateHotZone(at location: NSPoint) {
         guard let screen = NSScreen.underCursor else { return }
-        let over = Self.hotZone(on: screen).contains(location) || (panel.isRevealed && dockZone.contains(location))
+        let over = Self.hotZone(on: screen).contains(location) || (panel.isRevealed && overDock(location))
         if over {
             hideTask?.cancel()
             hideTask = nil
@@ -433,6 +494,38 @@ final class DockController {
         } else {
             menu.addItem(menuItem("Open") { [weak self] in self?.activate(item) })
         }
+        addSharedItems(to: menu)
         NSMenu.popUpContextMenu(menu, with: event, for: view)
+    }
+
+    private func showWidgetMenu(id: String, from view: NSView, event: NSEvent) {
+        let menu = NSMenu()
+        menu.addItem(menuItem("Remove") { [weak self] in self?.panel.content.removeWidget(id: id) })
+        menu.addItem(.separator())
+        addSharedItems(to: menu, includesSeparator: false)
+        NSMenu.popUpContextMenu(menu, with: event, for: view)
+    }
+
+    private func showBackgroundMenu(event: NSEvent) {
+        let menu = NSMenu()
+        addSharedItems(to: menu, includesSeparator: false)
+        NSMenu.popUpContextMenu(menu, with: event, for: panel.content)
+    }
+
+    /// Les entrées communes à tous les clics droits du dock : ajouter un widget, les Préférences, quitter.
+    private func addSharedItems(to menu: NSMenu, includesSeparator: Bool = true) {
+        if includesSeparator { menu.addItem(.separator()) }
+        let widgets = NSMenuItem(title: "Widget", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: "Widget")
+        for kind in DockWidgetRegistry.all {
+            let entry = menuItem(kind.title) { [weak self] in self?.onAddWidget(kind.id) }
+            entry.image = NSImage(systemSymbolName: kind.symbol, accessibilityDescription: kind.title)
+            submenu.addItem(entry)
+        }
+        widgets.submenu = submenu
+        menu.addItem(widgets)
+        menu.addItem(menuItem("Settings") { SettingsWindowController.shared.show() })
+        menu.addItem(.separator())
+        menu.addItem(menuItem("Quit Whoa Stash") { NSApp.terminate(nil) })
     }
 }

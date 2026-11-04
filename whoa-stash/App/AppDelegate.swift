@@ -268,11 +268,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onSelectWorkspace: { [settings] in settings.settings.dock.activeWorkspaceID = $0 },
             onPlaceApp: { [settings] app, index in settings.settings.dock.placeApp(app, at: index) },
             onRemoveApp: { [settings] item in settings.settings.dock.unpinApp(bundleID: item.bundleID) },
-            onWidgetsChanged: { [settings] in settings.settings.dock.setVisibleWidgets($0) })
+            onWidgetsChanged: { [settings] in settings.settings.dock.setVisibleWidgets($0) },
+            onAddWidget: { [settings] in settings.settings.dock.addVisibleWidget(kind: $0) })
         dockModel.onStateChanged = { [weak dock] in dock?.apply(state: $0) }
         let runningProvider: RunningAppsProviding =
             MockRunningAppsProvider.fromLaunchArguments() ?? WorkspaceRunningAppsProvider()
         runningProvider.onChange = { [weak dockModel] in dockModel?.setRunning($0) }
+        dock.apply(magnification: settings.settings.dock.magnification)
         dock.activate()
         dockModel.setPinned(settings.settings.dock.visibleApps)
         dock.apply(workspaces: settings.settings.dock.workspaces, activeID: settings.settings.dock.activeWorkspaceID)
@@ -287,6 +289,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.$settings.map { DockWorkspaceState(list: $0.dock.workspaces, activeID: $0.dock.activeWorkspaceID) }
             .removeDuplicates()
             .sink { [weak dock] in dock?.apply(workspaces: $0.list, activeID: $0.activeID) }.store(in: &dockCancellables)
+        settings.$settings.map(\.dock.magnification).removeDuplicates()
+            .sink { [weak dock] in dock?.apply(magnification: $0) }.store(in: &dockCancellables)
         dock.apply(theme: settings.settings.dock.theme)
         settings.$settings.map(\.dock.theme).removeDuplicates()
             .sink { [weak dock] in dock?.apply(theme: $0) }.store(in: &dockCancellables)

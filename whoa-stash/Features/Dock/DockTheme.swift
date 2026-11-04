@@ -8,6 +8,13 @@ enum DockTheme: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// Interrupteur du Liquid Glass : désactivé temporairement (« Coming soon… »). Le code du verre
+    /// reste en place ; passer à `true` le réactive, y compris dans les réglages.
+    static let liquidGlassEnabled = false
+
+    /// Vrai quand le thème peut être choisi et rendu.
+    var isAvailable: Bool { self != .liquidGlass || Self.liquidGlassEnabled }
+
     var displayName: String {
         switch self {
         case .dark: return "Dark"
@@ -23,14 +30,14 @@ enum DockTheme: String, Codable, CaseIterable, Identifiable, Sendable {
     var ink: NSColor {
         switch self {
         case .dark: return .white
-        case .liquidGlass: return Self.systemIsDark ? .white : .black
+        case .liquidGlass: return !isAvailable || Self.systemIsDark ? .white : .black
         }
     }
 
     func makeBackground() -> DockSurfaceBackground {
         switch self {
         case .dark: return DarkDockBackground()
-        case .liquidGlass: return GlassDockBackground()
+        case .liquidGlass: return isAvailable ? GlassDockBackground() : DarkDockBackground()
         }
     }
 }

@@ -274,6 +274,7 @@ extension DockSettings {
         case launchExcluded
         case widgets
         case theme
+        case magnification
     }
 
     init(from decoder: Decoder) throws {
@@ -291,7 +292,8 @@ extension DockSettings {
             activeWorkspaceID: container.value(.activeWorkspaceID, defaults.activeWorkspaceID),
             launchExcluded: container.value(.launchExcluded, defaults.launchExcluded),
             widgets: container.value(.widgets, defaults.widgets),
-            theme: container.value(.theme, defaults.theme)
+            theme: container.value(.theme, defaults.theme),
+            magnification: container.value(.magnification, defaults.magnification)
         )
     }
 }

@@ -12,6 +12,8 @@ final class DockSettingsViewController: SettingsSectionViewController {
         "Show dock", target: self, action: #selector(enabledChanged))
     private lazy var autoHideCheckbox = NSButton.settingsCheckbox(
         "Hide automatically", target: self, action: #selector(autoHideChanged))
+    private lazy var magnificationCheckbox = NSButton.settingsCheckbox(
+        "Magnify icons", target: self, action: #selector(magnificationChanged))
     private lazy var hideSystemCheckbox = NSButton.settingsCheckbox(
         "Hide macOS Dock", target: self, action: #selector(hideSystemChanged))
     private let accessibilityButton = NSButton(title: "", target: nil, action: nil)
@@ -26,7 +28,13 @@ final class DockSettingsViewController: SettingsSectionViewController {
         accessibilityButton.action = #selector(accessibilityTapped)
         themePopUp.target = self
         themePopUp.action = #selector(themeChanged)
-        DockTheme.allCases.forEach { themePopUp.addItem(withTitle: $0.displayName) }
+        themePopUp.menu?.autoenablesItems = false
+        for theme in DockTheme.allCases {
+            themePopUp.addItem(withTitle: theme.displayName)
+            guard !theme.isAvailable, let item = themePopUp.lastItem else { continue }
+            item.isEnabled = false
+            item.badge = NSMenuItemBadge(string: "Coming soon...")
+        }
         hotkeyRecorder.onChange = { [weak self] in self?.viewModel.setToggleHotkey($0) }
 
         return [
@@ -34,6 +42,9 @@ final class DockSettingsViewController: SettingsSectionViewController {
             SettingsFormRowView(
                 title: "Auto-hide", control: autoHideCheckbox,
                 caption: "The dock slides away and comes back when the cursor touches the bottom edge, in the middle of the screen"),
+            SettingsFormRowView(
+                title: "Magnification", control: magnificationCheckbox,
+                caption: "Icons grow under the cursor. The enlarged size is the one set for the macOS Dock"),
             SettingsFormRowView(title: "Theme", control: themePopUp, caption: "Dark keeps the solid background; Liquid Glass shows the desktop through the dock"),
             SettingsFormRowView(
                 title: "Hotkey", control: hotkeyRecorder, caption: "Click a modifier to switch it on or off, then click the last tile and press a key. Shows or hides the dock from anywhere", alignsTop: true),
@@ -65,7 +76,9 @@ final class DockSettingsViewController: SettingsSectionViewController {
         enabledCheckbox.state = settings.enabled ? .on : .off
         hideSystemCheckbox.state = settings.hideSystemDock ? .on : .off
         autoHideCheckbox.state = settings.autoHide ? .on : .off
-        themePopUp.selectItem(at: DockTheme.allCases.firstIndex(of: settings.theme) ?? 0)
+        magnificationCheckbox.state = settings.magnification ? .on : .off
+        let shown = settings.theme.isAvailable ? settings.theme : .dark
+        themePopUp.selectItem(at: DockTheme.allCases.firstIndex(of: shown) ?? 0)
         hotkeyRecorder.setHotkey(settings.toggleHotkey)
         refreshAccessibility()
         reloadApps(settings)
@@ -141,6 +154,10 @@ final class DockSettingsViewController: SettingsSectionViewController {
 
     @objc private func autoHideChanged() {
         viewModel.setAutoHide(autoHideCheckbox.state == .on)
+    }
+
+    @objc private func magnificationChanged() {
+        viewModel.setMagnification(magnificationCheckbox.state == .on)
     }
 
     @objc private func hideSystemChanged() {

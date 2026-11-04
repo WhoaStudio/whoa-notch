@@ -11,7 +11,6 @@ private func makeItem(_ id: String, pinned: Bool = true) -> DockItem {
 @MainActor
 private func makeDock(items: Int = 3, widgets: [DockWidgetPlacement] = []) -> DockContentView {
     let dock = DockContentView(frame: NSRect(x: 0, y: 0, width: 900, height: 120))
-    dock.apply(workspaces: [DockWorkspace(name: "Work"), DockWorkspace(name: "Home")], activeID: nil)
     dock.apply(items: (0..<items).map { makeItem("app\($0)") }, overflow: [])
     dock.apply(widgets: widgets)
     return dock
@@ -86,20 +85,6 @@ private func makeDock(items: Int = 3, widgets: [DockWidgetPlacement] = []) -> Do
 
         #expect(dock.dropWidget(payload, atX: 890))
         #expect(received?.first?.index == 3)
-    }
-
-    @Test func unDepotSurLesEspacesDeTravailEstRefuse() throws {
-        let dock = makeDock()
-        var changes = 0
-        dock.onWidgetsChanged = { _ in changes += 1 }
-        let edge = try #require(boundary(of: dock))
-        #expect(edge > 40)
-
-        for x in stride(from: CGFloat(0), to: edge, by: 5) {
-            #expect(dock.widgetDropIndex(atX: x) == nil)
-            #expect(!dock.dropWidget(payload, atX: x))
-        }
-        #expect(changes == 0)
     }
 
     @Test func unTypeInconnuEstRefuse() throws {

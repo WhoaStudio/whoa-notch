@@ -8,6 +8,8 @@ final class DockWidgetHostView: NSView, NSDraggingSource {
     private let widget: DockWidget
     /// Appelé à la fin d'un glisser : le point à l'écran et si un dépôt l'a accepté.
     var onDragEnded: ((NSPoint, NSDragOperation) -> Void)?
+    /// Clic droit sur le widget.
+    var onContextMenu: ((NSEvent) -> Void)?
     private var didDrag = false
 
     init(placement: DockWidgetPlacement, widget: DockWidget) {
@@ -35,6 +37,8 @@ final class DockWidgetHostView: NSView, NSDraggingSource {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) { didDrag = false }
+
+    override func rightMouseDown(with event: NSEvent) { onContextMenu?(event) }
 
     override func mouseDragged(with event: NSEvent) {
         guard !didDrag else { return }
