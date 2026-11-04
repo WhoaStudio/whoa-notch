@@ -33,7 +33,7 @@ macOS menu-bar app (Swift 6, AppKit with a SwiftUI `App` shell) that shows overl
 - `AppSettings` is stored as one JSON blob. Only add fields with defaults. Decoding must keep tolerating missing keys, removed keys and unknown enum values (`SettingsStorageTests` covers this).
 - The app forces `.darkAqua` appearance in `AppDelegate`. Don't add light-mode variants.
 - DDC goes through private `IOAVService` symbols loaded with `dlopen`, so they are missing on Intel. Code must degrade, never crash.
-- `.gitignore` covers `xcuserdata/`, but 2 `xcuserdata` files are still tracked from before. Don't commit local Xcode state by accident.
+- `.gitignore` covers `xcuserdata/`. Don't commit local Xcode state by accident.
 
 ## Workflow
 
@@ -42,3 +42,9 @@ macOS menu-bar app (Swift 6, AppKit with a SwiftUI `App` shell) that shows overl
 - Paths in `.claudeignore` are read-denied through `.claude/settings.json`. Don't work around that with shell commands.
 - To skim a large file: `npx @whoa-studio/claude-kit compress --outline <path>`.
 - Subagents: `explorer` for broad searches, `/fix <symptom>` for bugs, `reviewer` before calling a change done, `test-writer` for coverage.
+
+<!-- claude-kit:begin map -->
+## Codebase map
+
+- `docs/INDEX.md` maps the repo by area and size. Start there instead of listing directories.
+<!-- claude-kit:end map -->

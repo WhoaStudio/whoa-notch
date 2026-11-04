@@ -29,14 +29,14 @@
     ".claude/context/conversation_memory.md": {
       "templateId": "context/memory",
       "templateVersion": 1,
-      "hash": "25b2c392814e5b3d57a9c8d2282bfbeb5c75ca6c742b95930668192af3aedf1f",
-      "owned": true
+      "hash": "958154b5cad25d53134deb4e2b54ee7ac8fae16a7b6c0dc21ff0e8e7ea07838b",
+      "owned": false
     },
     ".claude/context/task_context.md": {
       "templateId": "context/task",
       "templateVersion": 1,
-      "hash": "84b718d231125133bcb2881ff6bc7b30c7d5d9fcd964dbc6cb57d2aa2c99d975",
-      "owned": true
+      "hash": "604eda943308cafea3dfb1656258789ee1c871a1ef457928e543740dcafe2fa6",
+      "owned": false
     },
     ".claude/hooks/context-guard.cjs": {
       "templateId": "hooks/context-guard",
@@ -59,9 +59,9 @@
     ".claude/settings.json": {
       "templateId": "settings",
       "templateVersion": 2,
-      "hash": "a28ba019b613191af8042537f266a8802a46dccc696c8b6f39d21cf4a0b7e452",
+      "hash": "a2cf51cd1ebef692c6ea19949bd41b12725bff40f818d0029a4845b8c55f2cf7",
       "owned": true,
-      "lastGenerated": "{\n  \"$schema\": \"https://json.schemastore.org/claude-code-settings.json\",\n  \"permissions\": {\n    \"deny\": [\n      \"Read(**/.git/**)\",\n      \"Read(.DS_Store)\",\n      \"Read(**/.DS_Store/**)\",\n      \"Read(*.log)\",\n      \"Read(**/tmp/**)\",\n      \"Read(**/.idea/**)\",\n      \"Read(/.claude-kit/index/**)\",\n      \"Read(.env)\",\n      \"Read(**/.env/**)\",\n      \"Read(.env.*)\",\n      \"Read(!.env.example)\",\n      \"Read(*.pem)\",\n      \"Read(*.key)\",\n      \"Read(id_rsa*)\"\n    ]\n  },\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Edit|Write|MultiEdit|NotebookEdit\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-edit.cjs\\\"\"\n          }\n        ]\n      }\n    ],\n    \"PostCompact\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-snapshot.cjs\\\"\"\n          }\n        ]\n      }\n    ],\n    \"SessionStart\": [\n      {\n        \"matcher\": \"compact\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-snapshot.cjs\\\"\"\n          }\n        ]\n      }\n    ],\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-guard.cjs\\\"\"\n          }\n        ]\n      }\n    ]\n  },\n  \"model\": \"opusplan\",\n  \"statusLine\": {\n    \"type\": \"command\",\n    \"command\": \"node \\\"${CLAUDE_PROJECT_DIR:-.}/.claude/statusline/token-budget.cjs\\\"\",\n    \"padding\": 0\n  }\n}\n"
+      "lastGenerated": "{\n  \"$schema\": \"https://json.schemastore.org/claude-code-settings.json\",\n  \"permissions\": {\n    \"deny\": [\n      \"Read(**/.git/**)\",\n      \"Read(.DS_Store)\",\n      \"Read(**/.DS_Store/**)\",\n      \"Read(*.log)\",\n      \"Read(**/tmp/**)\",\n      \"Read(**/.idea/**)\",\n      \"Read(/.claude-kit/index/**)\",\n      \"Read(.env)\",\n      \"Read(**/.env/**)\",\n      \"Read(.env.*)\",\n      \"Read(!.env.example)\",\n      \"Read(*.pem)\",\n      \"Read(*.key)\",\n      \"Read(id_rsa*)\",\n      \"Read(/*.xcodeproj/xcuserdata/**)\",\n      \"Read(/*.xcodeproj/project.xcworkspace/xcuserdata/**)\",\n      \"Read(**/DerivedData/**)\",\n      \"Read(**/Build/**)\",\n      \"Read(**/.build/**)\",\n      \"Read(**/*.swiftpm/**)\",\n      \"Read(**/.swiftpm/**)\",\n      \"Read(**/.vscode/**)\",\n      \"Read(*.swp)\",\n      \"Read(*.swo)\",\n      \"Read(*~)\",\n      \"Read(*.p12)\",\n      \"Read(*.cer)\",\n      \"Read(*.mobileprovision)\",\n      \"Read(*.provisionprofile)\",\n      \"Read(*.keychain)\",\n      \"Read(*.keychain-db)\",\n      \"Read(/Config/Local.xcconfig)\",\n      \"Read(/.claude/settings.local.json)\",\n      \"Read(/.claude/worktrees/**)\"\n    ]\n  },\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Edit|Write|MultiEdit|NotebookEdit\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-edit.cjs\\\"\"\n          }\n        ]\n      }\n    ],\n    \"PostCompact\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-snapshot.cjs\\\"\"\n          }\n        ]\n      }\n    ],\n    \"SessionStart\": [\n      {\n        \"matcher\": \"compact\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-snapshot.cjs\\\"\"\n          }\n        ]\n      }\n    ],\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"node \\\"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-guard.cjs\\\"\"\n          }\n        ]\n      }\n    ]\n  },\n  \"model\": \"opusplan\",\n  \"statusLine\": {\n    \"type\": \"command\",\n    \"command\": \"node \\\"${CLAUDE_PROJECT_DIR:-.}/.claude/statusline/token-budget.cjs\\\"\",\n    \"padding\": 0\n  }\n}\n"
     },
     ".claude/skills/compress-doc/SKILL.md": {
       "templateId": "skills/compress-doc",
@@ -84,46 +84,53 @@
     ".claudeignore": {
       "templateId": "claudeignore",
       "templateVersion": 1,
-      "hash": "242b7adf18f55952e99c652305b586da6a02787a1a5883ddfee66873cc9b2d98",
+      "hash": "0085b0828a31c6ca7dba14300606cfa113286beb35a0f53c0bbdac7d440b4ac6",
       "owned": true,
-      "lastGenerated": "# .claudeignore: paths Claude Code should not read (saves context, keeps secrets out).\n# Claude Code doesn't read this file directly: claude-kit compiles it into\n# permissions.deny Read(...) rules in .claude/settings.json. After editing, run: claude-kit sync\n# Syntax: gitignore. Remove a line to let Claude read that path again.\n\n# secrets & editor noise\n.git/\n.DS_Store\n*.log\ntmp/\n.idea/\n.claude-kit/index/\n.env\n.env.*\n!.env.example\n*.pem\n*.key\nid_rsa*\n"
+      "lastGenerated": "# .claudeignore: paths Claude Code should not read (saves context, keeps secrets out).\n# Claude Code doesn't read this file directly: claude-kit compiles it into\n# permissions.deny Read(...) rules in .claude/settings.json. After editing, run: claude-kit sync\n# Syntax: gitignore. Remove a line to let Claude read that path again.\n\n# secrets & editor noise\n.git/\n.DS_Store\n*.log\ntmp/\n.idea/\n.claude-kit/index/\n.env\n.env.*\n!.env.example\n*.pem\n*.key\nid_rsa*\n\n# from .gitignore\n*.xcodeproj/xcuserdata/\n*.xcodeproj/project.xcworkspace/xcuserdata/\nDerivedData/\nBuild/\n.build/\n*.swiftpm/\n.swiftpm/\n.vscode/\n*.swp\n*.swo\n*~\n*.p12\n*.cer\n*.mobileprovision\n*.provisionprofile\n*.keychain\n*.keychain-db\nConfig/Local.xcconfig\n.claude/settings.local.json\n.claude/worktrees/\n"
     },
     "CLAUDE.md": {
       "templateId": "claudemd",
       "templateVersion": 1,
-      "hash": "0be9ace1da4f7a9e7240e5c3bf9c24c79a6d4553b1a2be836b32b13374f3b169",
-      "owned": true,
-      "lastGenerated": "# whoa-stash\n\n<!-- One or two sentences: what this project is, who uses it, what matters most. -->\n\n<!-- claude-kit:begin stack -->\n## Stack\n\n- <!-- Language, framework, runtime. -->\n<!-- claude-kit:end stack -->\n\n<!-- claude-kit:begin commands -->\n## Commands\n\n<!-- How to install, run, test, lint. -->\n<!-- claude-kit:end commands -->\n\n## Conventions\n\n<!-- Project rules Claude can't infer from the code, one line each. E.g. \"Use the Result type for errors, never throw in services.\" -->\n\n<!-- claude-kit:begin workflow -->\n## Workflow\n\n- **Plan first.** For changes touching more than ~3 files, start in Plan Mode (Shift+Tab), agree on the plan, then edit.\n- **Decompose.** Split big tasks into steps that each end green (tests/typecheck pass) before starting the next.\n- **Search, then read.** Grep/glob for the symbol you need instead of opening whole directories or large files.\n- **Verify.** Run the relevant test/lint command before calling a task done.\n<!-- claude-kit:end workflow -->\n\n<!-- claude-kit:begin guardrails -->\n## Guardrails\n\n- Paths in `.claudeignore` are blocked from reading via `permissions.deny` in `.claude/settings.json`. Don't work around it with shell commands; ask if you need one of them.\n- Lockfiles, build output and `.env*` files are edit-protected by `.claude/hooks/pre-edit.cjs`. Change the source of truth instead (manifest, sources).\n<!-- claude-kit:end guardrails -->\n\n<!-- claude-kit:begin task-context -->\n## Task context\n\n- For multi-step work, keep `.claude/context/task_context.md` current (goal, status, next steps). Update it before a session ends or when context runs long; it's re-loaded after compaction.\n- When resuming a task, read it first.\n<!-- claude-kit:end task-context -->\n\n<!-- claude-kit:begin memory -->\n## Team memory\n\n- Past decisions, rejected approaches and lessons are in `.claude/context/conversation_memory.md`. Check it before revisiting a decision; append one line when a new one is made.\n<!-- claude-kit:end memory -->\n\n<!-- claude-kit:begin docs -->\n## Docs\n\n- Before changing an area, read the matching file in `docs/` (architecture, api-contracts, data-models, debugging) and update it in the same change.\n<!-- claude-kit:end docs -->\n\n<!-- claude-kit:begin agents -->\n## Subagents\n\n- Delegate broad searches to `explorer` (Haiku, read-only) so only its findings enter this context.\n- For bugs and failing tests, run `/fix <symptom>`: it finds, diagnoses (via `debugger`), fixes, tests and retries.\n- Ask `reviewer` to check the diff before calling a non-trivial change done.\n- Use `test-writer` to add coverage for new behavior.\n<!-- claude-kit:end agents -->\n\n<!-- claude-kit:begin compress -->\n## Large files\n\n- To skim a big file, run `npx @whoa-studio/claude-kit compress --outline <path>` (declarations with line numbers), then read only the ranges you need.\n<!-- claude-kit:end compress -->\n\n<!-- claude-kit:begin models -->\n<!--\nModels (for humans; not loaded into Claude's context):\n- This project defaults to `opusplan` (.claude/settings.json): Opus in Plan Mode, Sonnet while executing.\n- /model sonnet: everyday coding · /model opus: hard debugging and design · /model haiku: quick mechanical edits\n- Personal override: /model <alias>, or set \"model\" in .claude/settings.local.json (not committed).\n-->\n<!-- claude-kit:end models -->\n\n## Gotchas\n\n<!-- Things that have bitten people before: flaky tests, env quirks, ordering constraints. -->\n"
+      "hash": "40864aa1c361f681349cbc635925388e0f8e8b782e2a2a5289641edb9079c0a7",
+      "owned": false,
+      "lastGenerated": "# whoa-stash\n\n<!-- One or two sentences: what this project is, who uses it, what matters most. -->\n\n<!-- claude-kit:begin stack -->\n## Stack\n\n- <!-- Language, framework, runtime. -->\n<!-- claude-kit:end stack -->\n\n<!-- claude-kit:begin commands -->\n## Commands\n\n<!-- How to install, run, test, lint. -->\n<!-- claude-kit:end commands -->\n\n## Conventions\n\n<!-- Project rules Claude can't infer from the code, one line each. E.g. \"Use the Result type for errors, never throw in services.\" -->\n\n<!-- claude-kit:begin workflow -->\n## Workflow\n\n- **Plan first.** For changes touching more than ~3 files, start in Plan Mode (Shift+Tab), agree on the plan, then edit.\n- **Decompose.** Split big tasks into steps that each end green (tests/typecheck pass) before starting the next.\n- **Search, then read.** Grep/glob for the symbol you need instead of opening whole directories or large files.\n- **Verify.** Run the relevant test/lint command before calling a task done.\n<!-- claude-kit:end workflow -->\n\n<!-- claude-kit:begin guardrails -->\n## Guardrails\n\n- Paths in `.claudeignore` are blocked from reading via `permissions.deny` in `.claude/settings.json`. Don't work around it with shell commands; ask if you need one of them.\n- Lockfiles, build output and `.env*` files are edit-protected by `.claude/hooks/pre-edit.cjs`. Change the source of truth instead (manifest, sources).\n<!-- claude-kit:end guardrails -->\n\n<!-- claude-kit:begin task-context -->\n## Task context\n\n- For multi-step work, keep `.claude/context/task_context.md` current (goal, status, next steps). Update it before a session ends or when context runs long; it's re-loaded after compaction.\n- When resuming a task, read it first.\n<!-- claude-kit:end task-context -->\n\n<!-- claude-kit:begin memory -->\n## Team memory\n\n- Past decisions, rejected approaches and lessons are in `.claude/context/conversation_memory.md`. Check it before revisiting a decision; append one line when a new one is made.\n<!-- claude-kit:end memory -->\n\n<!-- claude-kit:begin docs -->\n## Docs\n\n- Before changing an area, read the matching file in `docs/` (architecture, api-contracts, data-models, debugging) and update it in the same change.\n<!-- claude-kit:end docs -->\n\n<!-- claude-kit:begin map -->\n## Codebase map\n\n- `docs/INDEX.md` maps the repo by area and size. Start there instead of listing directories.\n<!-- claude-kit:end map -->\n\n<!-- claude-kit:begin agents -->\n## Subagents\n\n- Delegate broad searches to `explorer` (Haiku, read-only) so only its findings enter this context.\n- For bugs and failing tests, run `/fix <symptom>`: it finds, diagnoses (via `debugger`), fixes, tests and retries.\n- Ask `reviewer` to check the diff before calling a non-trivial change done.\n- Use `test-writer` to add coverage for new behavior.\n<!-- claude-kit:end agents -->\n\n<!-- claude-kit:begin compress -->\n## Large files\n\n- To skim a big file, run `npx @whoa-studio/claude-kit compress --outline <path>` (declarations with line numbers), then read only the ranges you need.\n<!-- claude-kit:end compress -->\n\n<!-- claude-kit:begin models -->\n<!--\nModels (for humans; not loaded into Claude's context):\n- This project defaults to `opusplan` (.claude/settings.json): Opus in Plan Mode, Sonnet while executing.\n- /model sonnet: everyday coding · /model opus: hard debugging and design · /model haiku: quick mechanical edits\n- Personal override: /model <alias>, or set \"model\" in .claude/settings.local.json (not committed).\n-->\n<!-- claude-kit:end models -->\n\n## Gotchas\n\n<!-- Things that have bitten people before: flaky tests, env quirks, ordering constraints. -->\n"
     },
     "docs/api-contracts.md": {
       "templateId": "docs/api-contracts",
       "templateVersion": 1,
-      "hash": "b115b0cf80f43719f9378fb98e3d029d15f6a179e7b363ccd45045bc57dda43d",
-      "owned": true
+      "hash": "102d30d0f93c21d9582053f0a01c1a4c4ad4e6227f490c84d59c146593df7255",
+      "owned": false
     },
     "docs/architecture.md": {
       "templateId": "docs/architecture",
       "templateVersion": 1,
-      "hash": "592f7a0783fce55645ee2aadcbb96da225fd4e8eedf4cb1aa726e50137e5ccee",
-      "owned": true
+      "hash": "afdd0aa9f0bb819cc46470ca678f1443e07e93a8e105a6e00e8ee814d4cb0485",
+      "owned": false
     },
     "docs/data-models.md": {
       "templateId": "docs/data-models",
       "templateVersion": 1,
-      "hash": "62172f2b6468f5025eefd9b416f52acf81892321f270f023154b6b565d118a6a",
-      "owned": true
+      "hash": "4b19c0c6503237ce2a26bf36982e5fadfed5cb286cad4fa2f4ad94ae4f771c9f",
+      "owned": false
     },
     "docs/debugging.md": {
       "templateId": "docs/debugging",
       "templateVersion": 1,
-      "hash": "2ee16d9d9576c1b071d304d08bd5ea19accf643c4f659bcbc9d905f5c517e2bf",
-      "owned": true
+      "hash": "4a629a70acfa9e991d5ce0d071f2cabe882c9adfe5e0e0926e10bc767b0baff1",
+      "owned": false
+    },
+    "docs/INDEX.md": {
+      "templateId": "docs/map",
+      "templateVersion": 1,
+      "hash": "e11dc1b00cbb001f1f574c5860fd592f3365faea57c65a68f131f5c2ca249e23",
+      "owned": true,
+      "lastGenerated": "# Codebase map\n\n<!-- The table is regenerated by `claude-kit sync`. Write your notes outside the managed region. -->\n\n<!-- claude-kit:begin map -->\n## Areas\n\n408 text files, ~588.5K tokens in total. Largest areas first.\n\n| Path | Files | ~Tokens |\n|---|---:|---:|\n| `whoa-stash/Features/` | 232 | 364.3K |\n| `whoa-stashTests/` | 37 | 95K |\n| `Vendor/` | 31 | 35.3K |\n| `whoa-stash/Core/` | 30 | 33.6K |\n| `(root)` | 9 | 9.2K |\n| `whoa-stash/App/` | 4 | 9.2K |\n| `whoa-stash.xcodeproj/` | 4 | 6.8K |\n| `scripts/` | 11 | 6.4K |\n| `docs/` | 6 | 4.7K |\n| `whoa-stash/Resources/` | 16 | 4.1K |\n| `Design/` | 4 | 1.4K |\n| `Config/` | 2 | 157 |\n| `Casks/` | 1 | 134 |\n\n## Largest files\n\nRead these in ranges (or outline them first), not whole.\n\n- `whoa-stashTests/KnockRecordings.swift`: ~38.7K tokens\n- `whoa-stash/Features/NotchPanel/Views/NotchPanelContentView.swift`: ~15K tokens\n- `whoa-stash/Features/Dock/DockContentView.swift`: ~12.4K tokens\n- `whoa-stash/Features/NotchPanel/NotchPanelController.swift`: ~11.1K tokens\n- `whoa-stash/Features/PanelTabs/Views/FileTrayView.swift`: ~8.6K tokens\n- `whoa-stash/App/AppDelegate.swift`: ~7.5K tokens\n- `Vendor/MediaRemoteAdapter/README.md`: ~6K tokens\n- `Vendor/MediaRemoteAdapter/src/adapter/stream.m`: ~5.9K tokens\n- `whoa-stash.xcodeproj/project.pbxproj`: ~5.4K tokens\n- `whoa-stash/Features/PanelTabs/Views/ImageTransformView.swift`: ~5.4K tokens\n<!-- claude-kit:end map -->\n\n## Notes\n\n<!-- One line per area: what lives there and who owns it. -->\n"
     },
     "docs/README.md": {
       "templateId": "docs/README",
       "templateVersion": 1,
-      "hash": "b6598f725c18b3c8a3dfac339b7354c5e70015ab1e3b2b7e824a971b57764461",
-      "owned": true
+      "hash": "bfef3cfaf580dd62c458d55516d1f29cd21132f141023e8093bf69ff252b614a",
+      "owned": false
     }
   },
   "preset": "full",
