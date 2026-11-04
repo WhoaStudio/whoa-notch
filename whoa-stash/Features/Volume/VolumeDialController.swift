@@ -79,6 +79,17 @@ final class VolumeDialController {
         mouseMonitor.start()
     }
 
+    /// Coupe ou rétablit le cadran : désactivé, plus aucun suivi du curseur et la fenêtre se ferme.
+    func setEnabled(_ enabled: Bool) {
+        if enabled {
+            mouseMonitor.start()
+        } else {
+            mouseMonitor.stop()
+            isPinned = false
+            dismiss()
+        }
+    }
+
     /// Ouvre (ou referme) le cadran sur l'écran qui contient le curseur — appelé par
     /// `--show-volume-dial`, qui est ce qui le rend vérifiable sur capture d'écran.
     func togglePinnedReveal() {

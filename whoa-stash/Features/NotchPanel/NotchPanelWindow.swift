@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// Fenêtre flottante du panneau de l'encoche, une par écran. Jumelle de `SidePanelWindow` : elle
 /// ne prend jamais le focus et n'apparaît pas dans le Dock (l'app est déjà `LSUIElement`). Le
@@ -104,6 +105,15 @@ final class NotchPanelWindow {
     var onDeleteNote: ((UUID) -> Void)? {
         get { contentView.onDeleteNote }
         set { contentView.onDeleteNote = newValue }
+    }
+
+    func apply(colorPickerState: ColorPickerState) {
+        contentView.apply(colorPickerState: colorPickerState)
+    }
+
+    var onColorPickerAction: ((ColorPickerAction) -> Void)? {
+        get { contentView.onColorPickerAction }
+        set { contentView.onColorPickerAction = newValue }
     }
 
     func apply(stayAwakeState: StayAwakeState) {
@@ -287,6 +297,11 @@ final class NotchPanelWindow {
         panel.setFrame(frame, display: true)
         contentView.frame = NSRect(origin: .zero, size: frame.size)
         contentView.collapsedSize = NotchPanelGeometry.collapsedSize(on: screen, style: style)
+        if let notch = NotchPanelGeometry.notchRect(on: screen) {
+            Log.notchPanel.debug("Encoche matérielle \(notch.width, privacy: .public) × \(notch.height, privacy: .public) pt, déplié \(frame.width, privacy: .public) pt")
+        } else {
+            Log.notchPanel.debug("Écran sans encoche, pastille, déplié \(frame.width, privacy: .public) pt")
+        }
         contentView.collapsedTopGap = NotchPanelGeometry.collapsedTopGap(on: screen, style: style)
         contentView.layoutSubtreeIfNeeded()
         if !isSuppressed { panel.orderFrontRegardless() }

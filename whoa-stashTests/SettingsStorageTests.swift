@@ -42,6 +42,18 @@ struct SettingsStorageTests {
         #expect(second.settings.notchPanel.notchlessStyle == .notch)
     }
 
+    @Test("le drapeau de bienvenue est faux par défaut, absent d'un ancien blob, et persiste")
+    func onboardingFlagDefaultsAndPersists() {
+        let defaults = Self.makeDefaults()
+        defaults.set(Data(#"{"general":{}}"#.utf8), forKey: "com.whoastudio.whoa-stash.appSettings")
+
+        let first = SettingsStorage(defaults: defaults)
+        #expect(first.settings.hasSeenOnboarding == false)
+
+        first.settings.hasSeenOnboarding = true
+        #expect(SettingsStorage(defaults: defaults).settings.hasSeenOnboarding == true)
+    }
+
     @Test("une forme d'encoche inconnue ou absente retombe sur la valeur par défaut")
     func unknownNotchlessStyleFallsBack() {
         let defaults = Self.makeDefaults()

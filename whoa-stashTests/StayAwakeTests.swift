@@ -106,11 +106,13 @@ struct StayAwakeTests {
         #expect(!viewModel.state.isActive)
     }
 
-    @Test("le balayage ne mène ni à Stay Awake ni n'en part")
+    @Test("le balayage ne mène ni à Stay Awake ni à Analytics, ni n'en part")
     func swipeSkipsStayAwake() {
-        #expect(NotchTab.terminal.neighbor(.next) == nil)
-        #expect(NotchTab.stayAwake.neighbor(.next) == nil)
-        #expect(NotchTab.stayAwake.neighbor(.previous) == nil)
-        #expect(!NotchTab.barTabs.contains(.stayAwake))
+        #expect(NotchTab.colorPicker.neighbor(.next) == nil)
+        for headerTab in [NotchTab.stayAwake, .analytics] {
+            #expect(headerTab.neighbor(.next) == nil)
+            #expect(headerTab.neighbor(.previous) == nil)
+            #expect(!NotchTab.barTabs.contains(headerTab))
+        }
     }
 }

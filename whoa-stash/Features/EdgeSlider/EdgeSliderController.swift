@@ -45,5 +45,16 @@ final class EdgeSliderController: NSObject {
         window.contentView = sliderView
 
         window.orderFrontRegardless()
+        setEnabled(prefs.enabled)
+    }
+
+    /// Montre ou retire la zone sensible du bord de l'écran.
+    func setEnabled(_ enabled: Bool) {
+        guard let window else { return }
+        if enabled {
+            window.orderFrontRegardless()
+        } else {
+            window.orderOut(nil)
+        }
     }
 }

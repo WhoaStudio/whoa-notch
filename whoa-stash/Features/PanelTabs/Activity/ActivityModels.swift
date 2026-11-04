@@ -60,6 +60,14 @@ nonisolated struct ActivitySummary: Equatable, Sendable {
     static let empty = ActivitySummary(tokens: 0, cost: nil, forecast: nil, activeDays: 0, daysInPeriod: 0)
 }
 
+/// Une ligne de l'onglet Analytics : ce qu'un modèle a consommé sur la période.
+nonisolated struct ActivityBreakdownRow: Equatable, Sendable {
+    let model: String
+    let tokens: Int
+    /// `nil` quand le modèle n'a pas de tarif connu.
+    let cost: Double?
+}
+
 /// Les valeurs proposées par les menus de filtre, tirées de la période affichée.
 nonisolated struct ActivityOptions: Equatable, Sendable {
     let models: [String]

@@ -16,6 +16,18 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         "Launch at login", target: self, action: #selector(launchAtLoginChanged))
     private lazy var notchPanelCheckbox = NSButton.settingsCheckbox(
         "Show notch panel", target: self, action: #selector(notchPanelChanged))
+    private lazy var volumeDialCheckbox = NSButton.settingsCheckbox(
+        "Show volume dial", target: self, action: #selector(volumeDialChanged))
+    private lazy var edgeSliderCheckbox = NSButton.settingsCheckbox(
+        "Show edge slider", target: self, action: #selector(edgeSliderChanged))
+    private lazy var sidePanelCheckbox = NSButton.settingsCheckbox(
+        "Show side panel", target: self, action: #selector(sidePanelChanged))
+    private var edgeSliderCancellable: AnyCancellable?
+    private lazy var tabCheckboxes: [(tab: NotchTab, button: NSButton)] = NotchTab.switchableTabs.map { tab in
+        let button = NSButton.settingsCheckbox("\(tab.title)", target: self, action: #selector(tabChanged(_:)))
+        button.identifier = NSUserInterfaceItemIdentifier(tab.title)
+        return (tab, button)
+    }
     private lazy var animationsCheckbox = NSButton.settingsCheckbox(
         "Enable animations", target: self, action: #selector(animationsChanged))
     private lazy var hapticCheckbox = NSButton.settingsCheckbox(
@@ -79,7 +91,13 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         return [
             SettingsFormRowView(title: "Startup", control: launchAtLoginCheckbox),
             SettingsFormRowView(title: "Toggle shortcut", control: shortcutPopUp),
-            SettingsFormRowView(title: "Notch panel", control: notchPanelCheckbox),
+            SettingsFormRowView(
+                title: "Surfaces",
+                control: makeSettingsControlStack(
+                    [notchPanelCheckbox, sidePanelCheckbox, volumeDialCheckbox, edgeSliderCheckbox])),
+            SettingsFormRowView(
+                title: "Notch tabs",
+                control: makeSettingsControlStack(tabCheckboxes.map(\.button))),
             makeSettingsDivider(),
             SettingsFormRowView(title: "Accent color", control: accentChoice, alignsTop: true),
             SettingsFormRowView(title: "Panel opacity", control: panelOpacitySlider),
@@ -108,7 +126,12 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         spotifyStatusCancellable = viewModel.$spotifyStatus.sink { [weak self] in
             self?.apply(spotifyStatus: $0)
         }
+        edgeSliderCancellable = viewModel.$edgeSlider.sink { [weak self] in
+            self?.edgeSliderCheckbox.state = $0.enabled ? .on : .off
+        }
         notchPanelCancellable = viewModel.$notchPanel.sink { [weak self] in
+            let disabled = NotchTab.tabs(named: $0.disabledTabs)
+            self?.tabCheckboxes.forEach { $0.button.state = disabled.contains($0.tab) ? .off : .on }
             self?.notchPanelCheckbox.state = $0.enabled ? .on : .off
             self?.notchlessStyleChoice.select(NotchPanelStyle.allCases.firstIndex(of: $0.notchlessStyle) ?? 0)
             self?.notchlessStyleRow?.isDimmed = !$0.enabled
@@ -138,6 +161,8 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     private func apply(_ settings: GeneralSettings) {
         launchAtLoginCheckbox.state = settings.launchAtLogin ? .on : .off
+        volumeDialCheckbox.state = settings.volumeDialEnabled ? .on : .off
+        sidePanelCheckbox.state = settings.sidePanelEnabled ? .on : .off
         accentChoice.select(AccentColor.allCases.firstIndex(of: settings.accentColor) ?? 0)
         animationsCheckbox.state = settings.enableAnimations ? .on : .off
         hapticCheckbox.state = settings.enableHapticFeedback ? .on : .off
@@ -149,6 +174,23 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
 
     @objc private func launchAtLoginChanged() {
         viewModel.setLaunchAtLogin(launchAtLoginCheckbox.state == .on)
+    }
+
+    @objc private func tabChanged(_ sender: NSButton) {
+        guard let entry = tabCheckboxes.first(where: { $0.button === sender }) else { return }
+        viewModel.setTab(entry.tab, enabled: sender.state == .on)
+    }
+
+    @objc private func volumeDialChanged() {
+        viewModel.setVolumeDialEnabled(volumeDialCheckbox.state == .on)
+    }
+
+    @objc private func edgeSliderChanged() {
+        viewModel.setEdgeSliderEnabled(edgeSliderCheckbox.state == .on)
+    }
+
+    @objc private func sidePanelChanged() {
+        viewModel.setSidePanelEnabled(sidePanelCheckbox.state == .on)
     }
 
     @objc private func animationsChanged() {

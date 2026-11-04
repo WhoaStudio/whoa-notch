@@ -29,6 +29,8 @@ extension GeneralSettings {
         case enableButtonSound
         case panelOpacity
         case togglePanelShortcut
+        case volumeDialEnabled
+        case sidePanelEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -42,7 +44,9 @@ extension GeneralSettings {
             enableSoundFeedback: container.value(.enableSoundFeedback, defaults.enableSoundFeedback),
             enableButtonSound: container.value(.enableButtonSound, defaults.enableButtonSound),
             panelOpacity: container.value(.panelOpacity, defaults.panelOpacity),
-            togglePanelShortcut: container.value(.togglePanelShortcut, defaults.togglePanelShortcut)
+            togglePanelShortcut: container.value(.togglePanelShortcut, defaults.togglePanelShortcut),
+            volumeDialEnabled: container.value(.volumeDialEnabled, defaults.volumeDialEnabled),
+            sidePanelEnabled: container.value(.sidePanelEnabled, defaults.sidePanelEnabled)
         )
     }
 }
@@ -75,6 +79,7 @@ extension BrightnessSettings {
 
 extension EdgeSliderSettings {
     enum CodingKeys: String, CodingKey {
+        case enabled
         case edgePosition
         case sliderHeight
         case sensitivity
@@ -84,6 +89,7 @@ extension EdgeSliderSettings {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = EdgeSliderSettings()
         self.init(
+            enabled: container.value(.enabled, defaults.enabled),
             edgePosition: container.value(.edgePosition, defaults.edgePosition),
             sliderHeight: container.value(.sliderHeight, defaults.sliderHeight),
             sensitivity: container.value(.sensitivity, defaults.sensitivity)
@@ -95,6 +101,7 @@ extension NotchPanelSettings {
     enum CodingKeys: String, CodingKey {
         case enabled
         case notchlessStyle
+        case disabledTabs
     }
 
     init(from decoder: Decoder) throws {
@@ -102,7 +109,8 @@ extension NotchPanelSettings {
         let defaults = NotchPanelSettings()
         self.init(
             enabled: container.value(.enabled, defaults.enabled),
-            notchlessStyle: container.value(.notchlessStyle, defaults.notchlessStyle)
+            notchlessStyle: container.value(.notchlessStyle, defaults.notchlessStyle),
+            disabledTabs: container.value(.disabledTabs, defaults.disabledTabs)
         )
     }
 }
@@ -173,6 +181,17 @@ extension MailSettings {
     }
 }
 
+extension ColorPickerSettings {
+    enum CodingKeys: String, CodingKey {
+        case recent
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(recent: container.value(.recent, ColorPickerSettings().recent))
+    }
+}
+
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case general
@@ -185,6 +204,8 @@ extension AppSettings {
         case radialMenu
         case ai
         case mail
+        case colorPicker
+        case hasSeenOnboarding
     }
 
     init(from decoder: Decoder) throws {
@@ -200,7 +221,9 @@ extension AppSettings {
             dock: container.value(.dock, defaults.dock),
             radialMenu: container.value(.radialMenu, defaults.radialMenu),
             ai: container.value(.ai, defaults.ai),
-            mail: container.value(.mail, defaults.mail)
+            mail: container.value(.mail, defaults.mail),
+            colorPicker: container.value(.colorPicker, defaults.colorPicker),
+            hasSeenOnboarding: container.value(.hasSeenOnboarding, defaults.hasSeenOnboarding)
         )
     }
 }

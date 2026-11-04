@@ -11,6 +11,7 @@ final class GeneralSettingsViewModel: ObservableObject {
     private let launchAtLoginService: LaunchAtLoginService
     private var cancellable: AnyCancellable?
     private var notchPanelCancellable: AnyCancellable?
+    private var edgeSliderCancellable: AnyCancellable?
     private var spotifyCancellable: AnyCancellable?
     private var spotifyStatusCancellable: AnyCancellable?
 
@@ -18,6 +19,7 @@ final class GeneralSettingsViewModel: ObservableObject {
     /// Le panneau de l'encoche n'a pas de section à lui : son unique réglage est présenté
     /// dans « General », d'où ce second flux à côté de `settings`.
     @Published private(set) var notchPanel: NotchPanelSettings
+    @Published private(set) var edgeSlider: EdgeSliderSettings
     /// Compte Spotify de la colonne « Playing Next », présenté lui aussi dans « General ».
     @Published private(set) var spotify: SpotifySettings
     @Published private(set) var spotifyStatus: SpotifyAccount.Status
@@ -27,6 +29,7 @@ final class GeneralSettingsViewModel: ObservableObject {
         self.launchAtLoginService = launchAtLoginService
         self.settings = storage.settings.general
         self.notchPanel = storage.settings.notchPanel
+        self.edgeSlider = storage.settings.edgeSlider
         self.spotify = storage.settings.spotify
         self.spotifyStatus = SpotifyAccount.shared.status
 
@@ -34,6 +37,11 @@ final class GeneralSettingsViewModel: ObservableObject {
             .map(\.general)
             .removeDuplicates()
             .sink { [weak self] in self?.settings = $0 }
+
+        edgeSliderCancellable = storage.$settings
+            .map(\.edgeSlider)
+            .removeDuplicates()
+            .sink { [weak self] in self?.edgeSlider = $0 }
 
         notchPanelCancellable = storage.$settings
             .map(\.notchPanel)
@@ -73,6 +81,24 @@ final class GeneralSettingsViewModel: ObservableObject {
 
     func setEnableButtonSound(_ enabled: Bool) {
         storage.settings.general.enableButtonSound = enabled
+    }
+
+    func setVolumeDialEnabled(_ enabled: Bool) {
+        storage.settings.general.volumeDialEnabled = enabled
+    }
+
+    func setSidePanelEnabled(_ enabled: Bool) {
+        storage.settings.general.sidePanelEnabled = enabled
+    }
+
+    func setEdgeSliderEnabled(_ enabled: Bool) {
+        storage.settings.edgeSlider.enabled = enabled
+    }
+
+    func setTab(_ tab: NotchTab, enabled: Bool) {
+        var names = storage.settings.notchPanel.disabledTabs.filter { $0 != tab.title }
+        if !enabled { names.append(tab.title) }
+        storage.settings.notchPanel.disabledTabs = names
     }
 
     func setNotchPanelEnabled(_ enabled: Bool) {

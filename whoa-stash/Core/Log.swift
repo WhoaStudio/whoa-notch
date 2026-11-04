@@ -66,5 +66,7 @@ enum Log {
     /// Panneau de l'encoche : masquage de l'île quand une app est en plein écran.
     nonisolated static let notchPanel = Logger(subsystem: subsystem, category: "notch-panel")
     /// Onglet Stay Awake : prise et relâchement de l'assertion d'énergie.
+    nonisolated static let colorPicker = Logger(subsystem: subsystem, category: "color-picker")
+    nonisolated static let onboarding = Logger(subsystem: subsystem, category: "onboarding")
     nonisolated static let stayAwake = Logger(subsystem: subsystem, category: "stay-awake")
 }

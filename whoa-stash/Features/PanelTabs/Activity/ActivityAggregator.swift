@@ -66,6 +66,27 @@ nonisolated enum ActivityAggregator {
         )
     }
 
+    /// Les `limit` modèles les plus utilisés du mois choisi, par jetons décroissants (le nom
+    /// départage les égalités).
+    static func breakdown(
+        records: [ActivityRecord], filter: ActivityFilter, now: Date, calendar: Calendar, limit: Int
+    ) -> [ActivityBreakdownRow] {
+        var tokens: [String: Int] = [:]
+        var cost: [String: Double] = [:]
+        for record in inMonth(records, filter: filter, now: now, calendar: calendar)
+        where filter.agent == nil || record.agent == filter.agent {
+            tokens[record.model, default: 0] += record.tokens.work
+            if let pricing = ModelPricing.pricing(for: record.model) {
+                cost[record.model, default: 0] += pricing.cost(of: record.tokens)
+            }
+        }
+        return tokens
+            .map { ActivityBreakdownRow(model: $0.key, tokens: $0.value, cost: cost[$0.key]) }
+            .sorted { ($0.tokens, $1.model) > ($1.tokens, $0.model) }
+            .prefix(limit)
+            .map { $0 }
+    }
+
     /// Coût du mois projeté au rythme observé. Un mois fini vaut son coût ; la première journée
     /// compte pour un jour entier, sans quoi quelques heures d'activité s'extrapoleraient à
     /// l'infini.

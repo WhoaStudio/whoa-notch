@@ -158,7 +158,7 @@ final class NotchUsageCardView: NSView {
     }
 }
 
-/// Pastille de filtre (« Month », « All agents »…) : libellé et chevron. Un clic ouvre le menu
+/// Pastille de filtre (« Month », « All models »…) : libellé et chevron. Un clic ouvre le menu
 /// que construit `makeMenu`.
 final class NotchUsageFilterPillView: NSView {
 
@@ -194,6 +194,7 @@ final class NotchUsageFilterPillView: NSView {
         label.stringValue = title
         label.font = .systemFont(ofSize: 13, weight: .medium)
         label.textColor = NSColor.white.withAlphaComponent(0.92)
+        label.lineBreakMode = .byClipping
         let configuration = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
         chevron.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
             .withSymbolConfiguration(configuration)
@@ -207,14 +208,16 @@ final class NotchUsageFilterPillView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    var fittingWidth: CGFloat { 12 + min(ceil(label.intrinsicContentSize.width), 150) + 8 + 10 + 11 }
+    var fittingWidth: CGFloat { 12 + labelWidth + 8 + 10 + 11 }
+
+    /// Largeur du libellé en entier : le titre ne se tronque jamais, c'est la pastille qui s'étire.
+    private var labelWidth: CGFloat { ceil(max(label.intrinsicContentSize.width, label.attributedStringValue.size().width)) + 2 }
 
     override func layout() {
         super.layout()
         let size = label.intrinsicContentSize
-        label.lineBreakMode = .byTruncatingMiddle
         label.frame = NSRect(
-            x: 12, y: (bounds.height - size.height) / 2, width: min(ceil(size.width), 150), height: size.height)
+            x: 12, y: (bounds.height - size.height) / 2, width: labelWidth, height: size.height)
         chevron.frame = NSRect(x: label.frame.maxX + 8, y: (bounds.height - 10) / 2, width: 10, height: 10)
     }
 }

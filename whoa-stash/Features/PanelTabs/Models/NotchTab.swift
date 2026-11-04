@@ -4,10 +4,12 @@ import Foundation
 ///
 /// `Global` porte la bande horizontale de la semaine ; `Calendar` porte l'agenda et la grille
 /// mensuelle ; `Tray` recueille les fichiers qu'on y dépose ; `Clipboard` garde l'historique des copies ; `Notes` garde des notes en texte brut ; `Mirror` montre la caméra dans un
-/// cercle ; `AI` porte l'utilisation des agents ; `Terminal` porte un shell.
+/// cercle ; `AI` porte l'utilisation des agents ; `Terminal` porte un shell ; `Color` prélève
+/// une couleur à l'écran.
 ///
-/// `StayAwake` est à part : on l'ouvre depuis le bouton tasse de l'en-tête, pas depuis la
-/// capsule, et le balayage n'y mène pas (voir `barTabs`).
+/// `StayAwake` et `Analytics` sont à part : on les ouvre depuis les boutons de l'en-tête (la
+/// tasse, la pastille d'usage), pas depuis la capsule, et le balayage n'y mène pas (voir
+/// `barTabs`).
 enum NotchTab: Int, CaseIterable {
     case global
     case calendar
@@ -17,10 +19,30 @@ enum NotchTab: Int, CaseIterable {
     case mirror
     case ai
     case terminal
+    case colorPicker
     case stayAwake
+    case analytics
 
     /// Les onglets de la capsule, dans l'ordre de la rangée.
-    static let barTabs: [NotchTab] = allCases.filter { $0 != .stayAwake }
+    static var barTabs: [NotchTab] {
+        allCases.filter { $0 != .stayAwake && $0 != .analytics && !disabledTabs.contains($0) }
+    }
+
+    /// Onglets que l'utilisateur a coupés dans les Préférences : ils quittent la capsule et le
+    /// balayage. `NotchPanelController` la tient à jour et reconstruit les fenêtres à chaque
+    /// changement ; `Global` n'y figure jamais, c'est l'onglet de repli.
+    static var disabledTabs: Set<NotchTab> = []
+
+    /// Les onglets de la capsule qu'on peut couper.
+    static let switchableTabs: [NotchTab] = allCases.filter {
+        $0 != .global && $0 != .stayAwake && $0 != .analytics
+    }
+
+    /// Les onglets désignés par leur titre, tel qu'il est enregistré dans les réglages ; un titre
+    /// inconnu ou `Global` est ignoré.
+    static func tabs(named names: [String]) -> Set<NotchTab> {
+        Set(switchableTabs.filter { names.contains($0.title) })
+    }
 
     /// L'onglet voisin dans le sens donné, ou `nil` au bout de la rangée — on ne reboucle pas.
     /// Hors de la capsule, un onglet n'a pas de voisin.
@@ -40,7 +62,9 @@ enum NotchTab: Int, CaseIterable {
         case .mirror: "Mirror"
         case .ai: "AI"
         case .terminal: "Terminal"
+        case .colorPicker: "Color"
         case .stayAwake: "Stay Awake"
+        case .analytics: "Analytics"
         }
     }
 
@@ -56,7 +80,9 @@ enum NotchTab: Int, CaseIterable {
         case .mirror: "camera"
         case .ai: "sparkles"
         case .terminal: "terminal"
+        case .colorPicker: "eyedropper"
         case .stayAwake: "cup.and.saucer"
+        case .analytics: "chart.bar.xaxis"
         }
     }
 }

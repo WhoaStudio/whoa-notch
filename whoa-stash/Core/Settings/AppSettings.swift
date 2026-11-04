@@ -110,6 +110,9 @@ struct GeneralSettings: Codable, Equatable, Sendable {
     var panelOpacity: Double = 1.0
     /// Raccourci global qui déplie/replie le panneau de l'encoche.
     var togglePanelShortcut: GlobalShortcut = .disabled
+    /// Interrupteurs des surfaces qui n'ont pas de section dédiée dans les Préférences.
+    var volumeDialEnabled: Bool = true
+    var sidePanelEnabled: Bool = true
 }
 
 struct BrightnessSettings: Codable, Equatable, Sendable {
@@ -128,6 +131,7 @@ struct BrightnessSettings: Codable, Equatable, Sendable {
 /// Réglages du slider de volume ancré au bord de l'écran — pas de section dédiée dans les
 /// Préférences aujourd'hui, mais centralisés ici comme le reste.
 struct EdgeSliderSettings: Codable, Equatable, Sendable {
+    var enabled: Bool = true
     var edgePosition: EdgePosition = .right
     var sliderHeight: Double = 160
     var sensitivity: Double = 1.0
@@ -141,6 +145,8 @@ struct NotchPanelSettings: Codable, Equatable, Sendable {
     /// Forme repliée sur un écran **sans** encoche matérielle ; un écran à encoche garde
     /// toujours la silhouette de l'encoche, quel que soit ce réglage.
     var notchlessStyle: NotchPanelStyle = .island
+    /// Titres (`NotchTab.title`) des onglets coupés, en `[String]` pour tolérer un onglet disparu.
+    var disabledTabs: [String] = []
 }
 
 /// Racine unique des préférences de l'application, persistée automatiquement par
@@ -157,6 +163,9 @@ struct AppSettings: Codable, Equatable, Sendable {
     var radialMenu = RadialMenuSettings()
     var ai = AISettings()
     var mail = MailSettings()
+    var colorPicker = ColorPickerSettings()
+    /// Vrai une fois la fenêtre de bienvenue fermée : elle ne s'affiche qu'au premier lancement.
+    var hasSeenOnboarding = false
 
     static let `default` = AppSettings()
 }

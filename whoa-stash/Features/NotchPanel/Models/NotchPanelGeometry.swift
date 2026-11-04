@@ -72,18 +72,6 @@ enum NotchPanelGeometry {
     /// c'est l'air qu'il garde au-dessus de lui, à régler pour le monter ou le descendre.
     static let gearDrop: CGFloat = 8
 
-    /// Côté du coffre à gauche de la semaine, dans l'onglet Global déplié (le rapport de l'image
-    /// est gardé).
-    static let homeLogoSize: CGFloat = 56
-
-    /// De combien le coffre est remonté par rapport au centre de la bande de la semaine : plus
-    /// grand qu'elle, il déborde surtout vers le haut, où la marge haute le laisse passer, et peu
-    /// vers le lecteur.
-    static let homeLogoLift: CGFloat = 4
-
-    /// Écart entre le coffre et le premier jour de la semaine.
-    static let homeLogoToWeekGap: CGFloat = 12
-
     /// Dont l'engrenage est rentré depuis le bord droit du contenu. Négatif : c'est le **glyphe**,
     /// et non sa bulle, qui tombe sur ce bord — le même que celui de tout ce que portent les onglets
     /// (volume du lecteur, grille, cartes), de sorte que tout s'aligne à droite sur l'engrenage.
@@ -135,12 +123,19 @@ enum NotchPanelGeometry {
     static let columnGap: CGFloat = 18
     static let dividerWidth: CGFloat = 1
 
-    /// Onglet AI : un seul bloc vertical (en-tête, carte du fournisseur, filtres, activité), plus
-    /// haut que les autres onglets. Le panneau ne grandit donc que pour lui (voir `panelRect`).
+    /// Onglet AI : une carte d'agent à la fois, à la hauteur des onglets Terminal et Notes.
     static let aiTabHeight: CGFloat = 240
 
-    /// Largeur du contenu de l'onglet AI, et donc du panneau : le plus large des onglets.
+    /// Onglet Analytics : un seul bloc vertical (en-tête, carte du fournisseur, filtres, activité), plus haut que les autres onglets. Le panneau ne grandit donc que pour lui (voir
+    /// `panelRect`).
+    static let analyticsTabHeight: CGFloat = 280
+
+    /// Largeur du contenu par défaut, celle des onglets Global, Calendar, Mirror et Stay Awake.
     static let aiTabWidth: CGFloat = 440
+
+    /// Largeur du contenu de l'onglet AI (usages) : assez large pour que l'en-tête, les filtres et
+    /// les mesures tiennent chacun sur une seule ligne (voir `contentWidth(for:)`).
+    static let usageTabWidth: CGFloat = 720
 
     /// Onglet Clipboard : plus haut et plus large que les autres, pour que les cartes de
     /// l'historique aient la place de respirer. Seul cet onglet s'élargit ; les autres gardent
@@ -193,17 +188,20 @@ enum NotchPanelGeometry {
     static func contentHeight(for tab: NotchTab) -> CGFloat {
         switch tab {
         case .ai: aiTabHeight
+        case .analytics: analyticsTabHeight
         case .mirror: mirrorTabHeight
         case .clipboard: clipboardTabHeight
         case .terminal: terminalTabHeight
         case .notes: notesTabHeight
-        case .global, .calendar, .tray, .stayAwake: calendarTabHeight
+        case .global, .calendar, .tray, .colorPicker, .stayAwake: calendarTabHeight
         }
     }
 
-    /// Largeur du contenu d'un onglet, hors marges. Seul le Clipboard s'écarte de `aiTabWidth`.
+    /// Largeur du contenu d'un onglet, hors marges. Seuls l'AI, le Clipboard, le Tray, le Terminal
+    /// et les Notes s'écartent de `aiTabWidth`.
     static func contentWidth(for tab: NotchTab) -> CGFloat {
         switch tab {
+        case .ai, .analytics: usageTabWidth
         case .clipboard: clipboardTabWidth
         case .tray: trayTabWidth
         case .terminal: terminalTabWidth
@@ -215,11 +213,13 @@ enum NotchPanelGeometry {
     /// Hauteur de l'onglet le plus haut : c'est elle qui dimensionne la fenêtre, dont le cadre ne
     /// change jamais. Les autres onglets laissent le surplus vide sous leur panneau.
     static var tabContentHeight: CGFloat {
-        max(calendarTabHeight, aiTabHeight, mirrorTabHeight, transformViewHeight, clipboardTabHeight, terminalTabHeight)
+        max(calendarTabHeight, aiTabHeight, analyticsTabHeight, mirrorTabHeight, transformViewHeight, clipboardTabHeight, terminalTabHeight)
     }
 
     /// Largeur de l'onglet le plus large — AI ou Clipboard. C'est elle qui dimensionne la fenêtre.
-    static var tabContentWidth: CGFloat { max(aiTabWidth, clipboardTabWidth, trayTabWidth, terminalTabWidth) }
+    static var tabContentWidth: CGFloat {
+        max(aiTabWidth, usageTabWidth, clipboardTabWidth, trayTabWidth, terminalTabWidth)
+    }
 
     /// Taille dépliée, capsule comprise : le cadre de la fenêtre porte les deux, et la hauteur
     /// est donc celle du panneau **plus** la bande basse où flotte la capsule.

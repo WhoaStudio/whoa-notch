@@ -140,20 +140,23 @@ struct NotchPanelGeometryTests {
     func tabContentHeightCoversEveryTab() {
         #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.calendarTabHeight)
         #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.aiTabHeight)
+        #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.analyticsTabHeight)
         #expect(NotchPanelGeometry.tabContentHeight >= NotchPanelGeometry.weekStripHeight)
     }
 
-    /// Seul l'onglet AI est plus haut : les autres gardent leur panneau court, suspendu au même
+    /// Seul l'onglet Analytics est plus haut : les autres gardent leur panneau court, suspendu au même
     /// bord haut, et la capsule remonte sous lui.
-    @Test("le panneau ne grandit que pour l'onglet AI")
-    func panelGrowsOnlyForAI() {
+    @Test("le panneau ne grandit que pour l'onglet Analytics")
+    func panelGrowsOnlyForAnalytics() {
         let size = NotchPanelGeometry.expandedSize(collapsedHeight: Self.collapsedHeight)
         let bounds = NSRect(origin: .zero, size: size)
-        let ai = NotchPanelGeometry.panelRect(in: bounds, tab: .ai)
+        let analytics = NotchPanelGeometry.panelRect(in: bounds, tab: .analytics)
         let calendar = NotchPanelGeometry.panelRect(in: bounds, tab: .calendar)
 
-        #expect(ai.maxY == calendar.maxY)
-        #expect(ai.height - calendar.height == NotchPanelGeometry.aiTabHeight - NotchPanelGeometry.calendarTabHeight)
+        #expect(analytics.maxY == calendar.maxY)
+        #expect(
+            analytics.height - calendar.height
+                == NotchPanelGeometry.analyticsTabHeight - NotchPanelGeometry.calendarTabHeight)
     }
 
     /// Les deux colonnes du widget se partagent la largeur de l'onglet : la grille du mois est

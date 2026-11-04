@@ -27,4 +27,9 @@ nonisolated enum ActivityFormatting {
     static func activeDays(_ summary: ActivitySummary) -> String {
         "\(summary.activeDays)/\(summary.daysInPeriod)"
     }
+
+    /// « 1.8M · $49.13 » : jetons et coût du mois, sur une ligne, pour la pastille de l'en-tête.
+    static func chip(_ summary: ActivitySummary) -> String {
+        "\(tokens(summary.tokens)) · \(money(summary.cost))"
+    }
 }

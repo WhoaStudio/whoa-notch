@@ -77,6 +77,16 @@ final class SidePanelController {
         }
     }
 
+    /// Coupe ou rétablit le panneau : désactivé, plus aucun suivi du curseur et la bande se replie.
+    func setEnabled(_ enabled: Bool) {
+        if enabled {
+            mouseMonitor.start()
+        } else {
+            mouseMonitor.stop()
+            hideActive()
+        }
+    }
+
     /// Accent et translucidité ne passent pas par `NSAppearance` : la palette les porte, et
     /// c'est à nous de demander la repeinte.
     private func applyPaletteChange() {

@@ -4,8 +4,7 @@ import AppKit
 /// les étapes (Read, Edit, Bash, Done) avec la courante en avant ; à droite le fichier travaillé,
 /// onglet, chemin et quelques lignes.
 ///
-/// Elle prend la place de la carte d'utilisation ; une demande en attente passe devant (voir
-/// `NotchUsageTabView`). Mise en page entièrement en frames, comme le reste de l'overlay.
+/// Une demande en attente passe devant (voir `NotchUsageTabView`). Mise en page entièrement en frames, comme le reste de l'overlay.
 final class AgentActivityCardView: NSView {
 
     private let logoView = NSImageView()

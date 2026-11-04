@@ -16,9 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var volumeDialController: VolumeDialController?
     private var sidePanelController: SidePanelController?
     private var notchPanelController: NotchPanelController?
+    private var welcomeController: WelcomeController?
     private var clipboardHistoryViewModel: ClipboardHistoryViewModel?
     private var notesViewModel: NotesViewModel?
     private var stayAwakeViewModel: StayAwakeViewModel?
+    private var colorPickerViewModel: ColorPickerViewModel?
     private var deviceStatusCoordinator: DeviceStatusCoordinator?
     private var nowPlayingViewModel: NowPlayingViewModel?
     private var playingNextViewModel: PlayingNextViewModel?
@@ -102,7 +104,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // indépendant de la bande du bord droit, que le réglage Général permet de couper.
         notchPanelController = NotchPanelController(storage: settings)
         notchPanelController?.activate()
-        notchPanelController?.showLaunchGreeting()
 
         // Pastille d'état d'un appareil audio Bluetooth qui se connecte, affichée sous l'encoche.
         // `--simulate-bluetooth-device=airpodsmax,82` en simule un (voir `DeviceStatus`).
@@ -183,6 +184,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notchPanelController?.onStayAwakeAction = { [weak stayAwake] action in stayAwake?.handle(action) }
         stayAwake.activate()
         stayAwakeViewModel = stayAwake
+
+        // Pipette de l'onglet Color : `NSColorSampler` du système, ou `--color-picker=sample` pour une
+        // source factice.
+        let colorPicker = ColorPickerViewModel(
+            sampler: MockColorSampler.fromLaunchArguments() ?? SystemColorSampler())
+        colorPicker.onStateChanged = { [weak self] state in
+            self?.notchPanelController?.apply(colorPickerState: state)
+        }
+        notchPanelController?.onColorPickerAction = { [weak colorPicker] action in colorPicker?.handle(action) }
+        colorPicker.activate()
+        colorPickerViewModel = colorPicker
 
         // Détection de coups sur le châssis par l'accéléromètre : une action par motif (simple,
         // double), réglée dans les Préférences. `--knock=single|double` en simule un (voir
@@ -303,6 +315,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .removeDuplicates()
             .sink { GlobalShortcutService.shared.apply($0) }
 
+        // Interrupteurs des Préférences pour les surfaces sans section dédiée.
+        settings.$settings.map(\.general.volumeDialEnabled).removeDuplicates()
+            .sink { [weak self] in self?.volumeDialController?.setEnabled($0) }.store(in: &dockCancellables)
+        settings.$settings.map(\.general.sidePanelEnabled).removeDuplicates()
+            .sink { [weak self] in self?.sidePanelController?.setEnabled($0) }.store(in: &dockCancellables)
+        settings.$settings.map(\.edgeSlider.enabled).removeDuplicates()
+            .sink { [weak self] in self?.edgeSliderController?.setEnabled($0) }.store(in: &dockCancellables)
+
         // Utilisation Claude : le modèle de vue alimente la bande latérale, et un seul appel
         // réseau la sert.
         // `--claude-usage=73,7` substitue des valeurs fixes à la vraie source (voir
@@ -409,6 +429,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let categoryRaw = arg.split(separator: "=").last.map(String.init)
             let category = categoryRaw.flatMap { SettingsCategory(rawValue: $0) } ?? .general
             SettingsWindowController.shared.show(category)
+        }
+
+        // Écran de bienvenue : à chaque lancement. Au premier (`hasSeenOnboarding` faux), il porte
+        // les boutons « Start » et « See Tutorial » et attend un clic ; aux suivants, il joue
+        // l'animation puis se replie seul. `--show-welcome` rejoue la version du premier lancement
+        // sans toucher au réglage, pour la vérifier.
+        do {
+            let firstLaunch = !settings.settings.hasSeenOnboarding || CommandLine.arguments.contains("--show-welcome")
+            let welcome = WelcomeController()
+            // La fenêtre de bienvenue prend le relais une fois le panneau de l'encoche refermé.
+            welcome.onStart = { [weak self] in
+                self?.settings.settings.hasSeenOnboarding = true
+                OnboardingWindowController.shared.show()
+            }
+            welcome.onTutorial = { [weak self] in
+                self?.settings.settings.hasSeenOnboarding = true
+                OnboardingWindowController.shared.show()
+                self?.notchPanelController?.togglePinnedReveal()
+            }
+            welcomeController = welcome
+            welcome.activate(showsButtons: firstLaunch)
+        }
+
+        // La fenêtre de bienvenue s'ouvre après le panneau de l'encoche ; `--show-onboarding`
+        // l'ouvre d'emblée pour la vérifier.
+        if CommandLine.arguments.contains("--show-onboarding") {
+            OnboardingWindowController.shared.show()
         }
     }
 

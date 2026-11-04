@@ -5,8 +5,9 @@ import AppKit
 /// large portant l'onglet choisi, surmonté d'une capsule de navigation détachée, posée sous lui
 /// et qui n'est donc pas un morceau de sa silhouette. Global porte la semaine ; Calendar porte
 /// l'agenda et la grille mensuelle ; AI
-/// porte le bloc d'utilisation (`NotchUsageTabView`), plus haut que les autres : le panneau ne
-/// grandit que pour lui ; Tray affiche le bac à fichiers, qui vit hors de la vue (`FileShelfStore`) et
+/// porte les demandes et l'activité des agents (`NotchUsageTabView`) ; Analytics porte le bloc
+/// d'utilisation (`NotchAnalyticsTabView`), plus haut que les autres : le panneau ne grandit que
+/// pour lui ; Tray affiche le bac à fichiers, qui vit hors de la vue (`FileShelfStore`) et
 /// retient donc ce qu'on y dépose d'un dépliage à l'autre, et d'un lancement à l'autre.
 ///
 /// Les deux silhouettes sont décrites par la même recette de chemin, dans le même ordre de
@@ -24,10 +25,10 @@ final class NotchPanelContentView: NSView {
     /// à piloter pendant le dépliage.
     private let contentContainer = NSView()
 
-    /// Appelé au clic sur l'engrenage (capsule ou en-tête de l'onglet AI), relayé jusqu'au
+    /// Appelé au clic sur l'engrenage (capsule ou en-tête de l'onglet Analytics), relayé jusqu'au
     /// contrôleur.
     var onOpenSettings: (() -> Void)? {
-        didSet { usageTab.onOpenSettings = onOpenSettings }
+        didSet { analyticsTab.onOpenSettings = onOpenSettings }
     }
 
     /// Appelé au clic sur « Launch all », relayé jusqu'au contrôleur.
@@ -39,9 +40,9 @@ final class NotchPanelContentView: NSView {
         set { launchButton.isEnabled = newValue }
     }
 
-    /// Appelé au clic sur « actualiser » de l'onglet AI.
+    /// Appelé au clic sur « actualiser » de l'onglet Analytics.
     var onRefreshUsage: (() -> Void)? {
-        didSet { usageTab.onRefresh = onRefreshUsage }
+        didSet { analyticsTab.onRefresh = onRefreshUsage }
     }
 
     /// La capsule de navigation, posée sous le panneau et détachée de lui : elle vit donc hors
@@ -55,6 +56,12 @@ final class NotchPanelContentView: NSView {
     /// Tasse de l'en-tête, à gauche de « Launch all » : ouvre l'onglet Stay Awake, et s'allume
     /// tant que le Mac est tenu éveillé.
     private let stayAwakeButton = NotchGearButtonView(symbolName: "cup.and.saucer", description: "Stay awake")
+    /// Jetons et coût du mois, à gauche de la tasse : ouvre l'onglet Analytics.
+    private let usageChip = NotchUsageChipView()
+    private var monthSummary: ActivitySummary?
+    private let analyticsTab = NotchAnalyticsTabView()
+    /// L'onglet que la pastille a quitté, où un second clic ramène (comme `tabBeforeStayAwake`).
+    private var tabBeforeAnalytics: NotchTab = .global
     private let stayAwakeTab = StayAwakeTabView()
     private var stayAwakeState = StayAwakeState()
 
@@ -93,8 +100,6 @@ final class NotchPanelContentView: NSView {
     /// L'onglet Global : la semaine horizontale.
     private let globalTab = NSView()
     private let weekStrip = WeekStripView()
-    /// Le coffre, à gauche de la semaine.
-    private let homeLogo = NotchHomeLogoView()
     /// L'onglet Calendar : l'agenda et la grille du mois.
     private let calendarTab = NSView()
     private let calendarWidget = CalendarWidgetView()
@@ -139,6 +144,14 @@ final class NotchPanelContentView: NSView {
 
     /// L'onglet Terminal : le cadre qui reçoit la vue de la session partagée.
     private let terminalTab = TerminalTabView()
+
+    /// L'onglet Color : aperçu, trois écritures et couleurs récentes.
+    private let colorPickerTab = ColorPickerTabView()
+
+    /// Relayé jusqu'au contrôleur : « Pick », une récente choisie, « Clear ».
+    var onColorPickerAction: ((ColorPickerAction) -> Void)? {
+        didSet { colorPickerTab.onAction = onColorPickerAction }
+    }
 
     /// Le shell partagé par toutes les fenêtres du panneau (voir `TerminalSession`).
     var terminalSession: TerminalSession?
@@ -218,7 +231,6 @@ final class NotchPanelContentView: NSView {
         contentContainer.addSubview(usageTab)
         contentContainer.addSubview(mirrorTab)
 
-        globalTab.addSubview(homeLogo)
         globalTab.addSubview(weekStrip)
         // Le lecteur se range sous la semaine dans l'onglet Global, et y reste : au repos il
         // montre « Nothing playing ».
@@ -236,9 +248,18 @@ final class NotchPanelContentView: NSView {
         contentContainer.addSubview(clipboardTab)
         contentContainer.addSubview(notesTab)
         contentContainer.addSubview(terminalTab)
+        contentContainer.addSubview(colorPickerTab)
         contentContainer.addSubview(stayAwakeTab)
+        contentContainer.addSubview(analyticsTab)
         stayAwakeButton.onClick = { [weak self] in self?.toggleStayAwakeTab() }
         contentContainer.addSubview(stayAwakeButton)
+        usageChip.isHidden = true
+        usageChip.onClick = { [weak self] in self?.toggleAnalyticsTab() }
+        analyticsTab.onMonthSummaryChanged = { [weak self] summary in
+            self?.monthSummary = summary
+            self?.updateUsageChip()
+        }
+        contentContainer.addSubview(usageChip)
         gearButton.onClick = { [weak self] in self?.onOpenSettings?() }
         contentContainer.addSubview(gearButton)
         launchButton.onClick = { [weak self] in self?.onLaunchAll?() }
@@ -286,7 +307,9 @@ final class NotchPanelContentView: NSView {
         gearButton.applyPalette(palette)
         launchButton.applyPalette(palette)
         stayAwakeButton.applyPalette(palette)
+        usageChip.applyPalette(palette)
         stayAwakeTab.applyPalette(palette)
+        colorPickerTab.applyPalette(palette)
         strokeLayer.strokeColor = palette.strokeColor
     }
 
@@ -307,6 +330,39 @@ final class NotchPanelContentView: NSView {
         }
     }
 
+    /// Montre la pastille tant que le mois est lu et que la vue Transform n'a pas pris la place des
+    /// boutons ; allumée quand l'onglet Analytics est ouvert.
+    private func updateUsageChip() {
+        usageChip.isActive = selectedTab == .analytics
+        guard let monthSummary else {
+            usageChip.isHidden = true
+            return
+        }
+        usageChip.text = ActivityFormatting.chip(monthSummary)
+        usageChip.isHidden = transformSourceURL != nil
+        layoutUsageChip()
+    }
+
+    private func toggleAnalyticsTab() {
+        if selectedTab == .analytics {
+            select(tabBeforeAnalytics, animated: true)
+        } else {
+            // Depuis Stay Awake, c'est l'onglet d'avant la tasse qu'un second clic doit ramener.
+            tabBeforeAnalytics = selectedTab == .stayAwake ? tabBeforeStayAwake : selectedTab
+            select(.analytics, animated: true)
+        }
+    }
+
+    /// Posée juste à gauche du bouton tasse, à sa hauteur.
+    private func layoutUsageChip() {
+        let height = stayAwakeButton.frame.height * 0.7
+        let width = usageChip.fittingWidth
+        usageChip.frame = NSRect(
+            x: stayAwakeButton.frame.minX - 4 - width,
+            y: stayAwakeButton.frame.midY - height / 2,
+            width: width, height: height)
+    }
+
     private func toggleStayAwakeTab() {
         if selectedTab == .stayAwake {
             select(tabBeforeStayAwake, animated: true)
@@ -319,23 +375,23 @@ final class NotchPanelContentView: NSView {
     // MARK: - État
 
     func apply(usageState: ClaudeUsageState, animated: Bool) {
-        usageTab.apply(claude: usageState)
+        analyticsTab.apply(claude: usageState)
     }
 
     var onLoadActivity: ((Int) -> Void)? {
-        didSet { usageTab.onLoadActivity = onLoadActivity }
+        didSet { analyticsTab.onLoadActivity = onLoadActivity }
     }
 
     func apply(activityRecords: [ActivityRecord], isLoading: Bool) {
-        usageTab.apply(activityRecords: activityRecords, isLoading: isLoading)
+        analyticsTab.apply(activityRecords: activityRecords, isLoading: isLoading)
     }
 
     func apply(codexUsageState: CodexUsageState) {
-        usageTab.apply(codex: codexUsageState)
+        analyticsTab.apply(codex: codexUsageState)
     }
 
     func apply(copilotUsageState: CopilotUsageState) {
-        usageTab.apply(copilot: copilotUsageState)
+        analyticsTab.apply(copilot: copilotUsageState)
     }
 
     /// Ce que le curseur doit encore toucher pour garder le panneau déplié : le panneau de
@@ -359,7 +415,7 @@ final class NotchPanelContentView: NSView {
     // MARK: - Onglets
 
     private var tabContentViews: [NSView] {
-        [globalTab, calendarTab, fileTray, clipboardTab, notesTab, mirrorTab, usageTab, terminalTab, stayAwakeTab]
+        [globalTab, calendarTab, fileTray, clipboardTab, notesTab, mirrorTab, usageTab, terminalTab, colorPickerTab, stayAwakeTab, analyticsTab]
     }
 
     private func contentView(for tab: NotchTab) -> NSView {
@@ -372,7 +428,9 @@ final class NotchPanelContentView: NSView {
         case .mirror: mirrorTab
         case .ai: usageTab
         case .terminal: terminalTab
+        case .colorPicker: colorPickerTab
         case .stayAwake: stayAwakeTab
+        case .analytics: analyticsTab
         }
     }
 
@@ -382,6 +440,10 @@ final class NotchPanelContentView: NSView {
 
     func apply(notes: [Note]) {
         notesTab.apply(notes: notes)
+    }
+
+    func apply(colorPickerState: ColorPickerState) {
+        colorPickerTab.apply(colorPickerState)
     }
 
     func apply(agendaState: CalendarAgendaState) {
@@ -400,7 +462,6 @@ final class NotchPanelContentView: NSView {
         guard tab != selectedTab else { return }
         closeTransform(animated: false)
         selectedTab = tab
-        updateLogoActivity()
         capsule.select(tab, animated: animated)
         applySelection(animated: animated)
         // Seuls les onglets AI et Mirror sont plus hauts : la silhouette et la capsule suivent leur hauteur.
@@ -410,6 +471,7 @@ final class NotchPanelContentView: NSView {
         updateCameraActivity()
         updateTerminal()
         updateStayAwakeButton()
+        updateUsageChip()
     }
 
     /// Le shell n'est rattaché à cette fenêtre — et lancé — que panneau déplié sur l'onglet
@@ -479,42 +541,6 @@ final class NotchPanelContentView: NSView {
         // d'invisible ne doit avaler un clic.
         guard silhouette.contains(local) || (isExpanded && capsuleShape().contains(local)) else { return nil }
         return super.hitTest(point)
-    }
-
-    // MARK: - Regard du coffre
-
-    /// Le logo ne vit (clignements, survol, clic) que déplié et sur l'onglet Global.
-    private func updateLogoActivity() {
-        homeLogo.setActive(isExpanded && selectedTab == .global)
-    }
-
-    private var gazeTrackingArea: NSTrackingArea?
-
-    /// Les mouvements du curseur ne sont suivis qu'ici, dans la fenêtre du panneau, et seulement
-    /// déplié (replié, la fenêtre ignore la souris) : pas de moniteur global, et rien à faire au
-    /// repos.
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let gazeTrackingArea { removeTrackingArea(gazeTrackingArea) }
-        let area = NSTrackingArea(
-            rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self, userInfo: nil)
-        addTrackingArea(area)
-        gazeTrackingArea = area
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        guard isExpanded else { return }
-        let cursor = convert(event.locationInWindow, from: nil)
-        // L'encoche, et non le grand cadre transparent de la fenêtre : c'est la silhouette qui
-        // décide si le curseur est « dedans ».
-        let inside = silhouette?.contains(cursor) ?? false
-        homeLogo.look(
-            atCursor: event.locationInWindow, insideNotch: inside && !homeLogo.isHiddenOrHasHiddenAncestor)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        homeLogo.look(atCursor: nil, insideNotch: false)
     }
 
     /// Le contour de la capsule, pour le test de contact : son cadre est un rectangle, mais ses
@@ -778,6 +804,7 @@ final class NotchPanelContentView: NSView {
         launchButton.isHidden = open
         stayAwakeButton.isHidden = open
         capsule.isHidden = open
+        updateUsageChip()
     }
 
     /// Corps des onglets : tout l'intérieur du panneau. Les onglets l'occupent en entier et se
@@ -801,21 +828,12 @@ final class NotchPanelContentView: NSView {
         }
         transformView.frame = body
 
-        // Dans le repère de `globalTab` : le coffre au bord gauche, centré sur la hauteur de la
-        // semaine, et la semaine sur le reste de la largeur utile.
+        // Dans le repère de `globalTab` : la semaine occupe toute la largeur.
         let weekHeight = NotchPanelGeometry.weekStripHeight
-        let logoSize = NotchPanelGeometry.homeLogoSize
-        homeLogo.frame = NSRect(
-            x: globalTab.bounds.minX,
-            y: globalTab.bounds.maxY - weekHeight + (weekHeight - logoSize) / 2 + NotchPanelGeometry.homeLogoLift,
-            width: logoSize,
-            height: logoSize
-        )
-        let weekX = homeLogo.frame.maxX + NotchPanelGeometry.homeLogoToWeekGap
         weekStrip.frame = NSRect(
-            x: weekX,
+            x: globalTab.bounds.minX,
             y: globalTab.bounds.maxY - weekHeight,
-            width: max(0, globalTab.bounds.maxX - weekX),
+            width: globalTab.bounds.width,
             height: weekHeight
         )
 
@@ -839,6 +857,7 @@ final class NotchPanelContentView: NSView {
         )
         launchButton.frame = gearButton.frame.offsetBy(dx: -gearSize, dy: 0)
         stayAwakeButton.frame = launchButton.frame.offsetBy(dx: -gearSize, dy: 0)
+        layoutUsageChip()
 
         // Mirror pose son cercle lui-même, contre le bas du panneau : il a donc tout le cadre du
         // panneau Mirror, quel que soit l'onglet affiché.
@@ -1149,7 +1168,6 @@ final class NotchPanelContentView: NSView {
             nowPlayingRow.refreshVolume()
             onExpanded?()
         }
-        updateLogoActivity()
         applyShape(expanded: expanded, animated: animated)
         updateNowPlayingWingsOpacity(animated: animated)
         updateCameraActivity()

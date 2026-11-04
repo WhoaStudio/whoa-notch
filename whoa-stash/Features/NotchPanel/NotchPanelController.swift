@@ -67,6 +67,11 @@ final class NotchPanelController {
     }
 
     private var stayAwakeState = StayAwakeState()
+    private var colorPickerState = ColorPickerState()
+
+    var onColorPickerAction: ((ColorPickerAction) -> Void)? {
+        didSet { windows.values.forEach { $0.onColorPickerAction = onColorPickerAction } }
+    }
 
     var onStayAwakeAction: ((StayAwakeAction) -> Void)? {
         didSet { windows.values.forEach { $0.onStayAwakeAction = onStayAwakeAction } }
@@ -137,11 +142,13 @@ final class NotchPanelController {
 
     /// Le shell de l'onglet Terminal, partagé par toutes les fenêtres : il survit aux replis et aux
     /// reconstructions d'écrans.
+    private var disabledTabsCancellable: AnyCancellable?
     private lazy var terminalSession = TerminalSession()
 
     init(storage: SettingsStorage = .shared) {
         self.storage = storage
         self.notchlessStyle = storage.settings.notchPanel.notchlessStyle
+        NotchTab.disabledTabs = NotchTab.tabs(named: storage.settings.notchPanel.disabledTabs)
     }
 
     func activate() {
@@ -159,6 +166,17 @@ final class NotchPanelController {
             .removeDuplicates()
             .sink { [weak self] apps in
                 self?.windows.values.forEach { $0.canLaunchAll = !apps.isEmpty }
+            }
+
+        // Un onglet coupé ou rétabli change la capsule : les fenêtres sont reconstruites.
+        disabledTabsCancellable = storage.$settings
+            .map(\.notchPanel.disabledTabs)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] names in
+                guard let self else { return }
+                NotchTab.disabledTabs = NotchTab.tabs(named: names)
+                if self.isActive { self.rebuildWindows() }
             }
 
         // La forme sur écran sans encoche se règle à chaud : les fenêtres existantes sont
@@ -270,6 +288,19 @@ final class NotchPanelController {
     func apply(notes newNotes: [Note]) {
         notes = newNotes
         windows.values.forEach { $0.apply(notes: newNotes) }
+    }
+
+    /// « Pick » replie le panneau et le tient fermé le temps du prélèvement ; la couleur choisie
+    /// (ou Échap) le rouvre, épinglé, sur l'onglet Color.
+    func apply(colorPickerState newState: ColorPickerState) {
+        let wasSampling = colorPickerState.isSampling
+        colorPickerState = newState
+        windows.values.forEach { $0.apply(colorPickerState: newState) }
+        if newState.isSampling, !wasSampling {
+            collapseActive()
+        } else if !newState.isSampling, wasSampling {
+            revealPinned(tab: .colorPicker)
+        }
     }
 
     func apply(stayAwakeState newState: StayAwakeState) {
@@ -569,7 +600,7 @@ final class NotchPanelController {
         }
     }
 
-    /// Onglet demandé par `--notch-tab=<global|calendar|tray|clipboard|notes|mirror|ai|terminal|stay-awake>`, `nil` sans le
+    /// Onglet demandé par `--notch-tab=<global|calendar|tray|clipboard|notes|mirror|ai|terminal|color|stay-awake>`, `nil` sans le
     /// drapeau ou avec un nom inconnu.
     private static func launchTab(_ arguments: [String] = CommandLine.arguments) -> NotchTab? {
         guard let argument = arguments.first(where: { $0.hasPrefix("--notch-tab=") }) else { return nil }
@@ -585,7 +616,11 @@ final class NotchPanelController {
             collapseActive()
             return
         }
+        revealPinned(tab: Self.launchTab())
+    }
 
+    /// Déplie le panneau de l'écran du curseur, épinglé, sur l'onglet demandé s'il y en a un.
+    private func revealPinned(tab: NotchTab?) {
         guard
             let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
                 ?? NSScreen.main,
@@ -605,7 +640,7 @@ final class NotchPanelController {
         window.apply(codexUsageState: codexUsageState)
         window.apply(activityRecords: activityRecords, isLoading: isLoadingActivity)
         window.apply(agendaState: agendaState)
-        if let tab = Self.launchTab() { window.select(tab) }
+        if let tab { window.select(tab) }
         window.setExpanded(true)
         startPolling()
     }
@@ -616,6 +651,10 @@ final class NotchPanelController {
         // Calculé avant les gardes : le détecteur doit voir chaque relâchement, même quand le
         // suivi est gelé plus bas, sans quoi il garderait un compteur périmé.
         let draggingFiles = isDraggingFiles()
+
+        // Prélèvement en cours : le panneau est replié exprès, et le curseur qui vise l'écran
+        // passerait sur la zone sensible du haut pour le rouvrir sous le compte-gouttes.
+        guard !colorPickerState.isSampling else { return }
 
         // Menu contextuel ouvert : le suivi est gelé. Le pointeur descend dans le menu, hors du
         // cadre du panneau, et celui-ci se replierait sous un menu encore ouvert.
@@ -768,6 +807,8 @@ final class NotchPanelController {
                 window.onDeleteNote = onDeleteNote
                 window.apply(notes: notes)
                 window.onStayAwakeAction = onStayAwakeAction
+                window.onColorPickerAction = onColorPickerAction
+                window.apply(colorPickerState: colorPickerState)
                 window.apply(stayAwakeState: stayAwakeState)
                 window.onNowPlayingCommand = onNowPlayingCommand
                 window.showNowPlaying(nowPlayingState)
