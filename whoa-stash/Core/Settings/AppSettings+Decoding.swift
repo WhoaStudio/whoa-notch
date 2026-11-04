@@ -102,6 +102,7 @@ extension NotchPanelSettings {
         case enabled
         case notchlessStyle
         case disabledTabs
+        case opensOnClick
     }
 
     init(from decoder: Decoder) throws {
@@ -110,7 +111,8 @@ extension NotchPanelSettings {
         self.init(
             enabled: container.value(.enabled, defaults.enabled),
             notchlessStyle: container.value(.notchlessStyle, defaults.notchlessStyle),
-            disabledTabs: container.value(.disabledTabs, defaults.disabledTabs)
+            disabledTabs: container.value(.disabledTabs, defaults.disabledTabs),
+            opensOnClick: container.value(.opensOnClick, defaults.opensOnClick)
         )
     }
 }

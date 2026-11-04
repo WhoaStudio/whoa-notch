@@ -338,6 +338,10 @@ enum NotchPanelGeometry {
     /// l'atteindre sans viser au pixel près.
     static let hotZonePadding: CGFloat = 18
 
+    /// Agrandissement de la silhouette repliée quand le curseur la survole en mode « clic » :
+    /// quelques points de large et de haut, pour dire qu'elle est cliquable.
+    static let hoverPeekGrowth = CGSize(width: 8, height: 3)
+
     static func hotZone(on screen: NSScreen, style: NotchPanelStyle = .notch) -> NSRect {
         let size = collapsedSize(on: screen, style: style)
         let gap = collapsedTopGap(on: screen, style: style)

@@ -32,6 +32,8 @@ final class NotchPanelController {
     private var screenObserver: NSObjectProtocol?
     private var styleCancellable: AnyCancellable?
     private var notchlessStyle: NotchPanelStyle
+    private var opensOnClick: Bool
+    private var opensOnClickCancellable: AnyCancellable?
     private var enabledCancellable: AnyCancellable?
     private var paletteObserver: NSObjectProtocol?
     private var pollTimer: Timer?
@@ -148,6 +150,7 @@ final class NotchPanelController {
     init(storage: SettingsStorage = .shared) {
         self.storage = storage
         self.notchlessStyle = storage.settings.notchPanel.notchlessStyle
+        self.opensOnClick = storage.settings.notchPanel.opensOnClick
         NotchTab.disabledTabs = NotchTab.tabs(named: storage.settings.notchPanel.disabledTabs)
     }
 
@@ -192,6 +195,15 @@ final class NotchPanelController {
                 if self.isActive { self.rebuildWindows() }
             }
 
+        // Survol ou clic : lu à chaque événement, rien à reconstruire.
+        opensOnClickCancellable = storage.$settings
+            .map(\.notchPanel.opensOnClick)
+            .removeDuplicates()
+            .sink { [weak self] in
+                self?.opensOnClick = $0
+                self?.updatePeek(on: nil)
+            }
+
         // Accent et translucidité ne passent pas par `NSAppearance` : la palette les porte, et
         // c'est à nous de demander la repeinte des fenêtres déjà construites.
         paletteObserver = NotificationCenter.default.addObserver(
@@ -229,6 +241,9 @@ final class NotchPanelController {
         // synthétiques en demandent, pas le suivi des déplacements de souris.
         mouseMonitor.onMove = { [weak self] location in
             self?.handleCursor(at: location)
+        }
+        mouseMonitor.onClick = { [weak self] location in
+            self?.handleCursor(at: location, clicked: true)
         }
         mouseMonitor.start()
     }
@@ -647,7 +662,9 @@ final class NotchPanelController {
 
     // MARK: - Suivi du curseur
 
-    private func handleCursor(at location: NSPoint) {
+    /// `clicked` : l'appel vient d'un appui du bouton gauche. En mode « clic », seul cet appui
+    /// ouvre le panneau depuis la zone sensible ; le survol ne fait que le garder ouvert.
+    private func handleCursor(at location: NSPoint, clicked: Bool = false) {
         // Calculé avant les gardes : le détecteur doit voir chaque relâchement, même quand le
         // suivi est gelé plus bas, sans quoi il garderait un compteur périmé.
         let draggingFiles = isDraggingFiles()
@@ -685,17 +702,21 @@ final class NotchPanelController {
             let displayID = screen.displayID,
             let window = windows[displayID]
         else {
+            updatePeek(on: nil)
             collapseActive()
             return
         }
 
         // Plein écran sur cet écran : pas de zone sensible, l'île n'est pas là.
         guard !window.isSuppressed else {
+            updatePeek(on: nil)
             collapseActive()
             return
         }
 
         let inHotZone = NotchPanelGeometry.hotZone(on: screen, style: notchlessStyle).contains(location)
+        // Mode « clic » : la silhouette repliée grossit sous le curseur, tant qu'elle est repliée.
+        updatePeek(on: opensOnClick && inHotZone && !window.isExpanded ? displayID : nil)
         // Le panneau reste déplié tant que le curseur est dessus : c'est ce qui permet d'aller
         // lire la carte sans que tout se referme en chemin.
         let overPanel = expandedDisplay == displayID && window.isExpanded && window.interactiveFrameContains(location)
@@ -713,7 +734,8 @@ final class NotchPanelController {
             return
         }
 
-        guard inHotZone || overPanel else {
+        let opensHere = inHotZone && (!opensOnClick || clicked)
+        guard opensHere || overPanel else {
             collapseActive()
             return
         }
@@ -730,6 +752,7 @@ final class NotchPanelController {
         // Une demande attend : le panneau s'ouvre sur l'onglet AI, où elle est lisible. Seulement à
         // l'ouverture, pour ne pas ramener l'onglet à chaque mouvement du curseur.
         if !window.isExpanded, agentPrompts.current != nil { window.select(.ai) }
+        updatePeek(on: nil)
         window.setExpanded(true)
         startPolling()
 
@@ -753,6 +776,11 @@ final class NotchPanelController {
                 options: [.urlReadingFileURLsOnly: true]
             )
         )
+    }
+
+    /// Une seule silhouette grossit à la fois : celle de l'écran donné, ou aucune.
+    private func updatePeek(on displayID: CGDirectDisplayID?) {
+        for (id, window) in windows { window.setHoverPeek(id == displayID) }
     }
 
     private func collapseActive() {

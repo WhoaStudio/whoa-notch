@@ -7,6 +7,9 @@ final class GlobalMouseMonitor {
 
     var onMove: ((NSPoint) -> Void)?
 
+    /// Appelé à chaque appui du bouton gauche, avec la position globale du curseur.
+    var onClick: ((NSPoint) -> Void)?
+
     /// Suivre aussi le curseur **bouton gauche enfoncé**. Un glisser — de fichiers depuis le
     /// Finder, par exemple — n'émet pas de `.mouseMoved` : sans cela, un panneau qui se déplie
     /// au survol resterait replié tout au long du glisser, et n'aurait jamais l'occasion de
@@ -25,15 +28,24 @@ final class GlobalMouseMonitor {
     func start() {
         stop()
 
-        let mask: NSEvent.EventTypeMask = tracksDrags ? [.mouseMoved, .leftMouseDragged, .leftMouseUp] : [.mouseMoved]
+        var mask: NSEvent.EventTypeMask = tracksDrags ? [.mouseMoved, .leftMouseDragged, .leftMouseUp] : [.mouseMoved]
+        if onClick != nil { mask.insert(.leftMouseDown) }
 
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
-            self?.onMove?(NSEvent.mouseLocation)
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
+            self?.dispatch(event)
         }
 
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
-            self?.onMove?(NSEvent.mouseLocation)
+            self?.dispatch(event)
             return event
+        }
+    }
+
+    private func dispatch(_ event: NSEvent) {
+        if event.type == .leftMouseDown {
+            onClick?(NSEvent.mouseLocation)
+        } else {
+            onMove?(NSEvent.mouseLocation)
         }
     }
 

@@ -105,6 +105,10 @@ final class GeneralSettingsViewModel: ObservableObject {
         storage.settings.notchPanel.enabled = enabled
     }
 
+    func setOpensOnClick(_ on: Bool) {
+        storage.settings.notchPanel.opensOnClick = on
+    }
+
     func setNotchlessStyle(_ style: NotchPanelStyle) {
         storage.settings.notchPanel.notchlessStyle = style
     }

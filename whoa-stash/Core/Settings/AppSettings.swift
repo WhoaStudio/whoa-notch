@@ -147,6 +147,8 @@ struct NotchPanelSettings: Codable, Equatable, Sendable {
     var notchlessStyle: NotchPanelStyle = .island
     /// Titres (`NotchTab.title`) des onglets coupés, en `[String]` pour tolérer un onglet disparu.
     var disabledTabs: [String] = []
+    /// Ouverture au clic dans la zone sensible plutôt qu'au survol. Valable pour l'encoche et pour l'île.
+    var opensOnClick: Bool = false
 }
 
 /// Racine unique des préférences de l'application, persistée automatiquement par
