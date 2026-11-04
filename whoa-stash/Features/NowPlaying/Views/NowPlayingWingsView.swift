@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 
 /// Contenu des deux ailes de l'encoche pendant la lecture : la pochette à gauche, le
 /// visualiseur à droite, le centre restant à l'encoche matérielle. Même gabarit que
@@ -71,11 +72,19 @@ final class NowPlayingWingsView: NSView {
 final class ArtworkView: NSView {
 
     private let imageView = NSImageView()
+    /// Copie floutée de la pochette, en remplissage, derrière l'image : elle comble les bandes
+    /// laissées par une pochette qui n'est pas carrée, affichée en entier dans le carré.
+    private let backdropView = NSView()
     private let badgeView = NSImageView()
     private var currentData: Data?
     private var currentSource: String?
 
-    var cornerRadius: CGFloat = 7 { didSet { imageView.layer?.cornerRadius = cornerRadius } }
+    var cornerRadius: CGFloat = 7 {
+        didSet {
+            imageView.layer?.cornerRadius = cornerRadius
+            backdropView.layer?.cornerRadius = cornerRadius
+        }
+    }
 
     var showsSourceBadge = true {
         didSet { badgeView.isHidden = !showsSourceBadge || badgeView.image == nil }
@@ -89,6 +98,12 @@ final class ArtworkView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+
+        backdropView.wantsLayer = true
+        backdropView.layer?.cornerRadius = cornerRadius
+        backdropView.layer?.masksToBounds = true
+        backdropView.layer?.contentsGravity = .resizeAspectFill
+        addSubview(backdropView)
 
         // Le coin arrondi est sur l'image seule : l'icône déborde un peu de la pochette.
         imageView.wantsLayer = true
@@ -112,6 +127,7 @@ final class ArtworkView: NSView {
 
     override func layout() {
         super.layout()
+        backdropView.frame = bounds
         imageView.frame = bounds
         let badge = (bounds.width * badgeScale).rounded()
         badgeView.frame = NSRect(
@@ -122,8 +138,10 @@ final class ArtworkView: NSView {
         guard data != currentData else { return }
         currentData = data
         if let data, let image = NSImage(data: data) {
-            imageView.imageScaling = .scaleAxesIndependently
+            // Proportions gardées, image entière : ni étirée ni rognée.
+            imageView.imageScaling = .scaleProportionallyUpOrDown
             imageView.image = image
+            backdropView.layer?.contents = Self.blurredBackdrop(from: data)
         } else {
             showPlaceholder()
         }
@@ -150,7 +168,25 @@ final class ArtworkView: NSView {
     }
 
     private func showPlaceholder() {
+        backdropView.layer?.contents = nil
         imageView.imageScaling = .scaleProportionallyDown
         imageView.image = NSImage(systemSymbolName: "music.note", accessibilityDescription: nil)
+    }
+
+    private static let ciContext = CIContext()
+
+    /// Pochette réduite puis floutée, assombrie, pour le fond. Réduite d'abord : le flou sur une
+    /// petite image coûte peu et suffit, la vue ne dépasse pas quelques dizaines de points.
+    private static func blurredBackdrop(from data: Data) -> CGImage? {
+        guard let source = CIImage(data: data) else { return nil }
+        let extent = source.extent
+        guard extent.width > 0, extent.height > 0 else { return nil }
+        let scale = 64 / max(extent.width, extent.height)
+        let small = source.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let blurred = small.clampedToExtent()
+            .applyingGaussianBlur(sigma: 6)
+            .applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: -0.15])
+            .cropped(to: small.extent)
+        return ciContext.createCGImage(blurred, from: small.extent)
     }
 }
