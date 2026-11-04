@@ -92,12 +92,47 @@ func makeSettingsDivider() -> NSView {
     return rule
 }
 
+/// Réglage on/off du formulaire : libellé + `NSSwitch` natif. Expose `state`, `isEnabled` et `identifier`
+/// comme la case à cocher qu'il remplace ; l'action est envoyée par l'`NSSwitch` (le `sender`).
+final class SettingsToggle: NSStackView {
+    let switchControl = NSSwitch()
+
+    var state: NSControl.StateValue {
+        get { switchControl.state }
+        set { switchControl.state = newValue }
+    }
+
+    var isEnabled: Bool {
+        get { switchControl.isEnabled }
+        set { switchControl.isEnabled = newValue }
+    }
+
+    override var identifier: NSUserInterfaceItemIdentifier? {
+        didSet { switchControl.identifier = identifier }
+    }
+
+    init(_ title: String, target: AnyObject, action: Selector) {
+        super.init(frame: .zero)
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 13)
+        switchControl.controlSize = .small
+        switchControl.target = target
+        switchControl.action = action
+        switchControl.setAccessibilityLabel(title)
+        orientation = .horizontal
+        spacing = 8
+        addArrangedSubview(switchControl)
+        addArrangedSubview(label)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) n'est pas pris en charge") }
+}
+
 extension NSButton {
-    /// Case à cocher du formulaire — `state == .on` comme l'`NSSwitch` qu'elle remplace.
-    static func settingsCheckbox(_ title: String, target: AnyObject, action: Selector) -> NSButton {
-        let button = NSButton(checkboxWithTitle: title, target: target, action: action)
-        button.font = .systemFont(ofSize: 13)
-        return button
+    /// Interrupteur natif du formulaire (voir `SettingsToggle`).
+    static func settingsCheckbox(_ title: String, target: AnyObject, action: Selector) -> SettingsToggle {
+        SettingsToggle(title, target: target, action: action)
     }
 }
 

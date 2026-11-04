@@ -113,7 +113,8 @@ final class WorkspacesSettingsViewController: SettingsSectionViewController, NST
         // Il en reste toujours un : le dock ne se retrouve jamais sans espace.
         deleteButton.isEnabled = selected != nil && workspaces.count > 1
         editingRows.forEach { $0.isDimmed = selected == nil }
-        [nameField, symbolPopUp, colorWell, activeCheckbox].forEach { ($0 as? NSControl)?.isEnabled = selected != nil }
+        [nameField, symbolPopUp, colorWell].forEach { ($0 as? NSControl)?.isEnabled = selected != nil }
+        activeCheckbox.isEnabled = selected != nil
         picker?.setEnabled(selected != nil)
         preview.setEnabled(selected != nil)
         widgetsView.setEnabled(selected != nil)

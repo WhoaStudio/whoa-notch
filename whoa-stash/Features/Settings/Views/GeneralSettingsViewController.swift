@@ -22,9 +22,9 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         "Show edge slider", target: self, action: #selector(edgeSliderChanged))
     private lazy var sidePanelCheckbox = NSButton.settingsCheckbox(
         "Show side panel", target: self, action: #selector(sidePanelChanged))
-    private let opensOnClickSwitch = SettingsSwitch()
+    private let opensOnClickSwitch = NSSwitch()
     private var edgeSliderCancellable: AnyCancellable?
-    private lazy var tabCheckboxes: [(tab: NotchTab, button: NSButton)] = NotchTab.switchableTabs.map { tab in
+    private lazy var tabCheckboxes: [(tab: NotchTab, button: SettingsToggle)] = NotchTab.switchableTabs.map { tab in
         let button = NSButton.settingsCheckbox("\(tab.title)", target: self, action: #selector(tabChanged(_:)))
         button.identifier = NSUserInterfaceItemIdentifier(tab.title)
         return (tab, button)
@@ -140,7 +140,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
             let disabled = NotchTab.tabs(named: $0.disabledTabs)
             self?.tabCheckboxes.forEach { $0.button.state = disabled.contains($0.tab) ? .off : .on }
             self?.notchPanelCheckbox.state = $0.enabled ? .on : .off
-            self?.opensOnClickSwitch.isOn = $0.opensOnClick
+            self?.opensOnClickSwitch.state = $0.opensOnClick ? .on : .off
             self?.opensOnClickSwitch.isEnabled = $0.enabled
             self?.notchlessStyleChoice.select(NotchPanelStyle.allCases.firstIndex(of: $0.notchlessStyle) ?? 0)
             self?.notchlessStyleRow?.isDimmed = !$0.enabled
@@ -185,8 +185,8 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
         viewModel.setLaunchAtLogin(launchAtLoginCheckbox.state == .on)
     }
 
-    @objc private func tabChanged(_ sender: NSButton) {
-        guard let entry = tabCheckboxes.first(where: { $0.button === sender }) else { return }
+    @objc private func tabChanged(_ sender: NSSwitch) {
+        guard let entry = tabCheckboxes.first(where: { $0.button.identifier == sender.identifier }) else { return }
         viewModel.setTab(entry.tab, enabled: sender.state == .on)
     }
 
@@ -233,7 +233,7 @@ final class GeneralSettingsViewController: SettingsSectionViewController {
     }
 
     @objc private func opensOnClickChanged() {
-        viewModel.setOpensOnClick(opensOnClickSwitch.isOn)
+        viewModel.setOpensOnClick(opensOnClickSwitch.state == .on)
     }
 
     @objc private func notchPanelChanged() {
