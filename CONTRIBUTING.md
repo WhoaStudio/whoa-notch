@@ -3,10 +3,15 @@
 Thanks for your interest. Bug reports, fixes and small features are welcome. For anything large,
 open an issue first so we can agree on the approach before you write code.
 
+Maintainer: Ugolin O. ([@UgolinOlle](https://github.com/UgolinOlle)), for
+[WhoaStudio](https://github.com/WhoaStudio). Everyone taking part follows the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Setup
 
-You need macOS 26.5 or later and Xcode 26.6 (see `.xcode-version`). The project has no Swift
-packages, so there is nothing to install.
+You need macOS 26.5 or later and Xcode 26.6 (see `.xcode-version`). The only Swift package is
+SwiftTerm, which Xcode resolves itself. Xcode asks once to trust its `SwiftTermBuildInfoPlugin`
+build plugin; `xcodebuild` fails until you do (or pass `-skipPackagePluginValidation`, as CI does).
 
 ```bash
 git clone https://github.com/WhoaStudio/whoa-stash.git
@@ -44,6 +49,14 @@ the launch flags in the [README](README.md#development-launch-flags), for exampl
 3. Run the tests. CI runs the same build and test commands on every pull request.
 4. Open a pull request against `stable` and fill in the template.
 
+`stable` (and `main`, if it is ever created) is protected: a pull request needs one approving
+review and a passing **Build and test** check, and force-pushes and branch deletion are blocked.
+Releases are cut from `stable` by the maintainer; see [Releasing](README.md#releasing).
+
+Report bugs and ideas with the
+[issue forms](https://github.com/WhoaStudio/whoa-stash/issues/new/choose). Remove personal data
+(track names, calendar events, file names, mail) from logs before pasting.
+
 ## Conventions
 
 The full list is in [CLAUDE.md](CLAUDE.md). The ones reviewers check most:
@@ -70,3 +83,7 @@ run with `node`. Ignore the folder if you don't use Claude Code.
 ## Reporting security issues
 
 Don't open a public issue. See [SECURITY.md](SECURITY.md).
+
+## License
+
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).

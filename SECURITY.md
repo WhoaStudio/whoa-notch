@@ -10,8 +10,11 @@ Please report privately through GitHub:
 [Report a vulnerability](https://github.com/WhoaStudio/whoa-stash/security/advisories/new).
 Don't open a public issue or pull request.
 
-Include what you found, how to reproduce it and the macOS version. We aim to reply within a week.
+Include what you found, how to reproduce it and the macOS version. Leave real tokens and personal
+data out of the report. The maintainer, Ugolin O. ([@UgolinOlle](https://github.com/UgolinOlle)),
+aims to reply within a week and follows up in the private advisory until a fix ships.
 
 ## Supported versions
 
-There are no releases yet. Only the latest commit on `stable` is supported.
+Only the [latest release](https://github.com/WhoaStudio/whoa-stash/releases/latest) and the latest
+commit on `stable` get security fixes.

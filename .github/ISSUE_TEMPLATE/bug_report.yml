@@ -19,6 +19,9 @@ body:
         - Edge slider
         - Side panel (usage rings)
         - Notch panel
+        - Dock
+        - Radial menu
+        - New mail
         - Knock
         - Preferences
         - Other
@@ -34,8 +37,8 @@ body:
   - type: input
     id: commit
     attributes:
-      label: Commit
-      description: Output of `git rev-parse --short HEAD`.
+      label: Version or commit
+      description: The release version (Preferences ▸ About), or `git rev-parse --short HEAD` for a local build.
   - type: textarea
     id: logs
     attributes:

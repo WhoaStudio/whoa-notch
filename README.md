@@ -15,6 +15,70 @@ It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open
 | New mail | Notch wings, a few seconds | Sender, subject and the start of the text when a message reaches the inbox of an IMAP account set in Preferences ▸ Mail. The Mac connects directly to the mail server (IMAP IDLE, read-only); the password is in the Keychain. Off by default. Password or app password only, no OAuth yet. |
 | Knock | No surface (accelerometer) | Knocking on the Mac's chassis runs an action set in Preferences ▸ Knock. Defaults: one knock turns the display off, two knocks lock the screen. Other actions: none, screen saver, Mission Control, play/pause, next track. |
 
+## Install
+
+Requires macOS 26.5 or later, on Apple Silicon or Intel.
+
+Download the DMG from [GitHub Releases](https://github.com/WhoaStudio/whoa-stash/releases/latest), open it, and drag **whoa-stash.app** into **Applications**.
+
+Or install the cask from this repository (no separate tap repository):
+
+```bash
+brew tap WhoaStudio/stash https://github.com/WhoaStudio/whoa-stash
+brew install --cask WhoaStudio/stash/whoa-stash
+```
+
+If Homebrew requests tap trust, run `brew trust --cask WhoaStudio/stash/whoa-stash` and retry installation.
+
+The cask becomes usable after the first release. Release notes state whether the download is Developer ID signed and notarized. Without signing credentials, releases use an ad-hoc signature and are unnotarized; macOS may block them. After verifying the download source, use **System Settings → Privacy & Security → Open Anyway** if available.
+
+## Releasing
+
+From a clean `stable` checkout, synchronized with `origin/stable`:
+
+```bash
+scripts/release.sh 1.2
+```
+
+Use one to three numeric components, such as `1`, `1.2`, or `1.2.3`, without `v`. The command validates the branch, working tree, remote state, and tag availability; updates Xcode's marketing and build versions; commits; creates `v1.2`; and atomically pushes the commit and tag. It prints the Actions URL and watches the run when an authenticated `gh` is available. It does not commit any unrelated files. There is no root Makefile.
+
+Alternatively, open **Actions → Release → Run workflow**, select **stable**, and enter the version without `v`. That run creates the commit/tag and completes the release itself. Pushing any `v*` tag also starts a release; the job rejects invalid versions and commits outside `stable`. The build always takes its version from the tag.
+
+The workflow builds a universal Release app, verifies and mounts the DMG, publishes it with `SHA256SUMS` and automatically generated commit/PR notes, then updates `version` and `sha256` in `Casks/whoa-stash.rb` on `stable`. Pull after a release before starting the next one. Repository rules must permit the maintainer and Actions bot to push release metadata/cask commits to `stable` and create tags; Actions needs read/write contents permission. A tag pushed without a version commit still supplies the build's version. Failed runs can be rerun: manual runs reuse only their own tag, published DMGs remain unchanged, and older releases cannot downgrade the cask.
+
+To build and verify the same DMG locally without committing, tagging, or publishing:
+
+```bash
+scripts/build-dmg.sh 1.2
+```
+
+Output: `Build/release/1.2/whoa-stash-1.2.dmg`, `SHA256SUMS`, and `signing-status.txt`. Uses the selected Xcode; CI selects Xcode 26.6. Swift package build plugins are allowed as in CI; review dependency changes before building.
+
+Verify the release tooling without pushing:
+
+```bash
+python3 scripts/tests/test-release.py
+actionlint .github/workflows/release.yml
+scripts/check-cask.sh
+```
+
+The cask check runs `brew audit --cask --strict` and `brew style` through a temporary local tap with isolated Homebrew trust settings.
+
+### Optional signing and notarization
+
+No signing secrets are required to release. To enable Developer ID signing and Apple notarization, configure **all six** repository Actions secrets (or export these names for local builds):
+
+| Secret | Value |
+|---|---|
+| `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded export of a Developer ID Application certificate **and private key** (`base64 -i certificate.p12`). |
+| `MACOS_CERTIFICATE_PASSWORD` | Password protecting that `.p12` export. |
+| `MACOS_SIGNING_IDENTITY` | Full certificate name, e.g. `Developer ID Application: Your Name (TEAMID)`. |
+| `APPLE_ID` | Apple Developer account email. |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for that account. |
+| `APPLE_TEAM_ID` | Developer team ID. |
+
+If any are missing, the build falls back to ad-hoc signing and explicitly labels the release unsigned and unnotarized. If all are present but signing/notarization fails, the job fails rather than publishing an unsigned fallback. Credentials are imported into a temporary keychain, removed when the script exits. The signed path signs nested Mach-O binaries and the app with hardened runtime, notarizes and staples the app, then notarizes and staples the final DMG before calculating its checksum.
+
 ## Requirements
 
 - macOS 26.5 or later (the deployment target)
@@ -35,8 +99,6 @@ open "$(xcodebuild -scheme whoa-stash -showBuildSettings 2>/dev/null | awk '/ BU
 
 Signing is automatic and uses the team set in the project (`2MPVX5W6KB`). To build on another account, change the team under *Signing & Capabilities*.
 
-TODO: there is no release, archive or notarization process in the repo yet.
-
 ### What the app asks for
 
 - **Calendars** (full access). The notch panel requests it the first time it loads the agenda. If you deny it, the panel shows an access-denied card.
@@ -56,7 +118,10 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 
 | Flag | Effect |
 |---|---|
+| `--show-welcome` | Plays the first-launch version of the welcome panel (with the Start and See Tutorial buttons) even if it was already seen. Later launches play the same animation without buttons and fold on their own. |
+| `--show-onboarding` | Opens the older onboarding window, which is no longer shown automatically. |
 | `--show-settings[=general\|brightness\|knock\|about]` | Opens Preferences on that pane (default `general`). |
+| `--show-onboarding` | Opens the welcome window even if it was already seen. |
 | `--show-notch-panel` | Unfolds the notch panel without hovering. |
 | `--notch-tab=global\|calendar\|tray\|clipboard\|notes\|mirror\|ai\|terminal\|stay-awake` | With `--show-notch-panel`, unfolds on that tab. |
 | `--stay-awake=mock` | Stay Awake tab with a fake power source: the UI works, no real assertion is taken. |
@@ -94,7 +159,7 @@ xcodebuild -scheme whoa-stash -destination 'platform=macOS' -only-testing:whoa-s
 
 The suite is in `whoa-stashTests/`: The suite has 146 tests: 144 in Swift Testing across 26 suites, and 2 in XCTest (`CopilotUsageTests`).
 
-TODO: there is no linter, formatter or CI configured.
+CI builds and tests pull requests and pushes to `stable`. No app linter or formatter is configured.
 
 ## Project structure
 
@@ -114,3 +179,18 @@ docs/             architecture and debugging notes
 ```
 
 More detail: [docs/architecture.md](docs/architecture.md), [docs/external-interfaces.md](docs/external-interfaces.md), [docs/debugging.md](docs/debugging.md).
+
+## Contributing
+
+Bug reports, fixes and small features are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions and the branch flow: branch off `stable` and open pull requests against `stable`. Each pull request needs one review and a passing CI check.
+
+- [Code of Conduct](CODE_OF_CONDUCT.md) (Contributor Covenant 2.1)
+- [Security policy](SECURITY.md): report vulnerabilities privately, never in a public issue
+- [Issue forms](.github/ISSUE_TEMPLATE/): [bug report](.github/ISSUE_TEMPLATE/bug_report.yml), [feature request](.github/ISSUE_TEMPLATE/feature_request.yml)
+- [Pull request template](.github/pull_request_template.md) and [code owners](.github/CODEOWNERS)
+
+Maintainer: Ugolin O. ([@UgolinOlle](https://github.com/UgolinOlle)), [WhoaStudio](https://github.com/WhoaStudio).
+
+## License
+
+[MIT](LICENSE) © 2026 Ugolin O. and WhoaStudio. Vendored and package code keeps its own license: see [Vendor/MediaRemoteAdapter](Vendor/MediaRemoteAdapter/README.md) and [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm).
