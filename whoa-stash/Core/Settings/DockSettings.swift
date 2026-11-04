@@ -103,6 +103,8 @@ struct DockSettings: Codable, Equatable, Sendable {
     var widgets: [DockWidgetPlacement] = []
     /// Fond du dock : `dark` (d'origine) ou `liquidGlass`.
     var theme: DockTheme = .dark
+    /// Agrandissement des icônes sous le curseur. La taille agrandie reste celle du Dock macOS.
+    var magnification: Bool = true
 
     /// Les applis que « Launch all » ouvre : la liste moins les exclues.
     var launchApps: [DockPinnedApp] { pinnedApps.filter { !launchExcluded.contains($0.bundleID) } }
@@ -140,6 +142,15 @@ struct DockSettings: Codable, Equatable, Sendable {
             workspaces[position].apps.removeAll { $0.bundleID == bundleID }
         } else {
             pinnedApps.removeAll { $0.bundleID == bundleID }
+        }
+    }
+
+    /// Pose un widget au bout de la rangée affichée (l'espace actif, sinon les globaux).
+    mutating func addVisibleWidget(kind: String) {
+        if let id = activeWorkspaceID, let position = workspaces.firstIndex(where: { $0.id == id }) {
+            workspaces[position].addWidget(kind: kind)
+        } else {
+            widgets.append(DockWidgetPlacement(kind: kind, index: pinnedApps.count + widgets.count))
         }
     }
 

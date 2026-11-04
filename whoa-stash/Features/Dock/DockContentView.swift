@@ -157,62 +157,6 @@ class DockButtonView: NSView {
     }
 }
 
-/// Un espace de travail dans le groupe de gauche : un rond avec son logo, ou — pour l'espace actif —
-/// une pastille de sa couleur avec le logo et le nom.
-final class DockChipView: DockButtonView {
-
-    private let icon = NSImageView()
-    private let label = NSTextField(labelWithString: "")
-    private(set) var workspace = DockWorkspace()
-    private(set) var isActive = false
-    private var scale: CGFloat = 1
-
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        wantsLayer = true
-        addSubview(icon)
-        addSubview(label)
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-
-    func apply(_ workspace: DockWorkspace, isActive: Bool, scale: CGFloat) {
-        self.workspace = workspace
-        self.isActive = isActive
-        self.scale = scale
-        let color = NSColor(hex: workspace.colorHex)
-        layer?.backgroundColor = isActive ? color.cgColor : NSColor.white.withAlphaComponent(0.08).cgColor
-        icon.image = NSImage(systemSymbolName: workspace.symbol, accessibilityDescription: workspace.name)?
-            .withSymbolConfiguration(.init(pointSize: 13 * scale, weight: .semibold))
-        icon.contentTintColor = isActive ? .white : color.blended(withFraction: 0.35, of: .white) ?? color
-        label.stringValue = workspace.name
-        label.font = .systemFont(ofSize: 13 * scale, weight: .semibold)
-        label.textColor = .white
-        label.sizeToFit()
-        label.isHidden = !isActive
-        toolTip = workspace.name
-    }
-
-    /// Largeur voulue : un rond au repos, une pastille quand l'espace est actif.
-    func preferredWidth(circle: CGFloat) -> CGFloat {
-        isActive ? 12 * scale * 2 + 16 * scale + 6 * scale + label.frame.width : circle
-    }
-
-    override func layout() {
-        super.layout()
-        layer?.cornerRadius = bounds.height / 2
-        let iconSide = 16 * scale
-        if isActive {
-            let contentWidth = iconSide + 6 * scale + label.frame.width
-            let startX = (bounds.width - contentWidth) / 2
-            icon.frame = NSRect(x: startX, y: (bounds.height - iconSide) / 2, width: iconSide, height: iconSide)
-            label.frame.origin = NSPoint(x: startX + iconSide + 6 * scale, y: (bounds.height - label.frame.height) / 2)
-        } else {
-            icon.frame = NSRect(x: (bounds.width - iconSide) / 2, y: (bounds.height - iconSide) / 2, width: iconSide, height: iconSide)
-        }
-    }
-}
-
 /// Le dossier des applis ouvertes qui ne sont pas dans l'espace actif : leurs icônes en miniature,
 /// en grille de deux comme un dossier d'iPhone, posées sur sa propre capsule noire.
 final class DockFolderView: NSView {
@@ -304,23 +248,21 @@ final class DockContentView: NSView {
 
     var onActivate: ((DockItem) -> Void)?
     var onContextMenu: ((DockItem, DockIconView, NSEvent) -> Void)?
-    var onSelectWorkspace: ((String) -> Void)?
     /// Une appli déposée dans le dock (glissée d'ici ou du Finder) à l'indice donné des épinglées.
     var onPlaceApp: ((DockPinnedApp, Int) -> Void)?
     /// Une icône épinglée lâchée hors du dock : elle en sort.
     var onRemoveApp: ((DockItem, NSPoint) -> Void)?
     /// Les widgets du dock après un dépôt ou un retrait, chacun avec sa position dans la rangée.
     var onWidgetsChanged: (([DockWidgetPlacement]) -> Void)?
+    /// Clic droit sur un widget (son identifiant) ou sur le fond du dock.
+    var onWidgetContextMenu: ((String, NSView, NSEvent) -> Void)?
+    var onBackgroundContextMenu: ((NSEvent) -> Void)?
 
     private(set) var dockLook = DockAppearance()
     private(set) var theme = DockTheme.dark
     private let backdrop = DockSurfaceView()
     /// La capsule du dossier : collée à celle du dock, de la même couleur.
     private let folderBackdrop = DockSurfaceView()
-    private let divider = NSView()
-    private var chips: [String: DockChipView] = [:]
-    private var workspaces: [DockWorkspace] = []
-    private var activeWorkspaceID: String?
     private var iconViews: [String: DockIconView] = [:]
     private var items: [DockItem] = []
     private var overflow: [DockItem] = []
@@ -359,10 +301,6 @@ final class DockContentView: NSView {
         folderBackdrop.isHidden = true
         addSubview(folderBackdrop)
 
-        divider.wantsLayer = true
-        divider.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.18).cgColor
-
-        addSubview(divider)
         addSubview(folderView)
         folderView.isHidden = true
         popover.apply(theme: theme)
@@ -385,11 +323,10 @@ final class DockContentView: NSView {
 
     /// Les cotes sont celles d'un dock réel : peu d'air autour des icônes, capsule serrée.
     private var k: CGFloat { dockLook.iconSize / Self.designIconSize }
-    private var buttonSize: CGFloat { 34 * k }
-    private var leftGap: CGFloat { 6 * k }
     private var sidePadding: CGFloat { 12 * k }
-    private var dividerGap: CGFloat { 10 * k }
     private var iconGap: CGFloat { 8 * k }
+    /// Hauteur dont les icônes agrandies dépassent de la capsule.
+    var magnificationReserve: CGFloat { growth }
     private var growth: CGFloat { dockLook.magnification ? dockLook.magnifiedSize - dockLook.iconSize : 0 }
     private var iconRowBottom: CGFloat { 2 }
     private var iconTopPadding: CGFloat { 6 }
@@ -412,25 +349,9 @@ final class DockContentView: NSView {
     /// Cadre du panneau ouvert, dans la fenêtre ; `nil` quand il est fermé.
     var expandedPopoverRect: NSRect? { isExpanded ? popover.frame : nil }
 
-    private func chipWidths() -> [CGFloat] {
-        workspaces.map { workspace in
-            workspace.id == activeWorkspaceID
-                ? (12 * k * 2 + 16 * k + 6 * k + Self.textWidth(workspace.name, size: 13 * k)) : buttonSize
-        }
-    }
-
-    private static func textWidth(_ text: String, size: CGFloat) -> CGFloat {
-        ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: .semibold)]).width)
-    }
-
-    private var leftGroupWidth: CGFloat {
-        let widths = chipWidths()
-        return widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * leftGap
-    }
-
     private func contentWidth(sizes: [CGFloat]) -> CGFloat {
         let icons = sizes.reduce(0, +) + CGFloat(max(0, sizes.count - 1)) * iconGap
-        return sidePadding * 2 + leftGroupWidth + dividerGap * 2 + 1 + icons
+        return sidePadding * 2 + icons
     }
 
     /// La capsule du dossier : l'icône du dossier entourée du même air que celles du dock.
@@ -458,10 +379,9 @@ final class DockContentView: NSView {
         refreshInk()
     }
 
-    /// Reteint ce qui se dessine sur le fond (points, séparateur, noms) selon le thème.
+    /// Reteint ce qui se dessine sur le fond (points, noms) selon le thème.
     private func refreshInk() {
         let ink = theme.ink
-        divider.layer?.backgroundColor = ink.withAlphaComponent(ink == .white ? 0.18 : 0.22).cgColor
         iconViews.values.forEach { $0.setInk(ink) }
         popoverCells.values.forEach { $0.setInk(ink) }
     }
@@ -476,30 +396,6 @@ final class DockContentView: NSView {
     private func applyScaledStyle() {
         backdrop.cornerRadius = 20 * k
         folderBackdrop.cornerRadius = 20 * k
-        refreshChips()
-    }
-
-    func apply(workspaces newWorkspaces: [DockWorkspace], activeID: String?) {
-        let ids = Set(newWorkspaces.map(\.id))
-        for (id, chip) in chips where !ids.contains(id) {
-            chip.removeFromSuperview()
-            chips[id] = nil
-        }
-        for workspace in newWorkspaces where chips[workspace.id] == nil {
-            let chip = DockChipView()
-            chip.onClick = { [weak self] in self?.onSelectWorkspace?(workspace.id) }
-            addSubview(chip)
-            chips[workspace.id] = chip
-        }
-        workspaces = newWorkspaces
-        activeWorkspaceID = activeID
-        refreshChips()
-    }
-
-    private func refreshChips() {
-        for workspace in workspaces {
-            chips[workspace.id]?.apply(workspace, isActive: workspace.id == activeWorkspaceID, scale: k)
-        }
     }
 
     private func item(withID id: String) -> DockItem? {
@@ -548,6 +444,10 @@ final class DockContentView: NSView {
             host.onDragEnded = { [weak self] point, operation in
                 self?.widgetDragEnded(id: placement.id, at: point, operation: operation)
             }
+            host.onContextMenu = { [weak self, weak host] event in
+                guard let host else { return }
+                self?.onWidgetContextMenu?(placement.id, host, event)
+            }
             if hasLaidOut { host.alphaValue = 0 }
             addSubview(host)
             widgetViews[placement.id] = host
@@ -556,6 +456,13 @@ final class DockContentView: NSView {
         rebuildRow()
         needsLayout = true
     }
+
+    /// Retire un widget de la rangée (menu contextuel).
+    func removeWidget(id: String) {
+        onWidgetsChanged?(DockRow.placements(removing: id, from: row))
+    }
+
+    override func rightMouseDown(with event: NSEvent) { onBackgroundContextMenu?(event) }
 
     /// Un widget lâché sans qu'un dépôt l'accepte sort du dock s'il est tombé hors de la capsule ;
     /// refusé au-dessus du dock (les espaces de travail), il reste où il était.
@@ -770,7 +677,7 @@ final class DockContentView: NSView {
     private func restRowStart() -> CGFloat {
         let restWidth = contentWidth(sizes: Array(repeating: dockLook.iconSize, count: row.count)) + folderExtra
         let restOrigin = (bounds.width - restWidth) / 2
-        return restOrigin + sidePadding + leftGroupWidth + dividerGap * 2 + 1
+        return restOrigin + sidePadding
     }
 
     /// Taille de chaque icône : cosinus sur 2,5 pas autour du curseur, calculé sur la disposition
@@ -800,7 +707,7 @@ final class DockContentView: NSView {
         let offset = (rel - CGFloat(index)) * pitch
         let within = offset <= base ? offset / base * sizes[index] : sizes[index] + (offset - base)
         let before = sizes[..<index].reduce(0, +) + CGFloat(index) * iconGap
-        let rowStart = capsuleX + sidePadding + leftGroupWidth + dividerGap * 2 + 1
+        let rowStart = capsuleX + sidePadding
         return cursor - (rowStart + before + within)
     }
 
@@ -838,15 +745,6 @@ final class DockContentView: NSView {
 
         var frames: [(NSView, NSRect)] = [(backdrop, capsule)]
         var x = capsule.minX + sidePadding
-        let widths = chipWidths()
-        for (index, workspace) in workspaces.enumerated() {
-            guard let chip = chips[workspace.id] else { continue }
-            frames.append((chip, NSRect(x: x, y: midY - buttonSize / 2, width: widths[index], height: buttonSize)))
-            x += widths[index] + leftGap
-        }
-        x += dividerGap - leftGap
-        frames.append((divider, NSRect(x: x, y: midY - 18 * k, width: 1, height: 36 * k)))
-        x += 1 + dividerGap
         for index in sizes.indices {
             let size = sizes[index]
             defer { x += size + iconGap }
@@ -906,7 +804,7 @@ final class DockContentView: NSView {
     private func rowIndex(atX x: CGFloat) -> Int? {
         let first = restRowStart()
         return DockDropZone.rowIndex(
-            x: x, workspaceEnd: first - dividerGap, rowStart: first, iconSize: dockLook.iconSize,
+            x: x, workspaceEnd: -.infinity, rowStart: first, iconSize: dockLook.iconSize,
             pitch: dockLook.iconSize + iconGap, count: row.count)
     }
 

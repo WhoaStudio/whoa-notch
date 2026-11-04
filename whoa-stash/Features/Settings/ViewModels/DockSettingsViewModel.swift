@@ -52,6 +52,10 @@ final class DockSettingsViewModel: ObservableObject {
         storage.settings.dock.autoHide = hide
     }
 
+    func setMagnification(_ magnify: Bool) {
+        storage.settings.dock.magnification = magnify
+    }
+
     func setTheme(_ theme: DockTheme) {
         storage.settings.dock.theme = theme
     }

@@ -326,6 +326,11 @@ final class NotchPanelWindow {
         contentView.select(tab, animated: false)
     }
 
+    /// Survol de la zone sensible en mode « clic » : la silhouette repliée grossit un peu.
+    func setHoverPeek(_ peeking: Bool) {
+        contentView.setHoverPeek(peeking)
+    }
+
     func setExpanded(_ expanded: Bool, animated: Bool = true) {
         if expanded {
             contentView.refreshWeek()

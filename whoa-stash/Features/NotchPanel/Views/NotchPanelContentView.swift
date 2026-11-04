@@ -196,6 +196,16 @@ final class NotchPanelContentView: NSView {
 
     private(set) var isExpanded = false
 
+    /// Curseur sur la zone sensible en mode « clic » : la silhouette repliée grossit un peu.
+    private(set) var isHoverPeeking = false
+
+    func setHoverPeek(_ peeking: Bool) {
+        guard peeking != isHoverPeeking else { return }
+        isHoverPeeking = peeking
+        guard !isExpanded else { return }
+        applyShape(expanded: false, animated: true)
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -1077,13 +1087,17 @@ final class NotchPanelContentView: NSView {
     /// le dépliage animable d'un seul `CASpringAnimation` sur `path`.
 
     private func collapsedPath() -> CGPath {
+        let growth = NotchPanelGeometry.hoverPeekGrowth
+        let size = isHoverPeeking
+            ? NSSize(width: collapsedSize.width + growth.width, height: collapsedSize.height + growth.height)
+            : collapsedSize
         if collapsedTopGap > 0 {
-            return PanelGeometry.islandSilhouette(in: panelRect, size: collapsedSize, topGap: collapsedTopGap)
+            return PanelGeometry.islandSilhouette(in: panelRect, size: size, topGap: collapsedTopGap)
         }
         return PanelGeometry.silhouette(
             in: panelRect,
             anchoredTo: .top,
-            size: collapsedSize,
+            size: size,
             shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
             farRadius: NotchPanelGeometry.collapsedBottomRadius
         )

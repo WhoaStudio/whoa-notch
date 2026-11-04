@@ -106,6 +106,17 @@ struct SettingsStorageTests {
         #expect(storage.settings.brightness == BrightnessSettings())
     }
 
+    @Test("l'ouverture au clic de l'encoche est absente par défaut et se relit")
+    func opensOnClickDefaultsAndPersists() {
+        let defaults = Self.makeDefaults()
+        defaults.set(Data(#"{"notchPanel":{"enabled":true}}"#.utf8), forKey: "com.whoastudio.whoa-stash.appSettings")
+        #expect(SettingsStorage(defaults: defaults).settings.notchPanel.opensOnClick == false)
+
+        let on = Self.makeDefaults()
+        on.set(Data(#"{"notchPanel":{"opensOnClick":true}}"#.utf8), forKey: "com.whoastudio.whoa-stash.appSettings")
+        #expect(SettingsStorage(defaults: on).settings.notchPanel.opensOnClick == true)
+    }
+
     @Test("une valeur d'énumération inconnue retombe sur la valeur par défaut")
     func unknownEnumCaseFallsBack() {
         let defaults = Self.makeDefaults()
