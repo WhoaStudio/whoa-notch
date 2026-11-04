@@ -22,6 +22,8 @@ jobs:
   release:
     runs-on: macos-26
     timeout-minutes: 90
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -119,16 +121,12 @@ jobs:
             gh release edit "$TAG" --draft=false
           fi
 
-      - name: Update Homebrew cask
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          git fetch origin stable
-          git checkout -B stable origin/stable
-          python3 scripts/update-cask.py "$VERSION" "Build/release/$VERSION/whoa-stash-$VERSION.dmg"
-          scripts/check-cask.sh
-          git add Casks/whoa-stash.rb
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(cask): update whoa-stash to $VERSION"
-            git push origin HEAD:stable
-          fi
+  update-cask:
+    needs: release
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/update-cask.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit

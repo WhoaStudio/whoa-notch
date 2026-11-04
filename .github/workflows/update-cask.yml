@@ -1,0 +1,51 @@
+name: Update Homebrew cask
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    secrets:
+      CASK_PR_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version déjà publiée, sans v (par exemple 1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-homebrew-cask
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.CASK_PR_TOKEN || github.token }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: stable
+          token: ${{ secrets.CASK_PR_TOKEN || github.token }}
+
+      - name: Download published DMG
+        run: |
+          python3 scripts/release-version.py "$VERSION"
+          mkdir -p "$RUNNER_TEMP/cask"
+          gh release download "v$VERSION" --pattern "whoa-stash-$VERSION.dmg" \
+            --dir "$RUNNER_TEMP/cask" --clobber
+
+      - name: Open cask pull request
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          scripts/open-cask-pr.sh "$VERSION" "$RUNNER_TEMP/cask/whoa-stash-$VERSION.dmg"
