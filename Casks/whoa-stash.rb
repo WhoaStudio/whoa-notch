@@ -1,6 +1,6 @@
 cask "whoa-stash" do
-  version "1"
-  sha256 "40b2ae652b36ca16f8b51c98e63a894d158d33383aa6592e29cf3cb9240ba904"
+  version "1.0"
+  sha256 "c4fcade1239bd4df46dbbdb4f04f2626541d18deaceaed98057671d5faea25ee"
 
   url "https://github.com/WhoaStudio/whoa-stash/releases/download/v#{version}/whoa-stash-#{version}.dmg"
   name "Whoa Stash"
