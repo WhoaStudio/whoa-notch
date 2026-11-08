@@ -3,61 +3,66 @@ import OSLog
 
 @MainActor
 final class CopilotUsageViewModel {
-    private(set) var state: CopilotUsageState = .loading {
-        didSet {
-            guard state != oldValue else { return }
-            onStateChanged?()
+  private(set) var state: CopilotUsageState = .loading {
+    didSet {
+      guard state != oldValue else { return }
+      onStateChanged?()
+    }
+  }
+
+  var onStateChanged: (() -> Void)?
+
+  private let provider: CopilotUsageProviding
+  private let refreshInterval: TimeInterval = 60
+  private let countdownInterval: TimeInterval = 30
+  private var refreshTimer: Timer?
+  private var countdownTimer: Timer?
+  private var wakeObserver: NSObjectProtocol?
+  private var inFlight: Task<Void, Never>?
+
+  init(provider: CopilotUsageProviding) {
+    self.provider = provider
+  }
+
+  func activate() {
+    refresh()
+    refreshTimer = schedule(interval: refreshInterval) { [weak self] in self?.refresh() }
+    countdownTimer = schedule(interval: countdownInterval) { [weak self] in self?.onStateChanged?()
+    }
+    wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+      forName: NSWorkspace.didWakeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in self?.refresh() }
+    }
+  }
+
+  func refresh() {
+    guard inFlight == nil else { return }
+    inFlight = Task { [weak self] in
+      guard let self else { return }
+      do {
+        self.state = .loaded(try await provider.fetchSnapshot())
+      } catch {
+        if self.state.snapshot == nil {
+          self.state = .unavailable(reason: error.localizedDescription)
         }
+        Log.sidePanel.error(
+          "rafraîchissement de l'utilisation Copilot échoué — \(error.localizedDescription, privacy: .public)"
+        )
+      }
+      self.inFlight = nil
     }
+  }
 
-    var onStateChanged: (() -> Void)?
-
-    private let provider: CopilotUsageProviding
-    private let refreshInterval: TimeInterval = 60
-    private let countdownInterval: TimeInterval = 30
-    private var refreshTimer: Timer?
-    private var countdownTimer: Timer?
-    private var wakeObserver: NSObjectProtocol?
-    private var inFlight: Task<Void, Never>?
-
-    init(provider: CopilotUsageProviding) {
-        self.provider = provider
+  private func schedule(interval: TimeInterval, tick: @escaping @Sendable @MainActor () -> Void)
+    -> Timer
+  {
+    let timer = Timer(timeInterval: interval, repeats: true) { _ in
+      Task { @MainActor in tick() }
     }
-
-    func activate() {
-        refresh()
-        refreshTimer = schedule(interval: refreshInterval) { [weak self] in self?.refresh() }
-        countdownTimer = schedule(interval: countdownInterval) { [weak self] in self?.onStateChanged?() }
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
-        }
-    }
-
-    func refresh() {
-        guard inFlight == nil else { return }
-        inFlight = Task { [weak self] in
-            guard let self else { return }
-            do {
-                self.state = .loaded(try await provider.fetchSnapshot())
-            } catch {
-                if self.state.snapshot == nil {
-                    self.state = .unavailable(reason: error.localizedDescription)
-                }
-                Log.sidePanel.error("rafraîchissement de l'utilisation Copilot échoué — \(error.localizedDescription, privacy: .public)")
-            }
-            self.inFlight = nil
-        }
-    }
-
-    private func schedule(interval: TimeInterval, tick: @escaping @Sendable @MainActor () -> Void) -> Timer {
-        let timer = Timer(timeInterval: interval, repeats: true) { _ in
-            Task { @MainActor in tick() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        return timer
-    }
+    RunLoop.main.add(timer, forMode: .common)
+    return timer
+  }
 }

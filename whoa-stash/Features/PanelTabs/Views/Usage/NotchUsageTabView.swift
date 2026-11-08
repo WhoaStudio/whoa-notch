@@ -6,59 +6,63 @@ import AppKit
 /// Mise en page entièrement en frames, comme le reste de l'overlay.
 final class NotchUsageTabView: NSView {
 
-    var onAgentDecision: ((AgentEvent, AgentEvent.Decision) -> Void)? {
-        get { promptCard.onDecision }
-        set { promptCard.onDecision = newValue }
-    }
+  var onAgentDecision: ((AgentEvent, AgentEvent.Decision) -> Void)? {
+    get { promptCard.onDecision }
+    set { promptCard.onDecision = newValue }
+  }
 
-    /// Demande de Claude en attente.
-    private let promptCard = AgentPromptCardView()
-    private var isShowingPrompt = false
-    /// Ce que fait l'agent : passe après une demande en attente.
-    private let activityCard = AgentActivityCardView()
-    private var agentActivity: AgentActivity?
+  /// Demande de Claude en attente.
+  private let promptCard = AgentPromptCardView()
+  private var isShowingPrompt = false
+  /// Ce que fait l'agent : passe après une demande en attente.
+  private let activityCard = AgentActivityCardView()
+  private var agentActivity: AgentActivity?
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        promptCard.isHidden = true
-        activityCard.isHidden = true
-        addSubview(activityCard)
-        addSubview(promptCard)
-    }
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    promptCard.isHidden = true
+    activityCard.isHidden = true
+    addSubview(activityCard)
+    addSubview(promptCard)
+  }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
 
-    // MARK: - État
+  // MARK: - État
 
-    func apply(agentPrompt event: AgentEvent?) {
-        if let event { promptCard.apply(event) }
-        isShowingPrompt = event != nil
-        refreshTakeover()
-    }
+  func apply(agentPrompt event: AgentEvent?) {
+    if let event { promptCard.apply(event) }
+    isShowingPrompt = event != nil
+    refreshTakeover()
+  }
 
-    func apply(agentActivity: AgentActivity?) {
-        self.agentActivity = agentActivity
-        if let agentActivity { activityCard.apply(agentActivity) }
-        refreshTakeover()
-    }
+  func apply(agentActivity: AgentActivity?) {
+    self.agentActivity = agentActivity
+    if let agentActivity { activityCard.apply(agentActivity) }
+    refreshTakeover()
+  }
 
-    /// Une demande ou une activité d'agent s'affiche : la demande d'abord.
-    private func refreshTakeover() {
-        let showsActivity = !isShowingPrompt && agentActivity != nil
-        promptCard.isHidden = !isShowingPrompt
-        activityCard.isHidden = !showsActivity
-        needsLayout = true
-    }
+  /// Une demande ou une activité d'agent s'affiche : la demande d'abord.
+  private func refreshTakeover() {
+    let showsActivity = !isShowingPrompt && agentActivity != nil
+    let revealsPrompt = promptCard.isHidden && isShowingPrompt
+    let revealsActivity = activityCard.isHidden && showsActivity
+    promptCard.isHidden = !isShowingPrompt
+    activityCard.isHidden = !showsActivity
+    if revealsPrompt { promptCard.layer?.springReveal() }
+    if revealsActivity { activityCard.layer?.springReveal() }
+    needsLayout = true
+  }
 
-    // MARK: - Mise en page
+  // MARK: - Mise en page
 
-    override func layout() {
-        super.layout()
-        promptCard.frame = bounds
-        activityCard.frame = bounds
-    }
+  override func layout() {
+    super.layout()
+    promptCard.frame = bounds
+    activityCard.frame = bounds
+  }
 }
