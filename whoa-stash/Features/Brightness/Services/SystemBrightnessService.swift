@@ -8,8 +8,8 @@ import OSLog
 /// implémenter ce même protocole pour les écrans externes, sans toucher au reste de
 /// l'architecture (`BrightnessControlling`, `BrightnessViewModel`).
 protocol DisplayBrightnessBackend {
-    func brightness(for displayID: CGDirectDisplayID) -> Float?
-    @discardableResult func setBrightness(_ value: Float, for displayID: CGDirectDisplayID) -> Bool
+  func brightness(for displayID: CGDirectDisplayID) -> Float?
+  @discardableResult func setBrightness(_ value: Float, for displayID: CGDirectDisplayID) -> Bool
 }
 
 /// Pilote la luminosité via l'API privée DisplayServices
@@ -24,48 +24,52 @@ protocol DisplayBrightnessBackend {
 /// scope ici, voir `DisplayBrightnessBackend`.
 final class DisplayServicesBackend: DisplayBrightnessBackend {
 
-    private typealias GetBrightnessFn = @convention(c) (CGDirectDisplayID, UnsafeMutablePointer<Float>) -> Int32
-    private typealias SetBrightnessFn = @convention(c) (CGDirectDisplayID, Float) -> Int32
+  private typealias GetBrightnessFn =
+    @convention(c) (CGDirectDisplayID, UnsafeMutablePointer<Float>) -> Int32
+  private typealias SetBrightnessFn = @convention(c) (CGDirectDisplayID, Float) -> Int32
 
-    private let getBrightnessFn: GetBrightnessFn?
-    private let setBrightnessFn: SetBrightnessFn?
+  private let getBrightnessFn: GetBrightnessFn?
+  private let setBrightnessFn: SetBrightnessFn?
 
-    init() {
-        guard let handle = dlopen(
-            "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices",
-            RTLD_NOW
-        ) else {
-            Log.brightness.error("impossible de charger DisplayServices.framework — la luminosité ne sera pas pilotable")
-            getBrightnessFn = nil
-            setBrightnessFn = nil
-            return
-        }
-
-        if let symbol = dlsym(handle, "DisplayServicesGetBrightness") {
-            getBrightnessFn = unsafeBitCast(symbol, to: GetBrightnessFn.self)
-        } else {
-            getBrightnessFn = nil
-        }
-
-        if let symbol = dlsym(handle, "DisplayServicesSetBrightness") {
-            setBrightnessFn = unsafeBitCast(symbol, to: SetBrightnessFn.self)
-        } else {
-            setBrightnessFn = nil
-        }
+  init() {
+    guard
+      let handle = dlopen(
+        "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices",
+        RTLD_NOW
+      )
+    else {
+      Log.brightness.error(
+        "impossible de charger DisplayServices.framework — la luminosité ne sera pas pilotable")
+      getBrightnessFn = nil
+      setBrightnessFn = nil
+      return
     }
 
-    func brightness(for displayID: CGDirectDisplayID) -> Float? {
-        guard let getBrightnessFn else { return nil }
-        var value: Float = 0
-        guard getBrightnessFn(displayID, &value) == 0 else { return nil }
-        return value
+    if let symbol = dlsym(handle, "DisplayServicesGetBrightness") {
+      getBrightnessFn = unsafeBitCast(symbol, to: GetBrightnessFn.self)
+    } else {
+      getBrightnessFn = nil
     }
 
-    @discardableResult
-    func setBrightness(_ value: Float, for displayID: CGDirectDisplayID) -> Bool {
-        guard let setBrightnessFn else { return false }
-        return setBrightnessFn(displayID, max(0, min(1, value))) == 0
+    if let symbol = dlsym(handle, "DisplayServicesSetBrightness") {
+      setBrightnessFn = unsafeBitCast(symbol, to: SetBrightnessFn.self)
+    } else {
+      setBrightnessFn = nil
     }
+  }
+
+  func brightness(for displayID: CGDirectDisplayID) -> Float? {
+    guard let getBrightnessFn else { return nil }
+    var value: Float = 0
+    guard getBrightnessFn(displayID, &value) == 0 else { return nil }
+    return value
+  }
+
+  @discardableResult
+  func setBrightness(_ value: Float, for displayID: CGDirectDisplayID) -> Bool {
+    guard let setBrightnessFn else { return false }
+    return setBrightnessFn(displayID, max(0, min(1, value))) == 0
+  }
 }
 
 /// Implémentation concrète de `BrightnessControlling` exposée à l'app, via
@@ -80,25 +84,25 @@ final class DisplayServicesBackend: DisplayBrightnessBackend {
 /// DisplayServices pour la dalle interne, DDC/CI pour les moniteurs externes.
 final class SystemBrightnessService: BrightnessControlling {
 
-    private let backend: DisplayBrightnessBackend
-    private let fallbackDisplayID: () -> CGDirectDisplayID
+  private let backend: DisplayBrightnessBackend
+  private let fallbackDisplayID: () -> CGDirectDisplayID
 
-    var targetDisplay: (() -> CGDirectDisplayID?)?
+  var targetDisplay: (() -> CGDirectDisplayID?)?
 
-    init(
-        backend: DisplayBrightnessBackend = RoutingBrightnessBackend(),
-        fallbackDisplayID: @escaping () -> CGDirectDisplayID = CGMainDisplayID
-    ) {
-        self.backend = backend
-        self.fallbackDisplayID = fallbackDisplayID
-    }
+  init(
+    backend: DisplayBrightnessBackend = RoutingBrightnessBackend(),
+    fallbackDisplayID: @escaping () -> CGDirectDisplayID = CGMainDisplayID
+  ) {
+    self.backend = backend
+    self.fallbackDisplayID = fallbackDisplayID
+  }
 
-    private var resolvedDisplayID: CGDirectDisplayID {
-        targetDisplay?() ?? fallbackDisplayID()
-    }
+  private var resolvedDisplayID: CGDirectDisplayID {
+    targetDisplay?() ?? fallbackDisplayID()
+  }
 
-    var brightness: Float {
-        get { backend.brightness(for: resolvedDisplayID) ?? 0.5 }
-        set { backend.setBrightness(newValue, for: resolvedDisplayID) }
-    }
+  var brightness: Float {
+    get { backend.brightness(for: resolvedDisplayID) ?? 0.5 }
+    set { backend.setBrightness(newValue, for: resolvedDisplayID) }
+  }
 }

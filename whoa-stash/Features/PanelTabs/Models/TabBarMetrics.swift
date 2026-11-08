@@ -9,20 +9,20 @@ import CoreGraphics
 /// glyphes, donc sa largeur est une constante et non le résultat d'une mesure de texte.
 enum TabBarMetrics {
 
-    /// Hauteur de la capsule. Les bulles sont un peu plus basses qu'elle pour qu'il lui reste de
-    /// l'air au-dessus et au-dessous.
-    static let capsuleHeight: CGFloat = 40
+  /// Hauteur de la capsule. Les bulles sont un peu plus basses qu'elle pour qu'il lui reste de
+  /// l'air au-dessus et au-dessous.
+  static let capsuleHeight: CGFloat = 40
 
-    /// Côté d'une bulle : la zone cliquable d'un onglet, et le cercle de l'onglet actif.
-    static let bubbleSize: CGFloat = 32
+  /// Côté d'une bulle : la zone cliquable d'un onglet, et le cercle de l'onglet actif.
+  static let bubbleSize: CGFloat = 32
 
-    /// Écart entre deux bulles d'onglet. Les cercles ne se touchent jamais, pas même entre deux
-    /// onglets voisins.
-    static let bubbleSpacing: CGFloat = 6
+  /// Écart entre deux bulles d'onglet. Les cercles ne se touchent jamais, pas même entre deux
+  /// onglets voisins.
+  static let bubbleSpacing: CGFloat = 6
 
-    /// Marges de la capsule de part et d'autre de la rangée de bulles.
-    static let capsuleHorizontalPadding: CGFloat = 6
+  /// Marges de la capsule de part et d'autre de la rangée de bulles.
+  static let capsuleHorizontalPadding: CGFloat = 6
 
-    /// Taille du glyphe au centre d'une bulle.
-    static let iconSize: CGFloat = 15
+  /// Taille du glyphe au centre d'une bulle.
+  static let iconSize: CGFloat = 15
 }

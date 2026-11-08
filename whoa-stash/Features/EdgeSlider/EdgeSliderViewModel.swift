@@ -6,18 +6,21 @@ import Foundation
 @MainActor
 final class EdgeSliderViewModel {
 
-    private let volumeService: VolumeControlling
-    private let settings: SettingsStorage
+  private let volumeService: VolumeControlling
+  private let settings: SettingsStorage
 
-    init(volumeService: VolumeControlling = SystemVolumeService.shared, settings: SettingsStorage = .shared) {
-        self.volumeService = volumeService
-        self.settings = settings
-    }
+  init(
+    volumeService: VolumeControlling = SystemVolumeService.shared,
+    settings: SettingsStorage = .shared
+  ) {
+    self.volumeService = volumeService
+    self.settings = settings
+  }
 
-    /// `rawRatio` est la position verticale brute du drag (0...1 avant application de la
-    /// sensibilité) — `event.locationInWindow.y / bounds.height` côté vue.
-    func adjustVolume(rawRatio: CGFloat) {
-        let ratio = max(0, min(1, rawRatio * CGFloat(settings.settings.edgeSlider.sensitivity)))
-        volumeService.setVolume(Float(ratio))
-    }
+  /// `rawRatio` est la position verticale brute du drag (0...1 avant application de la
+  /// sensibilité) — `event.locationInWindow.y / bounds.height` côté vue.
+  func adjustVolume(rawRatio: CGFloat) {
+    let ratio = max(0, min(1, rawRatio * CGFloat(settings.settings.edgeSlider.sensitivity)))
+    volumeService.setVolume(Float(ratio))
+  }
 }

@@ -13,13 +13,13 @@ import AppKit
 @MainActor
 enum DockPresence {
 
-    static func showIcon() {
-        guard NSApp.activationPolicy() != .regular else { return }
-        NSApp.setActivationPolicy(.regular)
-    }
+  static func showIcon() {
+    guard NSApp.activationPolicy() != .regular else { return }
+    NSApp.setActivationPolicy(.regular)
+  }
 
-    static func hideIcon() {
-        guard NSApp.activationPolicy() != .accessory else { return }
-        NSApp.setActivationPolicy(.accessory)
-    }
+  static func hideIcon() {
+    guard NSApp.activationPolicy() != .accessory else { return }
+    NSApp.setActivationPolicy(.accessory)
+  }
 }

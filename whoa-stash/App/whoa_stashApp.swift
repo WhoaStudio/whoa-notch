@@ -9,11 +9,11 @@ import SwiftUI
 
 @main
 struct whoa_stashApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    var body: some Scene {
-        Settings {
-            EmptyView()
-        }
+  var body: some Scene {
+    Settings {
+      EmptyView()
     }
+  }
 }

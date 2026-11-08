@@ -13,25 +13,28 @@ import Foundation
 /// Le choix est refait à chaque accès : l'écran visé change dès que le widget change d'écran.
 final class RoutingBrightnessBackend: DisplayBrightnessBackend {
 
-    private let builtIn: DisplayBrightnessBackend
-    private let ddc: DDCBrightnessBackend
+  private let builtIn: DisplayBrightnessBackend
+  private let ddc: DDCBrightnessBackend
 
-    init(builtIn: DisplayBrightnessBackend = DisplayServicesBackend(), ddc: DDCBrightnessBackend = DDCBrightnessBackend()) {
-        self.builtIn = builtIn
-        self.ddc = ddc
-    }
+  init(
+    builtIn: DisplayBrightnessBackend = DisplayServicesBackend(),
+    ddc: DDCBrightnessBackend = DDCBrightnessBackend()
+  ) {
+    self.builtIn = builtIn
+    self.ddc = ddc
+  }
 
-    private func backend(for displayID: CGDirectDisplayID) -> DisplayBrightnessBackend {
-        guard CGDisplayIsBuiltin(displayID) == 0, ddc.canDrive(displayID) else { return builtIn }
-        return ddc
-    }
+  private func backend(for displayID: CGDirectDisplayID) -> DisplayBrightnessBackend {
+    guard CGDisplayIsBuiltin(displayID) == 0, ddc.canDrive(displayID) else { return builtIn }
+    return ddc
+  }
 
-    func brightness(for displayID: CGDirectDisplayID) -> Float? {
-        backend(for: displayID).brightness(for: displayID)
-    }
+  func brightness(for displayID: CGDirectDisplayID) -> Float? {
+    backend(for: displayID).brightness(for: displayID)
+  }
 
-    @discardableResult
-    func setBrightness(_ value: Float, for displayID: CGDirectDisplayID) -> Bool {
-        backend(for: displayID).setBrightness(value, for: displayID)
-    }
+  @discardableResult
+  func setBrightness(_ value: Float, for displayID: CGDirectDisplayID) -> Bool {
+    backend(for: displayID).setBrightness(value, for: displayID)
+  }
 }

@@ -356,7 +356,12 @@
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "whoa-stash lit la liste de lecture d'Apple Musique pour afficher les prochains titres dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "whoa-stash utilise la caméra pour l'aperçu miroir du panneau de l'encoche. Rien n'est enregistré.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "whoa-stash a besoin de vos contacts pour les afficher dans un widget.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationUsageDescription = "whoa-stash a besoin de votre position pour afficher la météo locale.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "whoa-stash a besoin du micro pour un mémo vocal.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "whoa-stash a besoin de vos photos pour afficher une photo récente dans un widget.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "whoa-stash a besoin de vos rappels pour les afficher dans un widget. Rien n'est modifié.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -399,7 +404,12 @@
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "whoa-stash lit la liste de lecture d'Apple Musique pour afficher les prochains titres dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "whoa-stash utilise la caméra pour l'aperçu miroir du panneau de l'encoche. Rien n'est enregistré.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "whoa-stash a besoin de vos contacts pour les afficher dans un widget.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationUsageDescription = "whoa-stash a besoin de votre position pour afficher la météo locale.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "whoa-stash a besoin du micro pour un mémo vocal.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "whoa-stash a besoin de vos photos pour afficher une photo récente dans un widget.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "whoa-stash a besoin de vos rappels pour les afficher dans un widget. Rien n'est modifié.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

@@ -7,14 +7,14 @@
 @MainActor
 struct FileDragDetector {
 
-    private var idleChangeCount: Int?
+  private var idleChangeCount: Int?
 
-    mutating func isDragging(buttonDown: Bool, changeCount: Int, carriesFiles: Bool) -> Bool {
-        guard buttonDown else {
-            idleChangeCount = changeCount
-            return false
-        }
-        guard carriesFiles, let idleChangeCount else { return false }
-        return changeCount != idleChangeCount
+  mutating func isDragging(buttonDown: Bool, changeCount: Int, carriesFiles: Bool) -> Bool {
+    guard buttonDown else {
+      idleChangeCount = changeCount
+      return false
     }
+    guard carriesFiles, let idleChangeCount else { return false }
+    return changeCount != idleChangeCount
+  }
 }

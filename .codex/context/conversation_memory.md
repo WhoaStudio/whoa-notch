@@ -1,0 +1,1 @@
+- Motion audit: keep existing AppKit view ownership and reuse shared springs for the overlay. Calendar event rows have no detail interaction.

@@ -4,86 +4,97 @@ import Combine
 /// Écran "AI" : les hooks Claude Code (installation globale en un clic) et la veille de Claude Desktop.
 final class AISettingsViewController: SettingsSectionViewController {
 
-    private let viewModel = AISettingsViewModel()
-    private var cancellables: Set<AnyCancellable> = []
+  private let viewModel = AISettingsViewModel()
+  private var cancellables: Set<AnyCancellable> = []
 
-    private let statusLabel = NSTextField(labelWithString: "")
-    private let errorLabel = NSTextField(labelWithString: "")
-    private let installButton = NSButton(title: "Install hooks", target: nil, action: nil)
-    private let uninstallButton = NSButton(title: "Uninstall", target: nil, action: nil)
-    private lazy var desktopCheckbox = NSButton.settingsCheckbox(
-        "Notify when a chat reply is ready", target: self, action: #selector(desktopChanged))
+  private let statusLabel = NSTextField(labelWithString: "")
+  private let errorLabel = NSTextField(labelWithString: "")
+  private let installButton = NSButton(title: "Install hooks", target: nil, action: nil)
+  private let uninstallButton = NSButton(title: "Uninstall", target: nil, action: nil)
+  private lazy var desktopCheckbox = NSButton.settingsCheckbox(
+    "Notify when a chat reply is ready", target: self, action: #selector(desktopChanged))
 
-    override func makeRows() -> [NSView] {
-        installButton.target = self
-        installButton.action = #selector(installTapped)
-        uninstallButton.target = self
-        uninstallButton.action = #selector(uninstallTapped)
-        for button in [installButton, uninstallButton] { button.bezelStyle = .rounded }
-        let buttons = NSStackView(views: [installButton, uninstallButton])
-        buttons.spacing = 8
+  override func makeRows() -> [NSView] {
+    installButton.target = self
+    installButton.action = #selector(installTapped)
+    uninstallButton.target = self
+    uninstallButton.action = #selector(uninstallTapped)
+    for button in [installButton, uninstallButton] { button.bezelStyle = .rounded }
+    let buttons = NSStackView(views: [installButton, uninstallButton])
+    buttons.spacing = 8
 
-        statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
-        errorLabel.font = .systemFont(ofSize: 11)
-        errorLabel.textColor = .systemRed
-        errorLabel.isHidden = true
-        errorLabel.preferredMaxLayoutWidth = SettingsMetrics.captionMaxWidth
+    statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
+    errorLabel.font = .systemFont(ofSize: 11)
+    errorLabel.textColor = .systemRed
+    errorLabel.isHidden = true
+    errorLabel.preferredMaxLayoutWidth = SettingsMetrics.captionMaxWidth
 
-        return [
-            SettingsFormRowView(
-                title: "Claude Code", control: makeSettingsControlStack([statusLabel, buttons, errorLabel]),
-                caption: "Shows a notch notification when a session finishes or needs input. Applies to every project."),
-            SettingsFormRowView(title: "Hook script", control: makePathLabel(viewModel.scriptPath)),
-            SettingsFormRowView(title: "Settings file", control: makePathLabel(viewModel.settingsPath)),
-            makeSettingsDivider(),
-            SettingsFormRowView(
-                title: "Claude Desktop", control: desktopCheckbox,
-                caption:
-                    "Experimental. Claude Desktop has no hooks. When you leave it while it is writing, Whoa Stash checks once a second, through Accessibility, whether its Stop button is still there. Nothing of the chat is read."),
-        ]
+    return [
+      SettingsFormRowView(
+        title: "Claude Code",
+        control: makeSettingsControlStack([statusLabel, buttons, errorLabel]),
+        caption:
+          "Shows a notch notification when a session finishes or needs input. Applies to every project."
+      ),
+      SettingsFormRowView(title: "Hook script", control: makePathLabel(viewModel.scriptPath)),
+      SettingsFormRowView(title: "Settings file", control: makePathLabel(viewModel.settingsPath)),
+      makeSettingsDivider(),
+      SettingsFormRowView(
+        title: "Claude Desktop", control: desktopCheckbox,
+        caption:
+          "Experimental. Claude Desktop has no hooks. When you leave it while it is writing, Whoa Stash checks once a second, through Accessibility, whether its Stop button is still there. Nothing of the chat is read."
+      ),
+    ]
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    viewModel.$hookStatus.sink { [weak self] in self?.apply(status: $0) }.store(in: &cancellables)
+    viewModel.$errorMessage.sink { [weak self] in
+      guard let self else { return }
+      let message = $0 ?? ""
+      let changed = errorLabel.stringValue != message
+      errorLabel.stringValue = message
+      errorLabel.isHidden = $0 == nil
+      if changed, !errorLabel.isHidden, errorLabel.window != nil {
+        errorLabel.wantsLayer = true
+        errorLabel.layer?.springReveal(y: -4)
+      }
+    }.store(in: &cancellables)
+    viewModel.$settings.sink { [weak self] in
+      self?.desktopCheckbox.state = $0.desktopWatcherEnabled ? .on : .off
+    }.store(in: &cancellables)
+  }
+
+  override func viewWillAppear() {
+    super.viewWillAppear()
+    viewModel.refresh()
+  }
+
+  private func makePathLabel(_ path: String) -> NSTextField {
+    let label = NSTextField(wrappingLabelWithString: (path as NSString).abbreviatingWithTildeInPath)
+    label.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+    label.textColor = .secondaryLabelColor
+    label.isSelectable = true
+    label.preferredMaxLayoutWidth = SettingsMetrics.captionMaxWidth
+    return label
+  }
+
+  private func apply(status: ClaudeHookInstaller.Status) {
+    statusLabel.stringValue = status.text
+    statusLabel.textColor = status == .installed ? .systemGreen : .secondaryLabelColor
+    uninstallButton.isEnabled = status != .notInstalled
+  }
+
+  @objc private func installTapped() { viewModel.installHooks() }
+
+  @objc private func uninstallTapped() { viewModel.uninstallHooks() }
+
+  @objc private func desktopChanged() {
+    let enabled = desktopCheckbox.state == .on
+    viewModel.setDesktopWatcherEnabled(enabled)
+    if enabled && !AccessibilityPermissionService.shared.isTrusted {
+      AccessibilityPermissionService.shared.requestAccess()
     }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        viewModel.$hookStatus.sink { [weak self] in self?.apply(status: $0) }.store(in: &cancellables)
-        viewModel.$errorMessage.sink { [weak self] in
-            self?.errorLabel.stringValue = $0 ?? ""
-            self?.errorLabel.isHidden = $0 == nil
-        }.store(in: &cancellables)
-        viewModel.$settings.sink { [weak self] in
-            self?.desktopCheckbox.state = $0.desktopWatcherEnabled ? .on : .off
-        }.store(in: &cancellables)
-    }
-
-    override func viewWillAppear() {
-        super.viewWillAppear()
-        viewModel.refresh()
-    }
-
-    private func makePathLabel(_ path: String) -> NSTextField {
-        let label = NSTextField(wrappingLabelWithString: (path as NSString).abbreviatingWithTildeInPath)
-        label.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        label.textColor = .secondaryLabelColor
-        label.isSelectable = true
-        label.preferredMaxLayoutWidth = SettingsMetrics.captionMaxWidth
-        return label
-    }
-
-    private func apply(status: ClaudeHookInstaller.Status) {
-        statusLabel.stringValue = status.text
-        statusLabel.textColor = status == .installed ? .systemGreen : .secondaryLabelColor
-        uninstallButton.isEnabled = status != .notInstalled
-    }
-
-    @objc private func installTapped() { viewModel.installHooks() }
-
-    @objc private func uninstallTapped() { viewModel.uninstallHooks() }
-
-    @objc private func desktopChanged() {
-        let enabled = desktopCheckbox.state == .on
-        viewModel.setDesktopWatcherEnabled(enabled)
-        if enabled && !AccessibilityPermissionService.shared.isTrusted {
-            AccessibilityPermissionService.shared.requestAccess()
-        }
-    }
+  }
 }

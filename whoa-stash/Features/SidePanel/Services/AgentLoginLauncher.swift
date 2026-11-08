@@ -8,15 +8,18 @@ import OSLog
 /// demander l'autorisation d'automatisation.
 enum AgentLoginLauncher {
 
-    static func open(command: String) {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("whoa-stash-\(command)-login.command")
-        let script = "#!/bin/zsh -l\n\(command)\n"
-        do {
-            try script.write(to: url, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-            NSWorkspace.shared.open(url)
-        } catch {
-            Log.sidePanel.error("ouverture de \(command) dans Terminal échouée — \(error.localizedDescription, privacy: .public)")
-        }
+  static func open(command: String) {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "whoa-stash-\(command)-login.command")
+    let script = "#!/bin/zsh -l\n\(command)\n"
+    do {
+      try script.write(to: url, atomically: true, encoding: .utf8)
+      try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+      NSWorkspace.shared.open(url)
+    } catch {
+      Log.sidePanel.error(
+        "ouverture de \(command) dans Terminal échouée — \(error.localizedDescription, privacy: .public)"
+      )
     }
+  }
 }
