@@ -7,18 +7,21 @@ import ServiceManagement
 /// sans effet de bord système dans son `didSet`.
 final class LaunchAtLoginService {
 
-    static let shared = LaunchAtLoginService()
+  static let shared = LaunchAtLoginService()
 
-    func setEnabled(_ enabled: Bool) {
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
-            Log.settings.info("lancement au démarrage → \(enabled ? "activé" : "désactivé", privacy: .public)")
-        } catch {
-            Log.settings.error("échec de la configuration du lancement au démarrage — \(error.localizedDescription, privacy: .public)")
-        }
+  func setEnabled(_ enabled: Bool) {
+    do {
+      if enabled {
+        try SMAppService.mainApp.register()
+      } else {
+        try SMAppService.mainApp.unregister()
+      }
+      Log.settings.info(
+        "lancement au démarrage → \(enabled ? "activé" : "désactivé", privacy: .public)")
+    } catch {
+      Log.settings.error(
+        "échec de la configuration du lancement au démarrage — \(error.localizedDescription, privacy: .public)"
+      )
     }
+  }
 }

@@ -5,62 +5,67 @@ import Foundation
 @MainActor
 final class DockSettingsViewModel: ObservableObject {
 
-    private let storage: SettingsStorage
-    private var cancellable: AnyCancellable?
+  private let storage: SettingsStorage
+  private var cancellable: AnyCancellable?
 
-    @Published private(set) var settings: DockSettings
+  @Published private(set) var settings: DockSettings
 
-    init(storage: SettingsStorage = .shared) {
-        self.storage = storage
-        self.settings = storage.settings.dock
+  init(storage: SettingsStorage = .shared) {
+    self.storage = storage
+    self.settings = storage.settings.dock
 
-        cancellable = storage.$settings
-            .map(\.dock)
-            .removeDuplicates()
-            .sink { [weak self] in self?.settings = $0 }
-    }
+    cancellable = storage.$settings
+      .map(\.dock)
+      .removeDuplicates()
+      .sink { [weak self] in self?.settings = $0 }
+  }
 
-    func setEnabled(_ enabled: Bool) {
-        storage.settings.dock.enabled = enabled
-    }
+  func setEnabled(_ enabled: Bool) {
+    storage.settings.dock.enabled = enabled
+  }
 
-    func setHideSystemDock(_ hide: Bool) {
-        storage.settings.dock.hideSystemDock = hide
-    }
+  func setHideSystemDock(_ hide: Bool) {
+    storage.settings.dock.hideSystemDock = hide
+  }
 
-    /// Ajoute une appli à la liste de lancement (les épingles du dock). Sans effet si le bundle est
-    /// illisible ou déjà présent.
-    func addApp(at url: URL) {
-        guard let app = DockPinnedApp(appURL: url),
-              !storage.settings.dock.pinnedApps.contains(where: { $0.bundleID == app.bundleID })
-        else { return }
-        storage.settings.dock.pinnedApps.append(app)
-    }
+  /// Ajoute une appli à la liste de lancement (les épingles du dock). Sans effet si le bundle est
+  /// illisible ou déjà présent.
+  func addApp(at url: URL) {
+    guard let app = DockPinnedApp(appURL: url),
+      !storage.settings.dock.pinnedApps.contains(where: { $0.bundleID == app.bundleID })
+    else { return }
+    storage.settings.dock.pinnedApps.append(app)
+  }
 
-    func removeApp(bundleID: String) {
-        storage.settings.dock.pinnedApps.removeAll { $0.bundleID == bundleID }
-        storage.settings.dock.launchExcluded.removeAll { $0 == bundleID }
-    }
+  /// Épingle ou désépingle une appli du dock, depuis le sélecteur d'applis de la section.
+  func setPinnedApp(_ app: DockPinnedApp, selected: Bool) {
+    storage.settings.dock.togglePinned(app, selected: selected)
+  }
 
-    func setLaunchIncluded(_ included: Bool, bundleID: String) {
-        var excluded = storage.settings.dock.launchExcluded.filter { $0 != bundleID }
-        if !included { excluded.append(bundleID) }
-        storage.settings.dock.launchExcluded = excluded
-    }
+  func removeApp(bundleID: String) {
+    storage.settings.dock.pinnedApps.removeAll { $0.bundleID == bundleID }
+    storage.settings.dock.launchExcluded.removeAll { $0 == bundleID }
+  }
 
-    func setAutoHide(_ hide: Bool) {
-        storage.settings.dock.autoHide = hide
-    }
+  func setLaunchIncluded(_ included: Bool, bundleID: String) {
+    var excluded = storage.settings.dock.launchExcluded.filter { $0 != bundleID }
+    if !included { excluded.append(bundleID) }
+    storage.settings.dock.launchExcluded = excluded
+  }
 
-    func setMagnification(_ magnify: Bool) {
-        storage.settings.dock.magnification = magnify
-    }
+  func setAutoHide(_ hide: Bool) {
+    storage.settings.dock.autoHide = hide
+  }
 
-    func setTheme(_ theme: DockTheme) {
-        storage.settings.dock.theme = theme
-    }
+  func setMagnification(_ magnify: Bool) {
+    storage.settings.dock.magnification = magnify
+  }
 
-    func setToggleHotkey(_ hotkey: DockHotkey) {
-        storage.settings.dock.toggleHotkey = hotkey
-    }
+  func setTheme(_ theme: DockTheme) {
+    storage.settings.dock.theme = theme
+  }
+
+  func setToggleHotkey(_ hotkey: DockHotkey) {
+    storage.settings.dock.toggleHotkey = hotkey
+  }
 }

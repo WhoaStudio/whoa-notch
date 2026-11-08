@@ -1,103 +1,90 @@
 import AppKit
 
-/// Écran "About" : icône, nom, version, copyright, liens GitHub et site — une mise en page
-/// centrée, pas une carte de formulaire.
-final class AboutSettingsViewController: NSViewController {
+/// Écran "About" : icône, nom, accroche, version, boutons d'action et crédits — une mise en page
+/// centrée, sans l'en-tête commun.
+final class AboutSettingsViewController: SettingsSectionViewController {
 
-    private let animationsEnabled: () -> Bool
+  private static let githubURL = URL(string: "https://github.com/WhoaStudio/whoa-stash")!
+  private static let websiteURL = URL(string: "https://whoastudio.dev")!
 
-    private static let githubURL = URL(string: "https://github.com/WhoaStudio/whoa-stash")!
-    private static let websiteURL = URL(string: "https://whoastudio.dev")!
+  override var showsHeader: Bool { false }
 
-    init(animationsEnabled: @escaping () -> Bool) {
-        self.animationsEnabled = animationsEnabled
-        super.init(nibName: nil, bundle: nil)
-    }
+  override func makeSections() -> [NSView] {
+    let iconView = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
+    iconView.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      iconView.widthAnchor.constraint(equalToConstant: 110),
+      iconView.heightAnchor.constraint(equalToConstant: 110),
+    ])
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    let nameLabel = Self.label("Whoa Stash", size: 30, weight: .bold, color: .labelColor)
+    let taglineLabel = Self.label(
+      "Controls and glanceable info on the edges of your screen.", size: 15,
+      color: .secondaryLabelColor)
+    let versionLabel = Self.label(
+      "Version \(Self.versionString)", size: 13, color: .secondaryLabelColor)
 
-    override func loadView() {
-        view = NSView(frame: NSRect(origin: .zero, size: SettingsMetrics.windowSize))
-    }
+    let buttons = NSStackView(views: [
+      Self.button("Show Onboarding", self, #selector(showOnboarding)),
+      Self.button("GitHub", self, #selector(openGitHub)),
+      Self.button("Website", self, #selector(openWebsite)),
+    ])
+    buttons.orientation = .horizontal
+    buttons.spacing = 12
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
+    let rule = makeSettingsDivider()
+    let credits = Self.label(
+      "Sound effect by Universfield from Pixabay.\nNow Playing through mediaremote-adapter. Terminal by SwiftTerm.\n© 2026 Ugolin O. and WhoaStudio. MIT license.",
+      size: 12, color: .secondaryLabelColor)
 
-        let iconView = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.wantsLayer = true
-        iconView.layer?.cornerRadius = 20
-        iconView.layer?.cornerCurve = .continuous
-        iconView.layer?.masksToBounds = true
+    let column = NSStackView(views: [
+      iconView, nameLabel, taglineLabel, versionLabel, buttons, rule, credits,
+    ])
+    column.orientation = .vertical
+    column.alignment = .centerX
+    column.spacing = 12
+    column.setCustomSpacing(22, after: iconView)
+    column.setCustomSpacing(22, after: versionLabel)
+    column.setCustomSpacing(28, after: buttons)
+    column.setCustomSpacing(20, after: rule)
+    rule.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+    credits.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+    return [column]
+  }
 
-        let nameLabel = NSTextField(labelWithString: "whoa-stash")
-        nameLabel.font = .systemFont(ofSize: 20, weight: .semibold)
-        nameLabel.alignment = .center
+  private static func label(
+    _ text: String, size: CGFloat, weight: NSFont.Weight = .regular, color: NSColor
+  ) -> NSTextField {
+    let label = NSTextField(wrappingLabelWithString: text)
+    label.font = .systemFont(ofSize: size, weight: weight)
+    label.textColor = color
+    label.alignment = .center
+    label.isSelectable = false
+    return label
+  }
 
-        let versionLabel = NSTextField(labelWithString: "Version \(Self.versionString)")
-        versionLabel.font = .systemFont(ofSize: 12)
-        versionLabel.textColor = .secondaryLabelColor
-        versionLabel.alignment = .center
+  private static func button(_ title: String, _ target: AnyObject, _ action: Selector) -> NSButton {
+    let button = NSButton(title: title, target: target, action: action)
+    button.bezelStyle = .rounded
+    button.controlSize = .large
+    return button
+  }
 
-        let copyrightLabel = NSTextField(labelWithString: "© 2026 Ugolin Ollé")
-        copyrightLabel.font = .systemFont(ofSize: 11)
-        copyrightLabel.textColor = .tertiaryLabelColor
-        copyrightLabel.alignment = .center
+  private static var versionString: String {
+    let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    return "\(short) (\(build))"
+  }
 
-        let githubButton = NSButton(title: "GitHub", target: self, action: #selector(openGitHub))
-        githubButton.bezelStyle = .rounded
-        githubButton.controlSize = .regular
+  @objc private func showOnboarding() {
+    OnboardingWindowController.shared.show()
+  }
 
-        let websiteButton = NSButton(title: "Website", target: self, action: #selector(openWebsite))
-        websiteButton.bezelStyle = .rounded
-        websiteButton.controlSize = .regular
+  @objc private func openGitHub() {
+    NSWorkspace.shared.open(Self.githubURL)
+  }
 
-        let buttonsStack = NSStackView(views: [githubButton, websiteButton])
-        buttonsStack.orientation = .horizontal
-        buttonsStack.spacing = 12
-
-        let stack = NSStackView(views: [iconView, nameLabel, versionLabel, copyrightLabel, buttonsStack])
-        stack.orientation = .vertical
-        stack.alignment = .centerX
-        stack.spacing = 10
-        stack.setCustomSpacing(20, after: iconView)
-        stack.setCustomSpacing(24, after: copyrightLabel)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        view.addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            iconView.widthAnchor.constraint(equalToConstant: 88),
-            iconView.heightAnchor.constraint(equalToConstant: 88),
-
-            stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-        ])
-    }
-
-    override func viewWillAppear() {
-        super.viewWillAppear()
-        guard animationsEnabled(), let layer = view.layer else { return }
-        layer.opacity = 0
-        layer.transform = CATransform3DMakeTranslation(0, 8, 0)
-        layer.springAnimate(keyPath: "opacity", to: 1, preset: .gentle)
-        layer.springAnimate(keyPath: "transform", to: NSValue(caTransform3D: CATransform3DIdentity), preset: .gentle)
-    }
-
-    private static var versionString: String {
-        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-        return "\(short) (\(build))"
-    }
-
-    @objc private func openGitHub() {
-        NSWorkspace.shared.open(Self.githubURL)
-    }
-
-    @objc private func openWebsite() {
-        NSWorkspace.shared.open(Self.websiteURL)
-    }
+  @objc private func openWebsite() {
+    NSWorkspace.shared.open(Self.websiteURL)
+  }
 }
