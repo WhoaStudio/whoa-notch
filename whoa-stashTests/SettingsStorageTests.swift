@@ -176,6 +176,23 @@ struct SettingsStorageTests {
     #expect(storage.settings.brightness == BrightnessSettings())
   }
 
+  @Test("la réponse libre après un tour est désactivée par défaut, absente d'un ancien blob, et persiste")
+  func stopReplyDefaultsAndPersists() {
+    #expect(AISettings().stopReplyEnabled == false)
+
+    let defaults = Self.makeDefaults()
+    let older = #"{"ai":{"desktopWatcherEnabled":true}}"#
+    defaults.set(Data(older.utf8), forKey: "com.whoastudio.whoa-stash.appSettings")
+    let storage = SettingsStorage(defaults: defaults)
+    #expect(storage.settings.ai.desktopWatcherEnabled == true)
+    #expect(storage.settings.ai.stopReplyEnabled == false)
+
+    storage.settings.ai.stopReplyEnabled = true
+    let relaunched = SettingsStorage(defaults: defaults)
+    #expect(relaunched.settings.ai.stopReplyEnabled == true)
+    #expect(relaunched.settings.ai.desktopWatcherEnabled == true)
+  }
+
   @Test("une valeur réécrite à l'identique n'est pas réécrite sur le disque")
   func identicalWriteDoesNotPersistAgain() {
     let suite = "whoa-stash.tests.counting"

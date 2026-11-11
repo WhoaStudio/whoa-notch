@@ -39,9 +39,6 @@ enum OnboardingContent {
     Item(
       symbol: "circle.hexagongrid.fill",
       text: "Radial menu under the cursor to launch apps and Shortcuts."),
-    Item(
-      symbol: "hand.tap.fill", text: "Knock on your Mac to turn the display off or lock the screen."
-    ),
   ]
 
   static let fixes: [Item] = [
