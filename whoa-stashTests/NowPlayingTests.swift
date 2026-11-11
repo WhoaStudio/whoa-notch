@@ -138,9 +138,10 @@ struct NowPlayingViewModelTests {
 
     model.receive(nil)
     #expect(emitted.count == 1)
-    // Attente bornée plutôt qu'un délai fixe : un runner CI chargé peut dépasser 100 ms.
-    let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-    while emitted.count < 2, ContinuousClock.now < deadline {
+    // Attente bornée en tentatives plutôt qu'un délai fixe : un runner CI figé peut dépasser l'échéance.
+    var tries = 0
+    while emitted.count < 2, tries < 300 {
+      tries += 1
       try await Task.sleep(for: .milliseconds(10))
     }
     #expect(emitted.count == 2)

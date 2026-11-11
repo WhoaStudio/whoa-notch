@@ -106,9 +106,12 @@ struct PlayingNextViewModelTests {
 
   /// Attend que `condition` soit vraie, sans dépasser `timeout` : un délai fixe échoue sur une
   /// machine chargée (CI), alors que la file n'arrive qu'après le délai de stabilisation.
-  private func waitUntil(timeout: Duration = .seconds(2), _ condition: () -> Bool) async throws {
-    let deadline = ContinuousClock.now + timeout
-    while !condition(), ContinuousClock.now < deadline {
+  private func waitUntil(attempts: Int = 300, _ condition: () -> Bool) async throws {
+    // Nombre de tentatives borné plutôt qu'une échéance horloge : sur un runner figé, l'échéance
+    // peut passer avant que la tâche en attente (son propre délai de 10 ms) ait tourné.
+    var tries = 0
+    while !condition(), tries < attempts {
+      tries += 1
       try await Task.sleep(for: .milliseconds(10))
     }
   }
