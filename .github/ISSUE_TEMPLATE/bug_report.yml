@@ -22,7 +22,6 @@ body:
         - Dock
         - Radial menu
         - New mail
-        - Knock
         - Preferences
         - Other
     validations:

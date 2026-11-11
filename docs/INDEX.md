@@ -27,7 +27,6 @@
 
 Read these in ranges (or outline them first), not whole.
 
-- `whoa-stashTests/KnockRecordings.swift`: ~38.7K tokens
 - `whoa-stash/Features/NotchPanel/Views/NotchPanelContentView.swift`: ~15K tokens
 - `whoa-stash/Features/Dock/DockContentView.swift`: ~12.4K tokens
 - `whoa-stash/Features/NotchPanel/NotchPanelController.swift`: ~11.1K tokens
