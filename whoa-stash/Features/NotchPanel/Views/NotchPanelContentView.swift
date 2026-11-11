@@ -169,6 +169,16 @@ final class NotchPanelContentView: NSView {
   /// Vrai quand le panneau est déplié sur l'onglet Terminal ou Notes : c'est alors lui qui doit avoir le clavier.
   var wantsKeyboard: Bool { isExpanded && (selectedTab == .terminal || selectedTab == .notes) }
 
+  /// Une demande à laquelle on peut répondre est affichée sur l'onglet AI : la fenêtre peut prendre le
+  /// clavier au clic (sans le voler à l'ouverture), pour les touches de la carte et ses champs.
+  var cardAcceptsKeyboard: Bool { isExpanded && selectedTab == .ai && usageTab.showsAnswerablePrompt }
+
+  /// Échap sur la carte : le contrôleur replie le panneau.
+  var onFoldRequested: (() -> Void)? {
+    get { usageTab.onPromptFoldRequested }
+    set { usageTab.onPromptFoldRequested = newValue }
+  }
+
   /// Appelé quand `wantsKeyboard` a pu changer ; la fenêtre en tire le focus clavier.
   var onKeyboardNeedChanged: (() -> Void)?
 
@@ -249,6 +259,8 @@ final class NotchPanelContentView: NSView {
     addSubview(contentContainer)
 
     contentContainer.addSubview(usageTab)
+    usageTab.onPromptContentChanged = { [weak self] in self?.promptContentChanged() }
+    usageTab.onStartAgent = { [weak self] in self?.select(.terminal, animated: true) }
     contentContainer.addSubview(mirrorTab)
 
     globalTab.addSubview(weekRow)
@@ -382,12 +394,13 @@ final class NotchPanelContentView: NSView {
     }
   }
 
-  /// Posée juste à gauche du bouton tasse, à sa hauteur.
+  /// Posée juste à gauche de l'encoche, centrée sur la hauteur des boutons.
   private func layoutUsageChip() {
-    let height = stayAwakeButton.frame.height * 0.7
     let width = usageChip.fittingWidth
+    let height = NotchUsageChipView.fittingHeight
+    let notchLeft = bounds.midX - collapsedSize.width / 2
     usageChip.frame = NSRect(
-      x: stayAwakeButton.frame.minX - 4 - width,
+      x: notchLeft - 4 - width,
       y: stayAwakeButton.frame.midY - height / 2,
       width: width, height: height)
   }
@@ -793,7 +806,24 @@ final class NotchPanelContentView: NSView {
   /// prend la place du bac, et le panneau grandit pour elle.
   private var transformSourceURL: URL?
 
+  /// Hauteur de l'onglet AI quand il montre une demande : celle de la carte, bornée par la fenêtre.
+  private var aiPromptExtraHeight: CGFloat {
+    guard let height = usageTab.promptHeight(width: usageTab.bounds.width > 0
+      ? usageTab.bounds.width : NotchPanelGeometry.contentWidth(for: .ai))
+    else { return 0 }
+    let clamped = min(max(height, 150), NotchPanelGeometry.tabContentHeight)
+    return clamped - NotchPanelGeometry.aiTabHeight
+  }
+
+  /// La carte d'agent a changé de contenu : le panneau suit sa hauteur, au même ressort qu'un
+  /// changement d'onglet, et la fenêtre reprend ou rend le clavier.
+  private func promptContentChanged() {
+    if selectedTab == .ai { refreshPanelHeight(animated: isExpanded) }
+    onKeyboardNeedChanged?()
+  }
+
   private var panelExtraHeight: CGFloat {
+    if selectedTab == .ai { return aiPromptExtraHeight }
     guard selectedTab == .tray else { return 0 }
     if transformSourceURL != nil { return NotchPanelGeometry.transformExtraHeight }
     return isShowingConversionRow ? NotchPanelGeometry.trayConversionExtraHeight : 0
@@ -849,12 +879,14 @@ final class NotchPanelContentView: NSView {
   private func layoutTabBodies() {
     let inset = NotchPanelGeometry.contentInsetX
     let panel = panelRect
+    let island = collapsedTopGap > 0
     let body = NotchPanelGeometry.tabBodyRect(
-      in: panel, collapsedHeight: collapsedSize.height, island: collapsedTopGap > 0)
+      in: panel, collapsedHeight: collapsedSize.height, island: island)
     for view in tabContentViews {
       view.frame = body
     }
-    transformView.frame = body
+    transformView.frame = NotchPanelGeometry.transformBodyRect(
+      in: panel, collapsedHeight: collapsedSize.height, island: island)
 
     // Dans le repère de `globalTab` : la rangée de la semaine occupe toute la largeur.
     let weekHeight = NotchPanelGeometry.weekStripHeight
@@ -1010,20 +1042,42 @@ final class NotchPanelContentView: NSView {
     set { usageTab.onAgentDecision = newValue }
   }
 
-  func apply(agentPrompt: AgentEvent?) {
-    usageTab.apply(agentPrompt: agentPrompt)
+  func apply(agentPrompt: AgentEvent?, queued: Int = 0) {
+    usageTab.apply(agentPrompt: agentPrompt, queued: queued)
+    promptContentChanged()
   }
 
   func apply(agentActivity: AgentActivity?) {
     usageTab.apply(agentActivity: agentActivity)
   }
 
-  func showAgentEvent(_ event: AgentEvent) {
+  func apply(agentSessions: [AgentSession], selectedID: String?) {
+    usageTab.apply(agentSessions: agentSessions, selectedID: selectedID)
+    onKeyboardNeedChanged?()
+  }
+
+  var onAgentSteer: ((String, String) -> Void)? {
+    get { usageTab.onAgentSteer }
+    set { usageTab.onAgentSteer = newValue }
+  }
+
+  var onAgentSessionSelected: ((String) -> Void)? {
+    get { usageTab.onAgentSessionSelected }
+    set { usageTab.onAgentSessionSelected = newValue }
+  }
+
+  var onAgentPromote: ((AgentEvent) -> Void)? {
+    get { usageTab.onAgentPromote }
+    set { usageTab.onAgentPromote = newValue }
+  }
+
+  func showAgentEvent(_ event: AgentEvent, queued: Int = 0, deadline: Date? = nil) {
     guard !isExpanded else { return }
     hideDeviceStatus(animated: false)
     hideMailMessage(animated: false)
     hideLaunchGreeting(animated: false)
-    agentEventPill.apply(event, notchWidth: collapsedSize.width)
+    agentEventPill.apply(
+      event, notchWidth: collapsedSize.width, queued: queued, deadline: deadline)
     agentEventPill.layoutSubtreeIfNeeded()
     isShowingAgentEvent = true
     applyShape(expanded: false, animated: true)

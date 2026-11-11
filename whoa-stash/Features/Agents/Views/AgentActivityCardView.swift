@@ -1,85 +1,83 @@
 import AppKit
 
-/// Carte de l'onglet AI qui montre ce que fait un agent pendant qu'il travaille : à gauche son nom et
-/// les étapes (Read, Edit, Bash, Done) avec la courante en avant ; à droite le fichier travaillé,
-/// onglet, chemin et quelques lignes.
+/// Carte de l'onglet AI qui montre ce qu'un agent a fait : en haut une frise horizontale de ses
+/// actions (Read, Edit, Bash, Done…) dans l'ordre, dessous l'historique en texte, qui défile et
+/// garde tout, une couleur par type d'étape, des chemins et des erreurs qui se repèrent.
 ///
-/// Une demande en attente passe devant (voir `NotchUsageTabView`). Mise en page entièrement en frames, comme le reste de l'overlay.
+/// Aucun logo : chaque état est un symbole SF (coche, croix, roue). Une demande en attente passe
+/// devant (voir `NotchUsageTabView`). Mise en page entièrement en frames, comme le reste de l'overlay.
 final class AgentActivityCardView: NSView {
 
-  private let logoView = NSImageView()
   private let nameLabel = NSTextField(labelWithString: "")
   private let sourceLabel = NSTextField(labelWithString: "Claude Code")
-  private let stepRows: [StepRow]
-  private let tabBox = NSView()
-  private let badgeLabel = NSTextField(labelWithString: "")
-  private let fileLabel = NSTextField(labelWithString: "")
-  private let pathLabel = NSTextField(labelWithString: "")
-  private let codeBox = NSView()
-  private let lineNumbers: [NSTextField]
-  private let codeLines: [NSTextField]
-  private let captionLabel = NSTextField(labelWithString: "")
+  private let countLabel = NSTextField(labelWithString: "")
+  private let timelineScroll = NSScrollView()
+  private let timelineStrip = TimelineStrip()
+  private let logBox = NSView()
+  private let logScroll = NSScrollView()
+  private let logView = NSTextView(usingTextLayoutManager: false)
+  private let captionLabel = NSTextField(labelWithString: "Waiting for the first action…")
 
-  private var startLine = 1
-  private let inset: CGFloat = 16
-  private let leftWidth: CGFloat = 112
-  private let rowHeight: CGFloat = 15
-  private let rowGap: CGFloat = 5
+  private var itemCount = 0
+  private var project = ""
+  private let inset: CGFloat = 18
+  private let timelineHeight: CGFloat = 30
+
+  /// Posé quand la carte vit dans une autre vue qui fournit déjà le fond.
+  var drawsBackground = true {
+    didSet {
+      layer?.backgroundColor =
+        drawsBackground ? NSColor.white.withAlphaComponent(0.07).cgColor : NSColor.clear.cgColor
+    }
+  }
+  /// Bord bas de l'historique, dans le repère de la carte ; `nil` : la marge habituelle. Une vue qui
+  /// range un champ ou des boutons dessous le relève.
+  var bottomInset: CGFloat? { didSet { needsLayout = true } }
+  /// Colonne de contenu dans le repère de la carte, pour aligner ce qu'on range dessous.
+  var contentColumn: (x: CGFloat, width: CGFloat) { (inset, bounds.width - inset * 2) }
 
   override init(frame frameRect: NSRect) {
-    stepRows = AgentStep.allCases.map(StepRow.init)
-    lineNumbers = (0..<ToolCall.previewLines).map { _ in NSTextField(labelWithString: "") }
-    codeLines = (0..<ToolCall.previewLines).map { _ in NSTextField(labelWithString: "") }
     super.init(frame: frameRect)
     wantsLayer = true
     layer?.cornerRadius = 20
     layer?.backgroundColor = NSColor.white.withAlphaComponent(0.07).cgColor
 
-    logoView.image = NSImage(named: "ClaudeLogo")
-    logoView.imageScaling = .scaleProportionallyUpOrDown
-    nameLabel.font = .systemFont(ofSize: 15, weight: .bold)
+    nameLabel.font = .systemFont(ofSize: 14, weight: .bold)
     nameLabel.textColor = .white
     nameLabel.lineBreakMode = .byTruncatingTail
-    sourceLabel.font = .systemFont(ofSize: 11, weight: .regular)
-    sourceLabel.textColor = NSColor.white.withAlphaComponent(0.55)
+    sourceLabel.font = .systemFont(ofSize: 11)
+    sourceLabel.textColor = NSColor.white.withAlphaComponent(0.5)
+    countLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+    countLabel.textColor = NSColor.white.withAlphaComponent(0.5)
+    countLabel.alignment = .right
 
-    tabBox.wantsLayer = true
-    tabBox.layer?.cornerRadius = 8
-    tabBox.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
-    badgeLabel.font = .systemFont(ofSize: 8, weight: .heavy)
-    badgeLabel.textColor = .white
-    badgeLabel.alignment = .center
-    badgeLabel.wantsLayer = true
-    badgeLabel.layer?.cornerRadius = 3
-    badgeLabel.layer?.backgroundColor = NSColor.systemBlue.cgColor
-    fileLabel.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
-    fileLabel.textColor = .white
-    fileLabel.lineBreakMode = .byTruncatingTail
-    pathLabel.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
-    pathLabel.textColor = NSColor.white.withAlphaComponent(0.4)
-    pathLabel.alignment = .right
-    pathLabel.lineBreakMode = .byTruncatingHead
+    timelineScroll.documentView = timelineStrip
+    timelineScroll.drawsBackground = false
+    timelineScroll.hasHorizontalScroller = true
+    timelineScroll.hasVerticalScroller = false
+    timelineScroll.autohidesScrollers = true
+    timelineScroll.horizontalScrollElasticity = .allowed
+    timelineScroll.verticalScrollElasticity = .none
 
-    codeBox.wantsLayer = true
-    codeBox.layer?.cornerRadius = 10
-    codeBox.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
-    for label in lineNumbers {
-      label.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
-      label.textColor = NSColor.white.withAlphaComponent(0.3)
-      label.alignment = .right
-    }
-    for label in codeLines {
-      label.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
-      label.lineBreakMode = .byTruncatingTail
-    }
-    captionLabel.font = .systemFont(ofSize: 12, weight: .regular)
+    logBox.wantsLayer = true
+    logBox.layer?.cornerRadius = 12
+    logBox.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
+    logView.isEditable = false
+    logView.isSelectable = true
+    logView.drawsBackground = false
+    logView.textContainerInset = NSSize(width: 0, height: 0)
+    logView.isVerticallyResizable = true
+    logView.textContainer?.widthTracksTextView = true
+    logScroll.documentView = logView
+    logScroll.drawsBackground = false
+    logScroll.hasVerticalScroller = true
+    logScroll.autohidesScrollers = true
+    captionLabel.font = .systemFont(ofSize: 12)
     captionLabel.textColor = NSColor.white.withAlphaComponent(0.45)
     captionLabel.alignment = .center
 
-    [logoView, nameLabel, sourceLabel, tabBox, pathLabel, codeBox].forEach(addSubview)
-    stepRows.forEach(addSubview)
-    [badgeLabel, fileLabel].forEach(tabBox.addSubview)
-    (lineNumbers + codeLines + [captionLabel]).forEach(codeBox.addSubview)
+    [nameLabel, sourceLabel, countLabel, timelineScroll, logBox].forEach(addSubview)
+    [logScroll, captionLabel].forEach(logBox.addSubview)
   }
 
   @available(*, unavailable)
@@ -87,175 +85,263 @@ final class AgentActivityCardView: NSView {
     fatalError("init(coder:) has not been implemented")
   }
 
-  func apply(_ activity: AgentActivity) {
-    nameLabel.stringValue = activity.project
-    for row in stepRows {
-      let state: StepRow.State
-      if activity.step == row.step {
-        state = row.step == .done ? .visited : .current
-      } else if activity.visited.contains(row.step) {
-        state = .visited
-      } else {
-        state = .pending
-      }
-      row.apply(state)
-    }
+  // MARK: - État
 
-    // Onglet : le fichier, ou l'outil quand il n'y en a pas (commande, recherche).
-    let path = activity.filePath ?? ""
-    let name = path.isEmpty ? (activity.toolName ?? "") : (path as NSString).lastPathComponent
-    let changedFile = fileLabel.stringValue != name || pathLabel.stringValue != path
-    fileLabel.stringValue = name
-    pathLabel.stringValue = path
-    let ext = (name as NSString).pathExtension
-    badgeLabel.stringValue =
-      ext.isEmpty ? (activity.step == .bash ? "SH" : "•") : String(ext.prefix(2)).uppercased()
-    badgeLabel.layer?.backgroundColor = Self.badgeColor(ext: ext).cgColor
-    tabBox.isHidden = name.isEmpty
+  /// L'historique d'une session : la frise et le texte, du plus ancien au plus récent.
+  func apply(project: String, source: String, items: [AgentReplay.Item]) {
+    let sameSession = self.project == project
+    self.project = project
+    nameLabel.stringValue = project
+    sourceLabel.stringValue = source
+    countLabel.stringValue = items.isEmpty ? "" : (items.count == 1 ? "1 step" : "\(items.count) steps")
 
-    startLine = activity.startLine
-    let showCode = activity.step == .bash || activity.filePath != nil
-    for index in 0..<ToolCall.previewLines {
-      let hasLine = index < activity.snippet.count
-      codeLines[index].isHidden = !hasLine
-      lineNumbers[index].isHidden = !hasLine || activity.step == .bash
-      if hasLine {
-        codeLines[index].attributedStringValue = Self.highlight(activity.snippet[index])
-        lineNumbers[index].stringValue = String(startLine + index)
-      }
-    }
-    captionLabel.isHidden = !activity.snippet.isEmpty
-    captionLabel.stringValue =
-      activity.step == .done
-      ? "Done"
-      : (activity.toolName.map { "Using \($0)" } ?? "Thinking…")
-    codeBox.isHidden = !showCode && activity.snippet.isEmpty && activity.step == nil
-    if changedFile, !isHiddenOrHasHiddenAncestor {
-      for view in [tabBox, codeBox] where !view.isHidden {
-        view.wantsLayer = true
-        view.layer?.springReveal(x: 6, y: 0)
-      }
-    }
+    let grew = items.count > itemCount || !sameSession
+    let followsEnd = !sameSession || itemCount == 0 || isLogAtEnd
+    itemCount = items.count
+
+    timelineStrip.apply(items)
+    logView.textStorage?.setAttributedString(Self.historyText(items))
+    captionLabel.isHidden = !items.isEmpty
+    logScroll.isHidden = items.isEmpty
     needsLayout = true
+    layoutSubtreeIfNeeded()
+
+    if grew { scrollTimelineToEnd() }
+    if followsEnd { scrollLogToEnd() }
   }
+
+  /// L'activité d'un agent sans journal (une seule étape connue) : sa frise réduite.
+  func apply(_ activity: AgentActivity) {
+    apply(
+      project: activity.project, source: "Claude Code", items: AgentReplay.items(for: activity))
+  }
+
+  private var isLogAtEnd: Bool {
+    let clip = logScroll.contentView
+    return clip.bounds.maxY >= logView.frame.height - 8
+  }
+
+  private func scrollLogToEnd() {
+    guard let container = logView.textContainer, let layoutManager = logView.layoutManager else { return }
+    layoutManager.ensureLayout(for: container)
+    let used = ceil(layoutManager.usedRect(for: container).height)
+    logView.frame.size.height = max(used, logScroll.contentSize.height)
+    let clip = logScroll.contentView
+    clip.scroll(to: NSPoint(x: 0, y: max(0, logView.frame.height - clip.bounds.height)))
+    logScroll.reflectScrolledClipView(clip)
+  }
+
+  private func scrollTimelineToEnd() {
+    let clip = timelineScroll.contentView
+    let target = max(0, timelineStrip.frame.width - clip.bounds.width)
+    clip.scroll(to: NSPoint(x: target, y: 0))
+    timelineScroll.reflectScrolledClipView(clip)
+  }
+
+  // MARK: - Mise en page
 
   override func layout() {
     super.layout()
-    let top = bounds.maxY - inset
+    let width = bounds.width - inset * 2
+    let top = bounds.maxY - 16
 
-    // Le logo garde le rapport de l'image (586 × 366).
-    logoView.frame = NSRect(x: inset, y: top - 26, width: 42, height: 26)
-    nameLabel.frame = NSRect(x: inset, y: top - 26 - 24, width: leftWidth - inset, height: 20)
+    nameLabel.sizeToFit()
+    let nameWidth = min(nameLabel.frame.width, width * 0.5)
+    nameLabel.frame = NSRect(x: inset, y: top - 18, width: nameWidth, height: 18)
+    sourceLabel.sizeToFit()
     sourceLabel.frame = NSRect(
-      x: inset, y: nameLabel.frame.minY - 15, width: leftWidth - inset, height: 14)
-    var y = sourceLabel.frame.minY - 10 - rowHeight
-    for row in stepRows {
-      row.frame = NSRect(x: inset, y: y, width: leftWidth - inset, height: rowHeight)
-      y -= rowHeight + rowGap
-    }
+      x: nameLabel.frame.maxX + 8, y: top - 17, width: sourceLabel.frame.width, height: 15)
+    countLabel.frame = NSRect(x: bounds.maxX - inset - 90, y: top - 17, width: 90, height: 15)
 
-    let rightX = leftWidth + 6
-    let rightWidth = bounds.width - rightX - inset
-    let tabHeight: CGFloat = 26
-    tabBox.frame = NSRect(
-      x: rightX, y: top - tabHeight, width: min(rightWidth * 0.6, 200), height: tabHeight)
-    badgeLabel.frame = NSRect(x: 8, y: (tabHeight - 13) / 2, width: 18, height: 13)
-    fileLabel.frame = NSRect(
-      x: 32, y: (tabHeight - 16) / 2, width: tabBox.frame.width - 38, height: 16)
-    let pathX = tabBox.frame.maxX + 10
-    pathLabel.frame = NSRect(
-      x: pathX, y: top - tabHeight + 5, width: max(0, rightX + rightWidth - pathX), height: 14)
+    timelineScroll.frame = NSRect(
+      x: inset, y: top - 18 - 10 - timelineHeight, width: width, height: timelineHeight)
+    timelineStrip.frame.size.height = timelineHeight
+    timelineStrip.layoutChips(minimumWidth: width)
 
-    let boxTop = top - tabHeight - 8
-    codeBox.frame = NSRect(x: rightX, y: inset, width: rightWidth, height: max(0, boxTop - inset))
-    let lineHeight: CGFloat = 14
-    for index in 0..<ToolCall.previewLines {
-      let lineY = codeBox.bounds.maxY - 10 - lineHeight * CGFloat(index + 1)
-      lineNumbers[index].frame = NSRect(x: 4, y: lineY, width: 26, height: lineHeight)
-      codeLines[index].frame = NSRect(
-        x: 36, y: lineY, width: max(0, codeBox.bounds.width - 40), height: lineHeight)
-    }
-    captionLabel.frame = NSRect(
-      x: 0, y: codeBox.bounds.midY - 8, width: codeBox.bounds.width, height: 16)
+    let logBottom = bottomInset ?? 16
+    let logTop = timelineScroll.frame.minY - 10
+    logBox.frame = NSRect(x: inset, y: logBottom, width: width, height: max(0, logTop - logBottom))
+    logScroll.frame = logBox.bounds.insetBy(dx: 14, dy: 10)
+    logView.frame.size.width = logScroll.contentSize.width
+    captionLabel.frame = NSRect(x: 0, y: logBox.bounds.midY - 8, width: logBox.bounds.width, height: 16)
   }
 
-  // MARK: - Coloration
+  // MARK: - Couleurs
 
-  private static func badgeColor(ext: String) -> NSColor {
-    switch ext.lowercased() {
-    case "ts", "tsx": .systemBlue
-    case "js", "jsx": .systemYellow.blended(withFraction: 0.4, of: .black) ?? .systemYellow
-    case "swift": .systemOrange
-    case "py": .systemGreen
-    case "md": .systemGray
-    default: .systemPurple
-    }
-  }
-
-  private static let keywords: NSRegularExpression = {
-    let words = [
-      "import", "from", "const", "let", "var", "function", "export", "return", "if", "else", "for",
-      "while",
-      "class", "struct", "enum", "func", "def", "async", "await", "new", "true", "false", "null",
-      "nil", "in",
-      "of", "type", "interface", "case", "switch", "guard", "static", "private", "public", "final",
-      "extension",
-    ]
-    return try! NSRegularExpression(pattern: "\\b(" + words.joined(separator: "|") + ")\\b")
-  }()
-  private static let numbers = try! NSRegularExpression(pattern: "\\b\\d+(\\.\\d+)?\\b")
-  private static let strings = try! NSRegularExpression(pattern: "'[^']*'|\"[^\"]*\"|`[^`]*`")
-  private static let comments = try! NSRegularExpression(pattern: "(//|#).*$")
-
-  /// Coloration légère par motifs : mots-clés, nombres, chaînes, commentaires. Pas de grammaire.
-  static func highlight(_ line: String) -> NSAttributedString {
-    let result = NSMutableAttributedString(
-      string: line,
-      attributes: [
-        .font: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular),
-        .foregroundColor: NSColor.white.withAlphaComponent(0.9),
-      ])
-    let whole = NSRange(location: 0, length: (line as NSString).length)
-    let rules: [(NSRegularExpression, NSColor)] = [
-      (keywords, NSColor(srgbRed: 0.69, green: 0.55, blue: 0.95, alpha: 1)),
-      (numbers, NSColor(srgbRed: 0.93, green: 0.55, blue: 0.5, alpha: 1)),
-      (strings, NSColor(srgbRed: 0.93, green: 0.74, blue: 0.5, alpha: 1)),
-      (comments, NSColor.white.withAlphaComponent(0.4)),
-    ]
-    for (regex, color) in rules {
-      regex.enumerateMatches(in: line, range: whole) { match, _, _ in
-        if let range = match?.range {
-          result.addAttribute(.foregroundColor, value: color, range: range)
-        }
+  /// Une couleur par type d'étape, prise parmi les couleurs système du dépôt.
+  static func color(for kind: AgentReplay.Item.Kind) -> NSColor {
+    switch kind {
+    case .tool(let step):
+      switch step {
+      case .read: return .systemBlue
+      case .edit: return .systemOrange
+      case .bash: return .systemPurple
+      case .done, nil: return .systemGray
       }
+    case .approval: return .systemYellow
+    case .allowed, .done: return .systemGreen
+    case .denied: return .systemRed
+    case .steer: return .systemPink
+    case .ended: return .systemGray
+    }
+  }
+
+  /// Fichiers : un turquoise propre aux chemins. Erreurs : rouge.
+  static let pathColor = NSColor.systemTeal
+  static let errorColor = NSColor.systemRed
+
+  /// Le symbole SF de l'état d'une action : coche, croix ou roue. Aucune image maison.
+  static func statusImage(_ state: AgentReplay.Item.State, color: NSColor, size: CGFloat) -> NSImage? {
+    let name: String
+    switch state {
+    case .done: name = "checkmark.circle.fill"
+    case .failed: name = "xmark.circle.fill"
+    case .active: name = "progress.indicator"
+    }
+    let tint = state == .failed ? errorColor : color
+    // Coche et croix se lisent sur le disque teinté : le signe est sombre, le disque de la couleur.
+    let palette: [NSColor] =
+      state == .active ? [tint] : [NSColor(white: 0.07, alpha: 1), tint]
+    let configuration = NSImage.SymbolConfiguration(pointSize: size, weight: .semibold)
+      .applying(.init(paletteColors: palette))
+    return (NSImage(systemSymbolName: name, accessibilityDescription: nil)
+      ?? NSImage(systemSymbolName: "circle.dotted", accessibilityDescription: nil))?
+      .withSymbolConfiguration(configuration)
+  }
+
+  // MARK: - Texte
+
+  /// L'historique en texte : une ligne par action (symbole d'état, nom coloré, fichier ou détail),
+  /// puis les lignes retirées et ajoutées d'une édition.
+  static func historyText(_ items: [AgentReplay.Item]) -> NSAttributedString {
+    let result = NSMutableAttributedString()
+    let labelFont = NSFont.systemFont(ofSize: 11, weight: .bold)
+    let mono = NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular)
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.tabStops = [NSTextTab(textAlignment: .left, location: 84)]
+    paragraph.defaultTabInterval = 84
+    paragraph.headIndent = 84
+    paragraph.lineSpacing = 2
+    paragraph.paragraphSpacing = 6
+
+    for item in items {
+      let color = color(for: item.kind)
+      let failed = item.state == .failed
+      let attachment = NSTextAttachment()
+      attachment.image = statusImage(item.state, color: color, size: 11)
+      attachment.bounds = CGRect(x: 0, y: -2.5, width: 12, height: 12)
+      result.append(NSAttributedString(attachment: attachment))
+      result.append(
+        NSAttributedString(
+          string: "  " + item.label + "\t",
+          attributes: [
+            .font: labelFont,
+            .foregroundColor: failed ? errorColor : color.blended(withFraction: 0.3, of: .white) ?? color,
+            .paragraphStyle: paragraph,
+          ]))
+      if let path = item.path {
+        result.append(
+          NSAttributedString(
+            string: path,
+            attributes: [.font: mono, .foregroundColor: pathColor, .paragraphStyle: paragraph]))
+      } else if let summary = item.summary {
+        result.append(
+          NSAttributedString(
+            string: summary,
+            attributes: [
+              .font: mono,
+              .foregroundColor: failed ? errorColor : NSColor.white.withAlphaComponent(0.85),
+              .paragraphStyle: paragraph,
+            ]))
+      }
+      for line in item.detail {
+        let removed = line.kind == .removed
+        let tint: NSColor = removed ? .systemRed : .systemGreen
+        // Un séparateur de ligne, pas de paragraphe : l'espace n'est qu'entre les actions.
+        result.append(
+          NSAttributedString(string: "\u{2028}\t", attributes: [.paragraphStyle: paragraph]))
+        result.append(
+          NSAttributedString(
+            string: (removed ? "− " : "+ "),
+            attributes: [
+              .font: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .bold),
+              .foregroundColor: tint, .paragraphStyle: paragraph,
+            ]))
+        let text = NSMutableAttributedString(
+          string: line.text,
+          attributes: [
+            .font: mono, .foregroundColor: tint.blended(withFraction: 0.45, of: .white) ?? tint,
+            .paragraphStyle: paragraph,
+          ])
+        result.append(text)
+      }
+      result.append(NSAttributedString(string: "\n", attributes: [.paragraphStyle: paragraph]))
     }
     return result
   }
 }
 
-/// Une ligne de la liste d'étapes : glyphe (ou roue pour l'étape courante) et titre.
-private final class StepRow: NSView {
+// MARK: - Frise
 
-  enum State { case pending, visited, current }
+/// La frise : un jeton par action, relié au suivant par un fil, du plus ancien au plus récent.
+private final class TimelineStrip: NSView {
 
-  let step: AgentStep
-  private let iconView = NSImageView()
-  private let titleLabel: NSTextField
-  private let spinner = NSProgressIndicator()
+  private var chips: [TimelineChip] = []
+  private let connector: CGFloat = 12
+  private let chipGap: CGFloat = 0
 
-  init(_ step: AgentStep) {
-    self.step = step
-    titleLabel = NSTextField(labelWithString: step.title)
-    super.init(frame: .zero)
-    iconView.imageScaling = .scaleProportionallyUpOrDown
-    iconView.image = NSImage(
-      systemSymbolName: step.symbolName, accessibilityDescription: step.title)
-    titleLabel.font = .systemFont(ofSize: 14, weight: .medium)
-    spinner.style = .spinning
-    spinner.controlSize = .small
-    spinner.isIndeterminate = true
-    spinner.isDisplayedWhenStopped = false
-    [iconView, titleLabel, spinner].forEach(addSubview)
+  override var isFlipped: Bool { false }
+
+  func apply(_ items: [AgentReplay.Item]) {
+    while chips.count < items.count {
+      let chip = TimelineChip()
+      addSubview(chip)
+      chips.append(chip)
+    }
+    while chips.count > items.count { chips.removeLast().removeFromSuperview() }
+    for (chip, item) in zip(chips, items) { chip.apply(item) }
+    needsDisplay = true
+  }
+
+  func layoutChips(minimumWidth: CGFloat) {
+    var x: CGFloat = 0
+    for (index, chip) in chips.enumerated() {
+      let width = chip.preferredWidth
+      chip.frame = NSRect(x: x, y: (bounds.height - 24) / 2, width: width, height: 24)
+      x += width + (index < chips.count - 1 ? connector : 0)
+    }
+    frame.size.width = max(x, minimumWidth)
+    needsDisplay = true
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    NSColor.white.withAlphaComponent(0.18).setFill()
+    for index in 0..<max(chips.count - 1, 0) {
+      let left = chips[index].frame
+      let right = chips[index + 1].frame
+      NSRect(x: left.maxX + 2, y: bounds.midY - 0.5, width: right.minX - left.maxX - 4, height: 1)
+        .fill()
+    }
+  }
+}
+
+/// Un jeton de la frise : le symbole d'état et le nom de l'action, teintés de la couleur de l'étape.
+private final class TimelineChip: NSView {
+
+  private let icon = NSImageView()
+  private let label = NSTextField(labelWithString: "")
+  private var isActive = false
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    layer?.cornerRadius = 12
+    layer?.borderWidth = 1
+    icon.imageScaling = .scaleProportionallyDown
+    label.font = .systemFont(ofSize: 11, weight: .semibold)
+    label.lineBreakMode = .byTruncatingTail
+    addSubview(icon)
+    addSubview(label)
   }
 
   @available(*, unavailable)
@@ -263,32 +349,36 @@ private final class StepRow: NSView {
     fatalError("init(coder:) has not been implemented")
   }
 
-  private var displayedState: State?
+  var preferredWidth: CGFloat {
+    let font = label.font ?? .systemFont(ofSize: 11, weight: .semibold)
+    let text = ceil((label.stringValue as NSString).size(withAttributes: [.font: font]).width)
+    return 10 + 14 + 6 + min(text, 110) + 18
+  }
 
-  func apply(_ state: State) {
-    let changed = displayedState != state
-    displayedState = state
-    let alpha: CGFloat = state == .pending ? 0.3 : (state == .current ? 1 : 0.6)
-    titleLabel.textColor = NSColor.white.withAlphaComponent(alpha)
-    titleLabel.font = .systemFont(ofSize: 14, weight: state == .current ? .bold : .medium)
-    iconView.contentTintColor =
-      step == .done && state != .pending ? .systemGreen : NSColor.white.withAlphaComponent(alpha)
-    iconView.isHidden = state == .current
-    if state == .current { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
-    if changed, window != nil, !isHiddenOrHasHiddenAncestor {
-      let indicator: NSView = state == .current ? spinner : iconView
-      indicator.wantsLayer = true
-      indicator.layer?.springReveal(y: -3)
+  func apply(_ item: AgentReplay.Item) {
+    let color = AgentActivityCardView.color(for: item.kind)
+    let tint = item.state == .failed ? AgentActivityCardView.errorColor : color
+    label.stringValue = item.label
+    label.textColor = tint.blended(withFraction: 0.3, of: .white) ?? tint
+    icon.image = AgentActivityCardView.statusImage(item.state, color: color, size: 12)
+    layer?.backgroundColor = tint.withAlphaComponent(item.state == .active ? 0.24 : 0.12).cgColor
+    layer?.borderColor = tint.withAlphaComponent(item.state == .active ? 0.6 : 0.25).cgColor
+    // La roue tourne tant que l'action est en cours ; une coche ou une croix ne bouge pas.
+    if item.state == .active, !isActive {
+      icon.addSymbolEffect(.variableColor.iterative.reversing)
+    } else if item.state != .active, isActive {
+      icon.removeAllSymbolEffects()
     }
+    isActive = item.state == .active
+    toolTip = [item.label, item.path ?? item.summary].compactMap { $0 }.joined(separator: " — ")
     needsLayout = true
   }
 
   override func layout() {
     super.layout()
-    let icon: CGFloat = 14
-    iconView.frame = NSRect(x: 0, y: (bounds.height - icon) / 2, width: icon, height: icon)
-    spinner.frame = iconView.frame
-    titleLabel.frame = NSRect(
-      x: icon + 9, y: 0, width: max(0, bounds.width - icon - 9), height: bounds.height)
+    icon.frame = NSRect(x: 10, y: (bounds.height - 14) / 2, width: 14, height: 14)
+    let height = ceil(label.intrinsicContentSize.height)
+    label.frame = NSRect(
+      x: 30, y: (bounds.height - height) / 2, width: max(0, bounds.width - 30 - 8), height: height)
   }
 }

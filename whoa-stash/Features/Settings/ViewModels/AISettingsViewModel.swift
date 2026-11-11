@@ -41,6 +41,10 @@ final class AISettingsViewModel: ObservableObject {
     storage.settings.ai.desktopWatcherEnabled = enabled
   }
 
+  func setStopReplyEnabled(_ enabled: Bool) {
+    storage.settings.ai.stopReplyEnabled = enabled
+  }
+
   private func run(_ action: () throws -> Void) {
     do {
       try action()

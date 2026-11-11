@@ -1,6 +1,6 @@
 import Foundation
 
-/// Installe et retire les hooks de Claude Code (`Stop`, `Notification`, `PermissionRequest`, `PreToolUse` sur `AskUserQuestion`, et ceux qui lèvent une demande) dans `~/.claude/settings.json`.
+/// Installe et retire les hooks de Claude Code (`Stop`, `Notification`, `PermissionRequest`, `Elicitation`, `PreToolUse` sur `AskUserQuestion`, et ceux qui lèvent une demande) dans `~/.claude/settings.json`.
 ///
 /// La fusion ne touche qu'aux entrées dont la commande désigne notre script : les autres clés et les
 /// autres hooks restent tels quels. Avant toute écriture, le fichier d'origine est copié dans
@@ -35,11 +35,14 @@ nonisolated struct ClaudeHookInstaller {
     ("Stop", "stop", nil),
     ("Notification", "notify", "permission_prompt|idle_prompt|elicitation_dialog"),
     ("PermissionRequest", "permission", nil),
+    // Un serveur MCP demande un formulaire : il se remplit depuis l'encoche.
+    ("Elicitation", "elicit", nil),
     ("PreToolUse", "question", "AskUserQuestion"),
     // Chaque outil qui démarre fait avancer la carte d'activité de l'onglet AI.
     ("PreToolUse", "tool", nil),
     // La demande se lève au premier événement suivant de la session : aucun hook ne signale la réponse.
-    ("PostToolUse", "clear", nil),
+    // `post` lève la demande comme `clear`, et peut rendre une consigne de l'utilisateur à l'agent.
+    ("PostToolUse", "post", nil),
     ("PostToolUseFailure", "clear", nil),
     ("UserPromptSubmit", "turn", nil),
     ("SessionEnd", "end", nil),
@@ -190,29 +193,45 @@ nonisolated struct ClaudeHookInstaller {
   ///
   /// Les événements d'activité (`tool`, `clear`, `stop`…) sont réduits aux champs utiles et à
   /// 3 000 caractères par valeur : le serveur lit 64 Ko au plus, et un `Write` ou un résultat de
-  /// lecture dépasse vite. `permission` garde l'entrée entière : la réponse la renvoie.
+  /// lecture dépasse vite. `permission`, `question` et `elicit` gardent l'entrée entière : la
+  /// réponse la renvoie. `CLAUDE_CODE_ENTRYPOINT` dit si la session vient de Claude Desktop.
   ///
-  /// Pour `permission`, il reste connecté et attend la réponse de l'encoche, qu'il rend telle quelle
-  /// sur sa sortie : Claude Code l'applique et ferme sa boîte de dialogue. La boîte s'ouvre sans
-  /// attendre le hook ; si on y répond dans le terminal, Claude Code tue le script et le serveur voit
-  /// la connexion se fermer. Perl plutôt que `nc`, qui se ferme dès la fin de son entrée.
+  /// Pour `permission`, `question` et `elicit`, il reste connecté et attend la réponse de l'encoche,
+  /// qu'il rend telle quelle sur sa sortie : Claude Code l'applique. La boîte d'une permission
+  /// s'ouvre sans attendre le hook ; si on y répond dans le terminal, Claude Code tue le script et le
+  /// serveur voit la connexion se fermer. Pour `question` et `elicit`, rien ne s'ouvre avant la fin
+  /// du hook : le serveur rend la main (`{}`) après deux minutes, ou sur « Reply in terminal ».
+  ///
+  /// Pour `stop`, le serveur répond aussitôt (rien) ou `{"pending":true}` quand le tour est retenu
+  /// pour une réponse libre : le script attend alors la suite, jusqu'à 28 s. Perl plutôt que `nc`,
+  /// qui se ferme dès la fin de son entrée.
   static let scriptContents = #"""
     #!/bin/sh
     # Installé par Whoa Stash : prévient l'encoche qu'une session Claude Code se termine, demande ou reprend.
     SOCK="$HOME/Library/Application Support/whoa-stash/agent.sock"
     [ -S "$SOCK" ] || exit 0
     WAIT=0
-    [ "$1" = permission ] && WAIT=590
+    case "$1" in
+      permission|question|elicit) WAIT=590 ;;
+      stop) WAIT=28 ;;
+      post) WAIT=1 ;;
+    esac
     exec /usr/bin/perl -MSocket -e '
     my ($kind, $path, $wait) = @ARGV;
     local $/;
     my $in = <STDIN>;
     $in = "{}" unless defined $in && length $in;
-    if ($kind ne "permission" && $kind ne "question") {
+    if ($kind ne "permission" && $kind ne "question" && $kind ne "elicit") {
         require JSON::PP;
         my $d = eval { JSON::PP::decode_json($in) };
         if (ref $d eq "HASH") {
             my %o = map { $_ => $d->{$_} } grep { defined $d->{$_} && !ref $d->{$_} } qw(session_id cwd tool_name);
+            $o{prompt} = length $d->{prompt} > 300 ? substr($d->{prompt}, 0, 300) : $d->{prompt} if defined $d->{prompt} && !ref $d->{prompt};
+            if ($kind eq "stop") {
+                $o{stop_hook_active} = $d->{stop_hook_active} ? JSON::PP::true() : JSON::PP::false();
+                my $m = $d->{last_assistant_message};
+                $o{last_assistant_message} = (length $m > 1000 ? substr($m, 0, 1000) : $m) if defined $m && !ref $m;
+            }
             if (ref $d->{tool_input} eq "HASH") {
                 my $i = $d->{tool_input};
                 $o{tool_input} = { map { my $v = $i->{$_}; ($_ => (defined $v && !ref $v && length $v > 3000 ? substr($v, 0, 3000) : $v)) } keys %$i };
@@ -221,16 +240,27 @@ nonisolated struct ClaudeHookInstaller {
         }
     }
     $in =~ s/\n//g;
+    my $entry = defined $ENV{CLAUDE_CODE_ENTRYPOINT} ? $ENV{CLAUDE_CODE_ENTRYPOINT} : "";
+    $entry =~ s/[^a-z0-9-]//g;
     socket(my $s, PF_UNIX, SOCK_STREAM, 0) or exit 0;
     connect($s, pack_sockaddr_un($path)) or exit 0;
-    syswrite($s, "{\"kind\":\"$kind\",\"payload\":$in}\n");
+    syswrite($s, "{\"kind\":\"$kind\",\"entrypoint\":\"$entry\",\"payload\":$in}\n");
     exit 0 unless $wait;
-    my $rin = "";
-    vec($rin, fileno($s), 1) = 1;
-    if (select(my $rout = $rin, undef, undef, $wait)) {
-        $/ = "\n";
-        my $line = <$s>;
-        print $line if defined $line;
+    my $buf = "";
+    my $limit = ($kind eq "stop" || $kind eq "post") ? 0.3 : $wait;
+    while (1) {
+        my $rin = "";
+        vec($rin, fileno($s), 1) = 1;
+        last unless select(my $rout = $rin, undef, undef, $limit);
+        my $n = sysread($s, my $chunk, 4096);
+        last unless $n;
+        $buf .= $chunk;
+        while ($buf =~ s/^([^\n]*)\n//) {
+            my $line = $1;
+            if ($kind eq "stop" && $line =~ /pending/) { $limit = $wait; next; }
+            print "$line\n";
+            exit 0;
+        }
     }
     exit 0;
     ' "$1" "$SOCK" "$WAIT" 2>/dev/null

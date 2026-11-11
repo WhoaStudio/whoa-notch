@@ -34,13 +34,15 @@ nonisolated struct ToolCall: Equatable, Sendable {
   var filePath: String?
   /// Texte écrit (édition) ou commande ; vide pour une lecture, dont l'aperçu vient du disque.
   var snippet: [String] = []
+  /// Le texte remplacé par une édition (`old_string`) : les lignes rouges de la relecture.
+  var removed: [String] = []
   var startLine: Int = 1
   var cwd: String?
 
   init(
     name: String, step: AgentStep?, filePath: String? = nil, snippet: [String] = [],
     startLine: Int = 1,
-    cwd: String? = nil
+    cwd: String? = nil, removed: [String] = []
   ) {
     self.name = name
     self.step = step
@@ -48,6 +50,7 @@ nonisolated struct ToolCall: Equatable, Sendable {
     self.snippet = snippet
     self.startLine = startLine
     self.cwd = cwd
+    self.removed = removed
   }
 
   init(name: String, input: [String: Any], cwd: String?) {
@@ -69,6 +72,9 @@ nonisolated struct ToolCall: Equatable, Sendable {
         (input["new_string"] as? String) ?? (input["content"] as? String)
         ?? (input["new_source"] as? String) ?? (firstEdit?["new_string"] as? String)
       snippet = Self.lines(of: text ?? "")
+      let old = (input["old_string"] as? String) ?? (firstEdit?["old_string"] as? String)
+      removed = Self.lines(of: old ?? "")
+      if old == nil || old?.isEmpty == true { removed = [] }
     case "Bash":
       step = .bash
       snippet = Self.lines(of: (input["command"] as? String) ?? "")
@@ -109,6 +115,14 @@ nonisolated struct ToolCall: Equatable, Sendable {
   }
 }
 
+/// Une ligne de détail d'une action : son texte et ce qu'elle est dans l'édition (retirée, ajoutée).
+nonisolated struct CodeLine: Equatable, Sendable {
+  nonisolated enum Kind: Sendable { case context, added, removed }
+
+  var text: String
+  var kind: Kind = .context
+}
+
 /// Ce qu'une session fait en ce moment : l'étape courante, celles déjà passées et le fichier travaillé.
 nonisolated struct AgentActivity: Equatable, Sendable {
   var project: String
@@ -118,6 +132,8 @@ nonisolated struct AgentActivity: Equatable, Sendable {
   var filePath: String?
   var snippet: [String] = []
   var startLine: Int = 1
+  /// Dossier de la session : le chemin du fichier s'affiche relativement à lui.
+  var cwd: String?
   var updatedAt: Date
 }
 
@@ -153,6 +169,7 @@ nonisolated struct AgentActivityStore {
         activity.filePath = call.filePath
         activity.snippet = call.snippet.isEmpty ? (preview(call) ?? []) : call.snippet
         activity.startLine = call.startLine
+        activity.cwd = call.cwd
       }
       activity.toolName = call.name
     case .turnStart:

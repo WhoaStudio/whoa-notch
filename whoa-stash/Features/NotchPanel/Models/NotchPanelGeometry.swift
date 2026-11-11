@@ -36,8 +36,14 @@ enum NotchPanelGeometry {
   /// fonds commun, posée ici sur le bord du haut.
   static let pillSize = PanelGeometry.collapsedHandleSize
 
-  /// Pastille du mode île : un peu plus étroite et plus haute que la poignée commune.
-  static let islandPillSize = CGSize(width: 140, height: 26)
+  /// Pastille du mode île : plus étroite et plus haute que la poignée commune. Les proportions
+  /// (environ 3,4 pour 1) sont celles de l'île dynamique de l'iPhone ; la hauteur reste celle
+  /// de la barre de menus, qu'une pastille de 37 pt dépasserait.
+  static let islandPillSize = CGSize(width: 88, height: 26)
+
+  /// Marge intérieure commune des pastilles latérales (pochette, icône, point) : la même à gauche
+  /// et à droite, et la même au-dessus et au-dessous quand l'icône est centrée.
+  static let wingEdgeInset: CGFloat = 4
 
   // MARK: - État déplié
 
@@ -48,7 +54,11 @@ enum NotchPanelGeometry {
   /// La marge horizontale vaut donc au moins le rayon de la silhouette : les deux raccords
   /// concaves rentrent les flancs peints de `expandedShoulderRadius` de chaque côté, et tout
   /// contenu posé en deçà sort du chemin.
-  static let contentInsetX = PanelGeometry.contentInsetAlongAnchor - 4
+  ///
+  /// À ce rayon s'ajoute `contentAirX` : sans lui le contenu touche le flanc peint (2 pt
+  /// d'écart). 12 pt, comme le panneau d'accueil (`WelcomeController.contentInsetX`).
+  static let contentAirX: CGFloat = 12
+  static let contentInsetX = expandedShoulderRadius + contentAirX
 
   /// Ce que les coins convexes du bas rognent à l'aplomb du bord du contenu : la marge basse
   /// s'en augmente, sans quoi ce qui descend jusqu'en bas — le liseré du bac à fichiers —
@@ -70,15 +80,9 @@ enum NotchPanelGeometry {
   /// Air entre le bas de la bande à laquelle le panneau est suspendu et le début du contenu.
   static let topClearance: CGFloat = 12
 
-  /// Idem en mode île : pas d'encoche à dégager, la bande du haut est celle de la pastille seule,
-  /// et l'engrenage n'y est pas descendu (`islandGearDrop`).
-  static let islandTopClearance: CGFloat = 2
+  /// Réserve haute du gabarit de l'île et de la vue Transform, indépendante des onglets.
+  private static let islandTopSizeAllowance: CGFloat = 2
   static let islandGearDrop: CGFloat = 0
-
-  /// Air sous la bande du haut selon l'état : île ou encoche.
-  static func topClearance(island: Bool) -> CGFloat {
-    island ? islandTopClearance : topClearance
-  }
 
   /// Dont l'engrenage des Préférences est descendu sous le centre de la bande de l'encoche :
   /// c'est l'air qu'il garde au-dessus de lui, à régler pour le monter ou le descendre.
@@ -94,10 +98,8 @@ enum NotchPanelGeometry {
   /// à encoche, sous l'encoche elle-même, qui couvre le haut du panneau. La silhouette repliée
   /// mesure exactement cette bande — c'est elle qui fixe la marge, et non une constante qui ne
   /// vaudrait que pour une taille d'encoche.
-  static func contentInsetTop(forCollapsedHeight collapsedHeight: CGFloat, island: Bool = false)
-    -> CGFloat
-  {
-    max(PanelGeometry.contentInsetAcrossAnchor, collapsedHeight + topClearance(island: island))
+  static func contentInsetTop(forCollapsedHeight collapsedHeight: CGFloat) -> CGFloat {
+    max(PanelGeometry.contentInsetAcrossAnchor, collapsedHeight + topClearance)
   }
 
   /// Cadre commun du corps de tous les onglets, dans le repère du panneau : mêmes marges gauche,
@@ -106,10 +108,26 @@ enum NotchPanelGeometry {
   static func tabBodyRect(in panel: CGRect, collapsedHeight: CGFloat, island: Bool = false)
     -> CGRect
   {
+    // L'île n'a pas de raccords concaves : ses flancs suivent les bords du cadre.
+    bodyRect(
+      in: panel,
+      topInset: contentInsetTop(forCollapsedHeight: collapsedHeight),
+      sideInset: island ? contentAirX : contentInsetX)
+  }
+
+  /// Transform remplace les onglets et conserve son propre gabarit.
+  static func transformBodyRect(in panel: CGRect, collapsedHeight: CGFloat, island: Bool) -> CGRect {
+    bodyRect(
+      in: panel,
+      topInset: expandedTopAllowance(collapsedHeight: collapsedHeight, island: island),
+      sideInset: contentInsetX)
+  }
+
+  private static func bodyRect(in panel: CGRect, topInset: CGFloat, sideInset: CGFloat) -> CGRect {
     let bottom = panel.minY + contentInsetBottom
-    let top = panel.maxY - contentInsetTop(forCollapsedHeight: collapsedHeight, island: island)
+    let top = panel.maxY - topInset
     return CGRect(x: panel.minX, y: bottom, width: panel.width, height: max(0, top - bottom))
-      .insetBy(dx: contentInsetX, dy: 0)
+      .insetBy(dx: sideInset, dy: 0)
   }
 
   // MARK: - Capsule de navigation
@@ -249,6 +267,12 @@ enum NotchPanelGeometry {
     max(aiTabWidth, usageTabWidth, clipboardTabWidth, trayTabWidth, terminalTabWidth)
   }
 
+  private static func expandedTopAllowance(collapsedHeight: CGFloat, island: Bool) -> CGFloat {
+    island
+      ? max(PanelGeometry.contentInsetAcrossAnchor, collapsedHeight + islandTopSizeAllowance)
+      : contentInsetTop(forCollapsedHeight: collapsedHeight)
+  }
+
   /// Taille dépliée, capsule comprise : le cadre de la fenêtre porte les deux, et la hauteur
   /// est donc celle du panneau **plus** la bande basse où flotte la capsule.
   ///
@@ -258,7 +282,7 @@ enum NotchPanelGeometry {
   static func expandedSize(collapsedHeight: CGFloat, island: Bool = false) -> NSSize {
     NSSize(
       width: 2 * contentInsetX + max(tabContentWidth, NotchTabCapsuleView.width),
-      height: contentInsetTop(forCollapsedHeight: collapsedHeight, island: island)
+      height: expandedTopAllowance(collapsedHeight: collapsedHeight, island: island)
         + tabContentHeight
         + contentInsetBottom
         + capsuleBandHeight

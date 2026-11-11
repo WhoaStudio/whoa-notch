@@ -55,17 +55,22 @@ final class NotchPanelWindow {
 
   /// Vrai tant que le clavier est dans le terminal ou l'éditeur de notes : le panneau ne doit pas
   /// se replier sous la main qui tape quand le curseur s'écarte.
-  var holdsKeyboardFocus: Bool { contentView.wantsKeyboard && panel.isKeyWindow }
+  var holdsKeyboardFocus: Bool {
+    (contentView.wantsKeyboard || contentView.cardAcceptsKeyboard) && panel.isKeyWindow
+  }
 
   /// Le panneau ne prend le clavier que sur les onglets Terminal et Notes dépliés. `.nonactivatingPanel` :
   /// l'app de devant reste active, seules les touches viennent ici.
   private func updateKeyboard() {
     let wants = contentView.wantsKeyboard
-    panel.acceptsKeyboard = wants
+    // Un champ de la carte d'agent peut prendre le clavier, mais seulement quand on clique dedans :
+    // une demande qui s'ouvre toute seule ne doit pas détourner la frappe en cours ailleurs.
+    let cardTyping = contentView.cardAcceptsKeyboard
+    panel.acceptsKeyboard = wants || cardTyping
     if wants {
       panel.makeKey()
       contentView.focusKeyboardTarget()
-    } else if panel.isKeyWindow {
+    } else if panel.isKeyWindow && !cardTyping {
       panel.resignKey()
     }
   }
@@ -75,6 +80,11 @@ final class NotchPanelWindow {
 
   /// Relayé jusqu'au contrôleur, qui ouvre les Préférences — ni la fenêtre ni la vue de contenu
   /// n'ont à connaître `SettingsWindowController`.
+  var onFoldRequested: (() -> Void)? {
+    get { contentView.onFoldRequested }
+    set { contentView.onFoldRequested = newValue }
+  }
+
   var onOpenSettings: (() -> Void)? {
     get { contentView.onOpenSettings }
     set { contentView.onOpenSettings = newValue }
@@ -208,8 +218,8 @@ final class NotchPanelWindow {
     contentView.hideDeviceStatus()
   }
 
-  func showAgentEvent(_ event: AgentEvent) {
-    contentView.showAgentEvent(event)
+  func showAgentEvent(_ event: AgentEvent, queued: Int = 0, deadline: Date? = nil) {
+    contentView.showAgentEvent(event, queued: queued, deadline: deadline)
   }
 
   func hideAgentEvent() {
@@ -222,13 +232,32 @@ final class NotchPanelWindow {
   }
 
   /// La demande que la carte de l'onglet AI affiche ; `nil` la retire.
-  func apply(agentPrompt: AgentEvent?) {
-    contentView.apply(agentPrompt: agentPrompt)
+  func apply(agentPrompt: AgentEvent?, queued: Int = 0) {
+    contentView.apply(agentPrompt: agentPrompt, queued: queued)
   }
 
   /// Ce que fait l'agent ; `nil` retire la carte d'activité.
   func apply(agentActivity: AgentActivity?) {
     contentView.apply(agentActivity: agentActivity)
+  }
+
+  func apply(agentSessions: [AgentSession], selectedID: String?) {
+    contentView.apply(agentSessions: agentSessions, selectedID: selectedID)
+  }
+
+  var onAgentSteer: ((String, String) -> Void)? {
+    get { contentView.onAgentSteer }
+    set { contentView.onAgentSteer = newValue }
+  }
+
+  var onAgentSessionSelected: ((String) -> Void)? {
+    get { contentView.onAgentSessionSelected }
+    set { contentView.onAgentSessionSelected = newValue }
+  }
+
+  var onAgentPromote: ((AgentEvent) -> Void)? {
+    get { contentView.onAgentPromote }
+    set { contentView.onAgentPromote = newValue }
   }
 
   func showMailMessage(_ message: MailMessage) {

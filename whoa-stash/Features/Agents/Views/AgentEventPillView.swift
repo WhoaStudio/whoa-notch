@@ -15,8 +15,14 @@ final class AgentEventPillView: NSView {
   /// Pastille orange sur le logo tant qu'une demande attend une réponse.
   private let dotView = NSView()
 
+  /// Compte à rebours avant que la demande soit rendue à l'agent : un anneau autour de la pastille.
+  private let ringLayer = CAShapeLayer()
+  private var ringTask: Task<Void, Never>?
+  /// Les dernières secondes montrées par l'anneau.
+  private static let ringWindow: TimeInterval = 30
+
   private static let dotSize: CGFloat = 8
-  private let inset: CGFloat = 16
+  private let inset: CGFloat = NotchPanelGeometry.wingEdgeInset
   private let iconSize: CGFloat = 18
   private var notchWidth: CGFloat = 0
 
@@ -34,6 +40,12 @@ final class AgentEventPillView: NSView {
     dotView.layer?.borderColor = NSColor.black.cgColor
     addSubview(dotView)
 
+    ringLayer.fillColor = nil
+    ringLayer.lineWidth = 1.5
+    ringLayer.lineCap = .round
+    ringLayer.isHidden = true
+    layer?.addSublayer(ringLayer)
+
     projectLabel.font = .systemFont(ofSize: 12, weight: .semibold)
     projectLabel.textColor = .white
     projectLabel.lineBreakMode = .byTruncatingTail
@@ -49,8 +61,37 @@ final class AgentEventPillView: NSView {
     fatalError("init(coder:) has not been implemented")
   }
 
-  func apply(_ event: AgentEvent, notchWidth: CGFloat) {
-    let tint: NSColor = event.kind == .needsInput ? .systemOrange : .systemGreen
+  /// Ce que dit l'aile droite et sa teinte : ce qui est demandé, puis `+N` pour les demandes qui
+  /// attendent derrière.
+  static func status(for event: AgentEvent, queued: Int) -> (text: String, tint: NSColor) {
+    var text: String
+    let tint: NSColor
+    switch event.prompt {
+    case .tool:
+      text = event.replyID != nil ? "Allow?" : "Permission"
+      tint = .systemOrange
+    case .plan:
+      text = "Plan ready"
+      tint = .systemOrange
+    case .questions(let questions):
+      if event.response == .elicitation {
+        text = "Form"
+      } else {
+        text = questions.count > 1 ? "\(questions.count) questions" : "Question"
+      }
+      tint = .systemTeal
+    case .reply, .message, nil:
+      text = event.kind.statusText
+      tint = event.kind == .needsInput ? .systemOrange : .systemGreen
+    }
+    if queued > 0 { text += " +\(queued)" }
+    return (text, tint)
+  }
+
+  /// `queued` : les demandes qui attendent derrière celle-ci. `deadline` : quand elle sera rendue à
+  /// l'agent faute de réponse — l'anneau de la pastille se vide sur les 30 dernières secondes.
+  func apply(_ event: AgentEvent, notchWidth: CGFloat, queued: Int = 0, deadline: Date? = nil) {
+    let status = Self.status(for: event, queued: queued)
     let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
     if event.prompt != nil, let logo = NSImage(named: "ClaudeLogo") {
       // Le logo garde ses couleurs : seule la pastille dit l'état.
@@ -61,14 +102,57 @@ final class AgentEventPillView: NSView {
       iconView.image = NSImage(
         systemSymbolName: symbol, accessibilityDescription: event.kind.statusText)?
         .withSymbolConfiguration(configuration)
-      iconView.contentTintColor = tint
+      iconView.contentTintColor = status.tint
     }
     dotView.isHidden = event.prompt == nil
+    dotView.layer?.backgroundColor = status.tint.cgColor
     projectLabel.stringValue = event.project
-    statusLabel.stringValue = event.kind.statusText
-    statusLabel.textColor = tint
+    statusLabel.stringValue = status.text
+    statusLabel.textColor = status.tint
     self.notchWidth = notchWidth
+    startCountdown(until: event.prompt == nil ? nil : deadline, tint: status.tint)
     needsLayout = true
+  }
+
+  // MARK: - Compte à rebours
+
+  private func startCountdown(until deadline: Date?, tint: NSColor) {
+    ringTask?.cancel()
+    ringTask = nil
+    ringLayer.removeAllAnimations()
+    ringLayer.isHidden = true
+    guard let deadline, deadline.timeIntervalSinceNow > 0 else { return }
+    ringLayer.strokeColor = tint.cgColor
+    let lead = deadline.timeIntervalSinceNow - Self.ringWindow
+    if lead <= 0 {
+      runRing(until: deadline)
+      return
+    }
+    // Trop tôt pour l'anneau : on l'allume quand il ne reste plus que 30 s.
+    ringTask = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(lead))
+      guard !Task.isCancelled else { return }
+      self?.runRing(until: deadline)
+    }
+  }
+
+  private func runRing(until deadline: Date) {
+    let remaining = deadline.timeIntervalSinceNow
+    guard remaining > 0 else { return }
+    let fraction = min(1, remaining / Self.ringWindow)
+    ringLayer.isHidden = false
+    ringLayer.strokeEnd = 0
+    guard OverlayAnimation.allowsMotion else {
+      // Sans mouvement : l'anneau reste à sa part restante, sans se vider.
+      ringLayer.strokeEnd = CGFloat(fraction)
+      return
+    }
+    let drain = CABasicAnimation(keyPath: "strokeEnd")
+    drain.fromValue = fraction
+    drain.toValue = 0
+    drain.duration = remaining
+    drain.timingFunction = CAMediaTimingFunction(name: .linear)
+    ringLayer.add(drain, forKey: "drain")
   }
 
   override func layout() {
@@ -80,6 +164,19 @@ final class AgentEventPillView: NSView {
     dotView.frame = NSRect(
       x: iconView.frame.maxX - Self.dotSize + 3, y: iconView.frame.maxY - Self.dotSize + 3,
       width: Self.dotSize, height: Self.dotSize)
+
+    // Anneau autour de la pastille, qui part du haut et tourne dans le sens des aiguilles.
+    let ringFrame = dotView.frame.insetBy(dx: -3.5, dy: -3.5)
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    ringLayer.frame = ringFrame
+    let path = CGMutablePath()
+    path.addArc(
+      center: CGPoint(x: ringFrame.width / 2, y: ringFrame.height / 2),
+      radius: ringFrame.width / 2 - 0.75, startAngle: .pi / 2, endAngle: .pi / 2 - 2 * .pi,
+      clockwise: true)
+    ringLayer.path = path
+    CATransaction.commit()
 
     let labelHeight = projectLabel.intrinsicContentSize.height
     let labelX = inset + iconSize + 7
