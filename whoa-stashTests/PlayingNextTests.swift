@@ -161,7 +161,8 @@ struct PlayingNextViewModelTests {
       providers: [FakeProvider(items: [item])], settleDelay: .milliseconds(10),
       minimumRefreshInterval: 60)
     model.update(for: state())
-    try await Task.sleep(for: .milliseconds(100))
+    // Attendre la première lecture : elle fixe l'horodatage de la dernière relecture.
+    try await waitUntil { model.items == [item] }
     model.onItemsChanged = { _ in Issue.record("aucune relecture attendue") }
     model.refresh()
     try await Task.sleep(for: .milliseconds(60))
