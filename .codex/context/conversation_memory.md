@@ -1,1 +1,2 @@
 - Motion audit: keep existing AppKit view ownership and reuse shared springs for the overlay. Calendar event rows have no detail interaction.
+- Tab padding: share notch content insets with the island; keep the island's outer size allowance separate.

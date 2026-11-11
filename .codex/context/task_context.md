@@ -54,3 +54,6 @@ The requested macOS build and targeted CalendarAgendaTests passed. Existing Dock
 | BatteryWidget.swift and DeviceStatusPillView.swift | Battery fill, numbers and device symbol snapped | Spring interpolation of fill, short number reveal and native symbol replacement |
 | AgentActivityCardView.swift and AgentPromptCardView.swift | File/step changes and compact/full prompts swapped in place | Short reveals for changed status and content |
 | PrivacySettingsViewController.swift, AISettingsViewController.swift and SettingsFormRowView.swift | Permission state, error text and control dimming snapped | Short status reveals and shared opacity timing |
+
+## Dynamic island tab padding
+The tab capsule already uses the same metrics in both modes. Use the notch's 12 pt top clearance for the shared tab body, keeping the island's existing 2 pt frame allowance. Use the notch’s 12 pt visible side gutters without its 28 pt shoulder offset in island mode. The bottom inset, Mirror rim, and separate Transform view keep their existing spacing.
