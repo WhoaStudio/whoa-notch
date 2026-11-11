@@ -29,7 +29,7 @@ final class NowPlayingWingsView: NSView {
   /// sous elle. Nul en mode île, où le contenu se centre sur toute la pastille.
   var lift: CGFloat = NowPlayingWingsView.extraHeight / 2 { didSet { needsLayout = true } }
 
-  private let inset: CGFloat = 14
+  private let inset: CGFloat = NotchPanelGeometry.wingEdgeInset
   private let artworkSize: CGFloat = 28
 
   override init(frame frameRect: NSRect) {
@@ -67,7 +67,6 @@ final class NowPlayingWingsView: NSView {
     super.layout()
     // La vue déborde sous la bande de l'encoche : le contenu est centré sur la bande
     // elle-même, pas sur le débord (voir `lift`).
-    let inset = lift == 0 ? 12 : self.inset
     artworkView.frame = NSRect(
       x: inset, y: (bounds.height - artworkSize) / 2 + lift, width: artworkSize, height: artworkSize
     )

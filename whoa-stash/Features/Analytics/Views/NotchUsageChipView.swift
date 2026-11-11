@@ -1,16 +1,18 @@
 import AppKit
 
-/// Pastille de l'en-tête du panneau de l'encoche, à gauche du bouton tasse : jetons et coût du
-/// mois en cours, sur une seule ligne. Un clic ouvre l'onglet Analytics.
+/// Pastille de l'en-tête du panneau de l'encoche, à gauche de l'encoche : jetons et coût du
+/// mois en cours, réduits à l'icône : les chiffres sont dans l'info-bulle. Un clic ouvre
+/// l'onglet Analytics.
 final class NotchUsageChipView: NSView {
 
   var onClick: (() -> Void)?
 
+  /// Jetons et coût du mois, montrés en info-bulle et lus par VoiceOver, plus dans la pastille.
   var text: String = "" {
     didSet {
       guard text != oldValue else { return }
-      label.stringValue = text
-      needsLayout = true
+      toolTip = text
+      setAccessibilityLabel(text.isEmpty ? "Analytics" : "Analytics, \(text)")
     }
   }
 
@@ -19,29 +21,26 @@ final class NotchUsageChipView: NSView {
     didSet { applyTint() }
   }
 
-  private let label = NSTextField(labelWithString: "")
   private let iconView = NSImageView()
   private var palette = OverlayPalette.resolved(for: .currentDrawing())
   private var isHovered = false
   private var trackingArea: NSTrackingArea?
 
-  private let horizontalPadding: CGFloat = 10
-  private let iconSize: CGFloat = 12
-  private let iconGap: CGFloat = 5
+  /// Marges égales sur les quatre côtés.
+  static let edgePadding: CGFloat = 4
+  static let topPadding: CGFloat = 4
+  private static let iconSize: CGFloat = 12
+  static var fittingHeight: CGFloat { iconSize + edgePadding + topPadding }
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     wantsLayer = true
-    label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-    label.lineBreakMode = .byClipping
-    label.maximumNumberOfLines = 1
-    let configuration = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
+    let configuration = NSImage.SymbolConfiguration(pointSize: Self.iconSize, weight: .medium)
     iconView.image = NSImage(
       systemSymbolName: "chart.bar.xaxis", accessibilityDescription: "Analytics")?
       .withSymbolConfiguration(configuration)
     iconView.imageScaling = .scaleProportionallyUpOrDown
     addSubview(iconView)
-    addSubview(label)
     applyTint()
   }
 
@@ -57,26 +56,21 @@ final class NotchUsageChipView: NSView {
 
   private func applyTint() {
     let tint = isHovered || isActive ? palette.tabActiveContent : palette.tabInactiveContent
-    label.textColor = tint
     iconView.contentTintColor = tint
     layer?.backgroundColor = NSColor.white.withAlphaComponent(isActive ? 0.16 : 0.08).cgColor
   }
 
-  /// Largeur qui laisse l'icône et tout le texte sur une ligne.
+  /// Largeur qui laisse l'icône entre ses deux marges.
   var fittingWidth: CGFloat {
-    horizontalPadding + iconSize + iconGap + ceil(label.intrinsicContentSize.width)
-      + horizontalPadding
+    Self.edgePadding + Self.iconSize + Self.edgePadding
   }
 
   override func layout() {
     super.layout()
     layer?.cornerRadius = bounds.height / 2
+    // La marge basse est `edgePadding` ; le reste de la hauteur va au haut.
     iconView.frame = NSRect(
-      x: horizontalPadding, y: (bounds.height - iconSize) / 2, width: iconSize, height: iconSize)
-    let size = label.intrinsicContentSize
-    label.frame = NSRect(
-      x: iconView.frame.maxX + iconGap, y: (bounds.height - size.height) / 2,
-      width: ceil(size.width), height: size.height)
+      x: Self.edgePadding, y: Self.edgePadding, width: Self.iconSize, height: Self.iconSize)
   }
 
   override func updateTrackingAreas() {

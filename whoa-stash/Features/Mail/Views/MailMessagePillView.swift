@@ -15,7 +15,7 @@ final class MailMessagePillView: NSView {
   private let subjectLabel = NSTextField(labelWithString: "")
   private let previewLabel = NSTextField(labelWithString: "")
 
-  private let inset: CGFloat = 16
+  private let inset: CGFloat = NotchPanelGeometry.wingEdgeInset
   private let iconSize: CGFloat = 18
   private var notchWidth: CGFloat = 0
 
