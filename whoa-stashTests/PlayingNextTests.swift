@@ -122,7 +122,8 @@ struct PlayingNextViewModelTests {
     model.onItemsChanged = { published.append($0) }
 
     model.update(for: state())
-    try await waitUntil { !published.isEmpty }
+    // Attente de la vraie relecture de la file, pas d'une simple publication (un runner chargé est lent).
+    try await waitUntil { published.last == [item] }
     #expect(published == [[item]])
 
     model.update(for: state(title: "Autre"))
