@@ -106,9 +106,12 @@ struct PlayingNextViewModelTests {
 
   /// Attend que `condition` soit vraie, sans dépasser `timeout` : un délai fixe échoue sur une
   /// machine chargée (CI), alors que la file n'arrive qu'après le délai de stabilisation.
-  private func waitUntil(timeout: Duration = .seconds(2), _ condition: () -> Bool) async throws {
-    let deadline = ContinuousClock.now + timeout
-    while !condition(), ContinuousClock.now < deadline {
+  private func waitUntil(attempts: Int = 300, _ condition: () -> Bool) async throws {
+    // Nombre de tentatives borné plutôt qu'une échéance horloge : sur un runner figé, l'échéance
+    // peut passer avant que la tâche en attente (son propre délai de 10 ms) ait tourné.
+    var tries = 0
+    while !condition(), tries < attempts {
+      tries += 1
       try await Task.sleep(for: .milliseconds(10))
     }
   }
@@ -122,7 +125,8 @@ struct PlayingNextViewModelTests {
     model.onItemsChanged = { published.append($0) }
 
     model.update(for: state())
-    try await waitUntil { !published.isEmpty }
+    // Attente de la vraie relecture de la file, pas d'une simple publication (un runner chargé est lent).
+    try await waitUntil { published.last == [item] }
     #expect(published == [[item]])
 
     model.update(for: state(title: "Autre"))
@@ -157,7 +161,8 @@ struct PlayingNextViewModelTests {
       providers: [FakeProvider(items: [item])], settleDelay: .milliseconds(10),
       minimumRefreshInterval: 60)
     model.update(for: state())
-    try await Task.sleep(for: .milliseconds(100))
+    // Attendre la première lecture : elle fixe l'horodatage de la dernière relecture.
+    try await waitUntil { model.items == [item] }
     model.onItemsChanged = { _ in Issue.record("aucune relecture attendue") }
     model.refresh()
     try await Task.sleep(for: .milliseconds(60))

@@ -44,7 +44,7 @@ enum PrivacyPermission: CaseIterable, Identifiable {
     case .location: return "Reserved for local weather. Not used yet"
     case .photos: return "Reserved for a recent photo widget. Not used yet"
     case .microphone: return "Reserved for a voice memo. Not used yet"
-    case .accessibility: return "Bring back minimised windows in the dock, lock the screen on knock"
+    case .accessibility: return "Bring back minimised windows in the dock"
     case .systemAudio:
       return
         "Reserved for App Volume. Not used yet. macOS doesn't expose this status, so it can't be read"

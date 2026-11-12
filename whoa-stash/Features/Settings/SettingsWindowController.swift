@@ -219,7 +219,6 @@ private final class SettingsDetailViewController: NSViewController {
     case .screens: return ScreensSettingsViewController(animationsEnabled: animationsEnabled)
     case .privacy: return PrivacySettingsViewController(animationsEnabled: animationsEnabled)
     case .brightness: return BrightnessSettingsViewController(animationsEnabled: animationsEnabled)
-    case .knock: return KnockSettingsViewController(animationsEnabled: animationsEnabled)
     case .radialMenu: return RadialMenuSettingsViewController(animationsEnabled: animationsEnabled)
     case .dock: return DockSettingsViewController(animationsEnabled: animationsEnabled)
     case .profiles: return ProfilesSettingsViewController(animationsEnabled: animationsEnabled)

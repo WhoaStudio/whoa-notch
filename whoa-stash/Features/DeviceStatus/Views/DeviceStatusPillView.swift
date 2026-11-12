@@ -22,7 +22,7 @@ final class DeviceStatusPillView: NSView {
   private var symbolName: String?
   private var indicator: DeviceBattery.Indicator?
 
-  private let inset: CGFloat = 18
+  private let inset: CGFloat = NotchPanelGeometry.wingEdgeInset
   private let iconSize: CGFloat = 20
   private let ringDiameter: CGFloat = 20
   private let barSize = NSSize(width: 44, height: 7)

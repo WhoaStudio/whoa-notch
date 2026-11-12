@@ -64,6 +64,30 @@ extension CALayer {
     add(group, forKey: key)
   }
 
+  /// Fait entrer un calque en fondu avec un léger grossissement (0,97 → 1), après `delay` : la
+  /// moitié « entrante » d'un contenu qui prend la place d'un autre pendant que l'ancien s'efface.
+  /// Sans mouvement autorisé, le calque est simplement là.
+  func crossfadeIn(delay: CFTimeInterval = 0.06, duration: CFTimeInterval = 0.2) {
+    let key = "crossfadeIn"
+    guard OverlayAnimation.allowsMotion else {
+      removeAnimation(forKey: key)
+      return
+    }
+    let fade = CABasicAnimation(keyPath: "opacity")
+    fade.fromValue = 0
+    fade.toValue = opacity
+    let scale = CABasicAnimation(keyPath: "transform.scale")
+    scale.fromValue = 0.97
+    scale.toValue = 1
+    let group = CAAnimationGroup()
+    group.animations = [fade, scale]
+    group.duration = duration
+    group.beginTime = CACurrentMediaTime() + delay
+    group.fillMode = .backwards
+    group.timingFunction = CAMediaTimingFunction(name: .easeOut)
+    add(group, forKey: key)
+  }
+
   /// Anime `keyPath` vers `value` avec un `CASpringAnimation`, et met à jour la valeur du
   /// modèle en parallèle pour que le calque reste dans le bon état une fois l'animation retirée.
   func springAnimate(

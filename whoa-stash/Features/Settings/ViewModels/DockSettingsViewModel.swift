@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-/// Expose la section "Dock" à sa vue — miroir de `KnockSettingsViewModel`.
+/// Expose la section "Dock" à sa vue.
 @MainActor
 final class DockSettingsViewModel: ObservableObject {
 

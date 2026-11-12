@@ -121,36 +121,18 @@ extension NotchPanelSettings {
   }
 }
 
-extension KnockSettings {
-  enum CodingKeys: String, CodingKey {
-    case enabled
-    case single
-    case double
-    case sensitivity
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    let defaults = KnockSettings()
-    self.init(
-      enabled: container.value(.enabled, defaults.enabled),
-      single: container.value(.single, defaults.single),
-      double: container.value(.double, defaults.double),
-      sensitivity: container.value(.sensitivity, defaults.sensitivity)
-    )
-  }
-}
-
 extension AISettings {
   enum CodingKeys: String, CodingKey {
     case desktopWatcherEnabled
+    case stopReplyEnabled
   }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let defaults = AISettings()
     self.init(
-      desktopWatcherEnabled: container.value(.desktopWatcherEnabled, defaults.desktopWatcherEnabled)
+      desktopWatcherEnabled: container.value(.desktopWatcherEnabled, defaults.desktopWatcherEnabled),
+      stopReplyEnabled: container.value(.stopReplyEnabled, defaults.stopReplyEnabled)
     )
   }
 }
@@ -206,7 +188,6 @@ extension AppSettings {
     case brightness
     case edgeSlider
     case notchPanel
-    case knock
     case spotify
     case dock
     case radialMenu
@@ -224,7 +205,6 @@ extension AppSettings {
       brightness: container.value(.brightness, defaults.brightness),
       edgeSlider: container.value(.edgeSlider, defaults.edgeSlider),
       notchPanel: container.value(.notchPanel, defaults.notchPanel),
-      knock: container.value(.knock, defaults.knock),
       spotify: container.value(.spotify, defaults.spotify),
       dock: container.value(.dock, defaults.dock),
       radialMenu: container.value(.radialMenu, defaults.radialMenu),

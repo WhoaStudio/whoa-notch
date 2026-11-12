@@ -138,9 +138,10 @@ struct NowPlayingViewModelTests {
 
     model.receive(nil)
     #expect(emitted.count == 1)
-    // Attente bornée plutôt qu'un délai fixe : un runner CI chargé peut dépasser 100 ms.
-    let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-    while emitted.count < 2, ContinuousClock.now < deadline {
+    // Attente bornée en tentatives plutôt qu'un délai fixe : un runner CI figé peut dépasser l'échéance.
+    var tries = 0
+    while emitted.count < 2, tries < 300 {
+      tries += 1
       try await Task.sleep(for: .milliseconds(10))
     }
     #expect(emitted.count == 2)
@@ -172,7 +173,12 @@ struct NowPlayingViewModelTests {
 
     model.receive(state(playing: true))
     model.receive(nil)
-    try await Task.sleep(for: .milliseconds(120))
+    // Attente de la fin de masquage, bornée en tentatives (un runner figé peut dépasser un délai fixe).
+    var tries = 0
+    while wings.last != .some(nil), tries < 300 {
+      tries += 1
+      try await Task.sleep(for: .milliseconds(10))
+    }
 
     #expect(wings.last == .some(nil))
     #expect(player.last == .some(state(playing: false)))

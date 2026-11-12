@@ -31,10 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var calendarAgendaViewModel: CalendarAgendaViewModel?
   private var overlayPaletteSettings: OverlayPaletteSettings?
   private var shortcutCancellable: AnyCancellable?
-  private var knockController: KnockController?
   private var radialMenuController: RadialMenuController?
   private var radialMenuCancellable: AnyCancellable?
-  private var knockCancellable: AnyCancellable?
   private var dockController: DockHost?
   private var dockModel: DockModel?
   private var runningAppsProvider: RunningAppsProviding?
@@ -42,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var dockCancellables: Set<AnyCancellable> = []
   private let agentHookServer = AgentHookServer()
   private var claudeDesktopWatcher: ClaudeDesktopWatcher?
+  private var stopReplyCancellable: AnyCancellable?
   private var mailCoordinator: MailNotificationCoordinator?
   private var mailCancellable: AnyCancellable?
 
@@ -210,18 +209,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     colorPicker.activate()
     colorPickerViewModel = colorPicker
 
-    // Détection de coups sur le châssis par l'accéléromètre : une action par motif (simple,
-    // double), réglée dans les Préférences. `--knock=single|double` en simule un (voir
-    // `MockKnockSensor`).
-    let knock = KnockController(
-      sensor: MockKnockSensor.fromLaunchArguments() ?? SPUAccelerometerSensor())
-    knock.onNowPlayingCommand = { [weak nowPlaying] command in nowPlaying?.send(command) }
-    knockController = knock
-    knockCancellable = settings.$settings
-      .map(\.knock)
-      .removeDuplicates()
-      .sink { [weak knock] in knock?.apply(settings: $0) }
-
     // Notifications d'agents IA dans l'encoche : hooks Claude Code reçus sur un socket local, et
     // veille optionnelle de Claude Desktop. `--agent-event=stop|notify[,projet]` en simule une.
     let showAgentEvent: @MainActor (AgentEvent) -> Void = { [weak self] in
@@ -235,6 +222,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       guard let id = event.replyID, let json = event.replyJSON(for: decision) else { return }
       self?.agentHookServer.reply(to: id, json: json)
     }
+    notchPanelController?.onAgentSteerQueued = { [weak self] sessionID, text in
+      self?.agentHookServer.steer(sessionID: sessionID, text: text)
+    }
+    agentHookServer.onSteerDelivered = { [weak self] sessionID, text in
+      self?.notchPanelController?.agentSteerDelivered(sessionID: sessionID, text: text)
+    }
+    // La réponse libre après un tour retient le hook `Stop` : seulement quand elle est activée.
+    stopReplyCancellable = settings.$settings
+      .map(\.ai.stopReplyEnabled)
+      .removeDuplicates()
+      .sink { [weak self] in self?.agentHookServer.setStopReplyEnabled($0) }
     agentHookServer.start()
     let desktopWatcher = ClaudeDesktopWatcher()
     desktopWatcher.onEvent = showAgentEvent

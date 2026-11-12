@@ -7,7 +7,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
   case screens
   case privacy
   case brightness
-  case knock
   case radialMenu
   case dock
   case profiles
@@ -22,7 +21,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
   var sidebarGroup: Int {
     switch self {
     case .general, .appearance, .screens, .privacy: return 0
-    case .brightness, .knock, .radialMenu, .dock, .profiles, .ai, .mail: return 1
+    case .brightness, .radialMenu, .dock, .profiles, .ai, .mail: return 1
     case .about: return 2
     }
   }
@@ -34,7 +33,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     case .screens: return "Screens"
     case .privacy: return "Privacy & Permissions"
     case .brightness: return "Brightness"
-    case .knock: return "Knock"
     case .radialMenu: return "Radial Menu"
     case .dock: return "Dock"
     case .profiles: return "Profiles"
@@ -51,7 +49,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     case .screens: return "display.2"
     case .privacy: return "hand.raised.fill"
     case .brightness: return "sun.max"
-    case .knock: return "hand.tap"
     case .radialMenu: return "circle.dotted"
     case .dock: return "dock.rectangle"
     case .profiles: return "square.grid.2x2"
@@ -71,7 +68,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     case .privacy:
       return "Whoa Stash is local-first. It only asks for a permission when a feature needs it."
     case .brightness: return "The brightness band and the displays it controls."
-    case .knock: return "What knocking on the Mac's chassis does."
     case .radialMenu: return "The round menu that opens under the cursor."
     case .dock: return "The custom Dock at the bottom of the screen."
     case .profiles: return "Dock profiles and the widgets in each one."
@@ -89,7 +85,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     case .screens: return .systemCyan
     case .privacy: return .systemBlue
     case .brightness: return .systemOrange
-    case .knock: return .systemPurple
     case .radialMenu: return .systemBlue
     case .dock: return .systemTeal
     case .profiles: return .systemIndigo

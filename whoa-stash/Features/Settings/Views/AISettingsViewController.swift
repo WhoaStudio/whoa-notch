@@ -13,6 +13,8 @@ final class AISettingsViewController: SettingsSectionViewController {
   private let uninstallButton = NSButton(title: "Uninstall", target: nil, action: nil)
   private lazy var desktopCheckbox = NSButton.settingsCheckbox(
     "Notify when a chat reply is ready", target: self, action: #selector(desktopChanged))
+  private lazy var stopReplyCheckbox = NSButton.settingsCheckbox(
+    "Offer a reply when a session finishes", target: self, action: #selector(stopReplyChanged))
 
   override func makeRows() -> [NSView] {
     installButton.target = self
@@ -34,7 +36,12 @@ final class AISettingsViewController: SettingsSectionViewController {
         title: "Claude Code",
         control: makeSettingsControlStack([statusLabel, buttons, errorLabel]),
         caption:
-          "Shows a notch notification when a session finishes or needs input. Applies to every project."
+          "Shows a notch notification when a session finishes or needs input, and lets you allow, answer questions, approve plans and fill MCP forms from the notch. Applies to every project. Reinstall the hooks after an update."
+      ),
+      SettingsFormRowView(
+        title: "Replies", control: stopReplyCheckbox,
+        caption:
+          "Off by default. When a turn ends, the notch offers a reply field for about 25 seconds; what you type goes back to Claude, which carries on. The session waits that long before it finishes."
       ),
       SettingsFormRowView(title: "Hook script", control: makePathLabel(viewModel.scriptPath)),
       SettingsFormRowView(title: "Settings file", control: makePathLabel(viewModel.settingsPath)),
@@ -63,6 +70,7 @@ final class AISettingsViewController: SettingsSectionViewController {
     }.store(in: &cancellables)
     viewModel.$settings.sink { [weak self] in
       self?.desktopCheckbox.state = $0.desktopWatcherEnabled ? .on : .off
+      self?.stopReplyCheckbox.state = $0.stopReplyEnabled ? .on : .off
     }.store(in: &cancellables)
   }
 
@@ -89,6 +97,10 @@ final class AISettingsViewController: SettingsSectionViewController {
   @objc private func installTapped() { viewModel.installHooks() }
 
   @objc private func uninstallTapped() { viewModel.uninstallHooks() }
+
+  @objc private func stopReplyChanged() {
+    viewModel.setStopReplyEnabled(stopReplyCheckbox.state == .on)
+  }
 
   @objc private func desktopChanged() {
     let enabled = desktopCheckbox.state == .on

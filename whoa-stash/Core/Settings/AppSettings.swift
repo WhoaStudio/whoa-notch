@@ -163,7 +163,6 @@ struct AppSettings: Codable, Equatable, Sendable {
   var brightness = BrightnessSettings()
   var edgeSlider = EdgeSliderSettings()
   var notchPanel = NotchPanelSettings()
-  var knock = KnockSettings()
   var spotify = SpotifySettings()
   var dock = DockSettings()
   var radialMenu = RadialMenuSettings()

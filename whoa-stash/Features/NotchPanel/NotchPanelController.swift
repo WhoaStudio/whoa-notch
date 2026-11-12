@@ -129,12 +129,19 @@ final class NotchPanelController {
 
   /// Demandes de Claude sans réponse : l'encoche montre la plus récente, et le survol ouvre l'onglet AI.
   private var agentPrompts = AgentPromptStore()
+  /// Demandes qui attendent derrière celle qui s'affiche.
+  private var queuedPrompts: Int { max(0, agentPrompts.count - 1) }
   /// Une demande dont la session a disparu sans prévenir (processus tué) expire après ce délai.
   private let agentPromptLifetime: Duration = .seconds(600)
   private var agentPromptExpiryTask: Task<Void, Never>?
   /// Ce que fait chaque session ; l'onglet AI montre la plus récente quand aucune demande n'attend.
   private var agentActivities = AgentActivityStore()
   private var agentActivityExpiryTask: Task<Void, Never>?
+  /// Toutes les sessions en parallèle, chacune avec son journal ; la liste de l'onglet AI les montre.
+  private var agentSessions = AgentSessionStore()
+  private var agentSessionExpiryTask: Task<Void, Never>?
+  /// Une consigne à garder pour une session, qui la recevra à son prochain outil terminé.
+  var onAgentSteerQueued: ((String, String) -> Void)?
 
   /// Courrier arrivé : visible `mailMessageDuration`, puis il se retire.
   private let mailMessageDuration: Duration = .seconds(6)
@@ -286,6 +293,9 @@ final class NotchPanelController {
     agentActivityExpiryTask?.cancel()
     agentActivityExpiryTask = nil
     agentActivities = AgentActivityStore()
+    agentSessions = AgentSessionStore()
+    agentSessionExpiryTask?.cancel()
+    agentSessionExpiryTask = nil
     mailMessageTask?.cancel()
     mailMessageTask = nil
     mailMessageDisplay = nil
@@ -440,12 +450,16 @@ final class NotchPanelController {
       windows.values.forEach { $0.apply(agentActivity: agentActivities.current) }
       scheduleAgentActivityExpiry()
     }
+    if agentSessions.apply(event) {
+      pushAgentSessions()
+      scheduleAgentSessionExpiry()
+    }
     if event.kind == .toolStart { return }
 
     let previous = agentPrompts.current
     let changed = agentPrompts.apply(event)
     if changed {
-      windows.values.forEach { $0.apply(agentPrompt: agentPrompts.current) }
+      windows.values.forEach { $0.apply(agentPrompt: agentPrompts.current, queued: queuedPrompts) }
       scheduleAgentPromptExpiry()
     }
 
@@ -471,6 +485,35 @@ final class NotchPanelController {
       applyFullScreen()
     }
     presentAgentEvent(event, on: displayID, window: window, sound: true)
+    // Une demande à laquelle on peut répondre ouvre le panneau sur l'onglet AI.
+    if changed, event.replyID != nil, event.prompt != nil { openForPrompt(on: displayID) }
+  }
+
+  /// Le panneau a été ouvert par une demande (et non au survol) : il se referme quand elle part.
+  private var openedForPrompt = false
+
+  /// Déplie le panneau, épinglé, sur l'onglet AI où la demande se lit et se répond. Il ne prend pas
+  /// le clavier ; il se replie dès que le curseur y est venu puis reparti, et la demande reste alors
+  /// dans la pastille. Sans effet sous une app en plein écran ou pendant une frappe dans le terminal.
+  private func openForPrompt(on displayID: CGDirectDisplayID) {
+    guard let window = windows[displayID], !window.isSuppressed,
+      !isHiddenByFullScreen(displayID)
+    else { return }
+    if expandedDisplay == displayID {
+      // Déjà ouvert (survol) : on montre la demande sans le replier.
+      guard !window.holdsKeyboardFocus else { return }
+      window.select(.ai)
+      return
+    }
+    guard expandedDisplay == nil else { return }
+    revealPinned(tab: .ai, on: displayID)
+    openedForPrompt = expandedDisplay == displayID
+  }
+
+  /// La demande qui avait ouvert le panneau n'attend plus : le panneau se referme avec elle.
+  private func closePanelOpenedForPrompt() {
+    guard openedForPrompt, agentPrompts.current == nil else { return }
+    collapseActive()
   }
 
   private func presentAgentEvent(
@@ -482,7 +525,9 @@ final class NotchPanelController {
       windows[previous]?.hideAgentEvent()
     }
     agentEventDisplay = displayID
-    window.showAgentEvent(event)
+    window.showAgentEvent(
+      event, queued: event.prompt == nil ? 0 : queuedPrompts,
+      deadline: event.prompt == nil ? nil : agentPrompts.handBackDeadline(of: event))
 
     // Une demande reste affichée ; les autres se retirent, puis la demande en attente revient.
     guard event.prompt == nil else { return }
@@ -500,14 +545,67 @@ final class NotchPanelController {
   /// La demande n'attend plus : elle a reçu sa réponse, ou son hook a été annulé. La pastille
   /// disparaît ou laisse place à la demande précédente.
   func agentPromptEnded(replyID: String) {
+    if agentSessions.remove(replyID: replyID) { pushAgentSessions() }
     guard agentPrompts.remove(replyID: replyID) else { return }
-    windows.values.forEach { $0.apply(agentPrompt: agentPrompts.current) }
+    windows.values.forEach { $0.apply(agentPrompt: agentPrompts.current, queued: queuedPrompts) }
     scheduleAgentPromptExpiry()
     guard let displayID = agentEventDisplay, let window = windows[displayID] else { return }
     if let remaining = agentPrompts.current {
       presentAgentEvent(remaining, on: displayID, window: window, sound: false)
     } else {
       dismissAgentEvent(on: displayID, window: window)
+    }
+  }
+
+  private func pushAgentSessions() {
+    let sessions = agentSessions.sessions
+    let selectedID = agentSessions.selected?.id
+    windows.values.forEach { $0.apply(agentSessions: sessions, selectedID: selectedID) }
+  }
+
+  /// L'utilisateur choisit une session dans la liste.
+  func selectAgentSession(_ id: String) {
+    agentSessions.selectedID = id
+    pushAgentSessions()
+  }
+
+  /// Une consigne pour une seule session. Elle part par la réponse libre de la session si elle
+  /// attend une suite, sinon elle est gardée pour le prochain outil terminé de cette session.
+  func steerAgentSession(_ id: String, text: String) {
+    switch agentSessions.steer(text, to: id) {
+    case .reply(let event):
+      onAgentDecision?(event, .reply(text))
+      if let replyID = event.replyID { agentPromptEnded(replyID: replyID) }
+    case .queue(let sessionID):
+      onAgentSteerQueued?(sessionID, text)
+    case .rejected:
+      break
+    }
+    pushAgentSessions()
+  }
+
+  /// Le hook de la session a rendu la consigne à l'agent.
+  func agentSteerDelivered(sessionID: String, text: String) {
+    agentSessions.markSteerDelivered(text, for: sessionID)
+    pushAgentSessions()
+  }
+
+  /// Ouvre la demande d'une session sur la grande carte (plan, question, formulaire).
+  func promoteAgentPrompt(_ event: AgentEvent) {
+    guard let replyID = event.replyID, agentPrompts.bringToFront(replyID: replyID) else { return }
+    windows.values.forEach { $0.apply(agentPrompt: agentPrompts.current, queued: queuedPrompts) }
+  }
+
+  /// Les sessions sans nouvelle depuis trop longtemps disparaissent : on regarde chaque 30 s.
+  private func scheduleAgentSessionExpiry() {
+    agentSessionExpiryTask?.cancel()
+    agentSessionExpiryTask = nil
+    guard !agentSessions.sessions.isEmpty else { return }
+    agentSessionExpiryTask = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(30))
+      guard !Task.isCancelled, let self else { return }
+      if self.agentSessions.expire() { self.pushAgentSessions() }
+      self.scheduleAgentSessionExpiry()
     }
   }
 
@@ -538,7 +636,7 @@ final class NotchPanelController {
       guard self.agentPrompts.expire(before: cutoff) else {
         return self.scheduleAgentPromptExpiry()
       }
-      self.windows.values.forEach { $0.apply(agentPrompt: self.agentPrompts.current) }
+      self.windows.values.forEach { $0.apply(agentPrompt: self.agentPrompts.current, queued: self.queuedPrompts) }
       if let displayID = self.agentEventDisplay, let window = self.windows[displayID] {
         if let remaining = self.agentPrompts.current {
           self.presentAgentEvent(remaining, on: displayID, window: window, sound: false)
@@ -551,6 +649,7 @@ final class NotchPanelController {
   }
 
   private func dismissAgentEvent(on displayID: CGDirectDisplayID, window: NotchPanelWindow) {
+    closePanelOpenedForPrompt()
     agentEventTask?.cancel()
     agentEventTask = nil
     window.hideAgentEvent()
@@ -650,10 +749,12 @@ final class NotchPanelController {
   }
 
   /// Déplie le panneau de l'écran du curseur, épinglé, sur l'onglet demandé s'il y en a un.
-  private func revealPinned(tab: NotchTab?) {
+  private func revealPinned(tab: NotchTab?, on forced: CGDirectDisplayID? = nil) {
     guard
-      let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
-        ?? NSScreen.main,
+      let screen = NSScreen.screens.first(where: { candidate in
+        if let forced { return candidate.displayID == forced }
+        return candidate.frame.contains(NSEvent.mouseLocation)
+      }) ?? NSScreen.main,
       let displayID = screen.displayID,
       let window = windows[displayID]
     else { return }
@@ -801,6 +902,7 @@ final class NotchPanelController {
 
   private func collapseActive() {
     isPinned = false
+    openedForPrompt = false
     guard let expandedDisplay else { return }
     windows[expandedDisplay]?.setExpanded(false)
     // La demande en attente reprend sa pastille, sans le son.
@@ -829,6 +931,8 @@ final class NotchPanelController {
         // l'app, donc le curseur a quitté le haut de l'écran et le suivi repliera le
         // panneau de lui-même.
         window.onOpenSettings = { SettingsWindowController.shared.show() }
+        // Échap sur une demande : le panneau se replie, la demande reste dans la pastille.
+        window.onFoldRequested = { [weak self] in self?.collapseActive() }
         // La liste est relue au clic : `$settings` publie avant l'écriture.
         window.onLaunchAll = { [weak self] in
           guard let self else { return }
@@ -859,10 +963,17 @@ final class NotchPanelController {
         window.showNowPlaying(nowPlayingState)
         window.updateNowPlayingPlayer(nowPlayingPlayer)
         window.apply(playingNext: playingNext)
-        window.apply(agentPrompt: agentPrompts.current)
+        window.apply(agentPrompt: agentPrompts.current, queued: queuedPrompts)
         window.apply(agentActivity: agentActivities.current)
+        window.apply(
+          agentSessions: agentSessions.sessions, selectedID: agentSessions.selected?.id)
+        window.onAgentSteer = { [weak self] id, text in self?.steerAgentSession(id, text: text) }
+        window.onAgentSessionSelected = { [weak self] id in self?.selectAgentSession(id) }
+        window.onAgentPromote = { [weak self] event in self?.promoteAgentPrompt(event) }
         window.onAgentDecision = { [weak self] event, decision in
+          self?.agentSessions.record(decision, for: event)
           self?.onAgentDecision?(event, decision)
+          if decision == .handBack { self?.agentPrompts.noteHandedBack(event) }
           if let id = event.replyID { self?.agentPromptEnded(replyID: id) }
         }
         window.onExpanded = { [weak self] in self?.onPanelExpanded?() }
