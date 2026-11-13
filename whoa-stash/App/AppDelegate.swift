@@ -147,6 +147,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     notchPanelController?.onNowPlayingCommand = { [weak nowPlaying] command in
       nowPlaying?.send(command)
     }
+    notchPanelController?.onNowPlayingSeek = { [weak nowPlaying] seconds in
+      nowPlaying?.seek(to: seconds)
+    }
     nowPlaying.activate()
     nowPlayingViewModel = nowPlaying
 
@@ -165,6 +168,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     notchPanelController?.onClearClipboard = { [weak clipboard] in clipboard?.clear() }
     notchPanelController?.onSelectClipboardItem = { [weak clipboard] item in clipboard?.recopy(item)
     }
+    notchPanelController?.onDeleteClipboardItem = { [weak clipboard] in clipboard?.remove($0) }
+    notchPanelController?.onTogglePinClipboardItem = { [weak clipboard] in clipboard?.togglePin($0) }
     notchPanelController?.clipboardImageURL = { [weak clipboard] item in
       clipboard?.store.imageURL(for: item)
     }
@@ -477,26 +482,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       SettingsWindowController.shared.show(category)
     }
 
-    // Écran de bienvenue : à chaque lancement. Au premier (`hasSeenOnboarding` faux), il porte
-    // les boutons « Start » et « See Tutorial » et attend un clic ; aux suivants, il joue
-    // l'animation puis se replie seul. `--show-welcome` rejoue la version du premier lancement
-    // sans toucher au réglage, pour la vérifier.
-    do {
-      let firstLaunch =
-        !settings.settings.hasSeenOnboarding || CommandLine.arguments.contains("--show-welcome")
+    // Écran de bienvenue : une seule fois. Il porte les boutons « Start » et « See Tutorial » et
+    // attend un clic. Le réglage `hasSeenOnboarding` est posé dès qu'il s'affiche, pour qu'un
+    // relancement en cours de route ne le rejoue pas. `--show-welcome` le rejoue pour le vérifier.
+    if WelcomeController.shouldShow(
+      hasSeenOnboarding: settings.settings.hasSeenOnboarding,
+      forced: CommandLine.arguments.contains("--show-welcome"))
+    {
       let welcome = WelcomeController()
       // La fenêtre de bienvenue prend le relais une fois le panneau de l'encoche refermé.
-      welcome.onStart = { [weak self] in
-        self?.settings.settings.hasSeenOnboarding = true
+      welcome.onStart = {
         OnboardingWindowController.shared.show()
       }
       welcome.onTutorial = { [weak self] in
-        self?.settings.settings.hasSeenOnboarding = true
         OnboardingWindowController.shared.show()
         self?.notchPanelController?.togglePinnedReveal()
       }
       welcomeController = welcome
-      welcome.activate(showsButtons: firstLaunch)
+      settings.settings.hasSeenOnboarding = true
+      welcome.activate(showsButtons: true)
     }
 
     // La fenêtre de bienvenue s'ouvre après le panneau de l'encoche ; `--show-onboarding`
