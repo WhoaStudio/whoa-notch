@@ -17,6 +17,8 @@ struct ClipboardItem: Codable, Equatable, Identifiable {
   var date: Date
   /// Absent des historiques écrits avant l'ajout de la source : le décodage le tolère.
   var sourceBundleID: String?
+  /// Épinglé : reste en tête, survit à « Clear » et à la limite. Absent des anciens historiques.
+  var isPinned = false
 
   var fileURL: URL? { filePath.map { URL(fileURLWithPath: $0) } }
 
@@ -38,5 +40,22 @@ struct ClipboardItem: Codable, Equatable, Identifiable {
       return "i:" + SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
     return ""
+  }
+}
+
+extension ClipboardItem {
+  /// Le décodage tolère l'absence de `isPinned` (historiques écrits avant les épingles).
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(UUID.self, forKey: .id)
+    kind = try container.decode(ClipboardKind.self, forKey: .kind)
+    tag = try container.decode(String.self, forKey: .tag)
+    text = try container.decodeIfPresent(String.self, forKey: .text)
+    filePath = try container.decodeIfPresent(String.self, forKey: .filePath)
+    imageName = try container.decodeIfPresent(String.self, forKey: .imageName)
+    fingerprint = try container.decode(String.self, forKey: .fingerprint)
+    date = try container.decode(Date.self, forKey: .date)
+    sourceBundleID = try container.decodeIfPresent(String.self, forKey: .sourceBundleID)
+    isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
   }
 }

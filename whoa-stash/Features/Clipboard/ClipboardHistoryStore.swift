@@ -65,16 +65,31 @@ final class ClipboardHistoryStore {
         filePath: classification.fileURL?.path, imageName: imageName,
         fingerprint: fingerprint, date: date, sourceBundleID: sourceBundleID),
       at: 0)
-    if items.count > limit {
-      items.suffix(from: limit).forEach(deleteImage)
-      items.removeLast(items.count - limit)
+    // Les plus anciens non épinglés partent d'abord : une épingle n'est jamais chassée.
+    while items.count > limit, let index = items.lastIndex(where: { !$0.isPinned }) {
+      deleteImage(items.remove(at: index))
     }
     persist()
   }
 
+  /// Retire un élément (et son image). Sans effet si l'identifiant est inconnu.
+  func remove(id: UUID) {
+    guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+    deleteImage(items.remove(at: index))
+    persist()
+  }
+
+  func setPinned(_ pinned: Bool, id: UUID) {
+    guard let index = items.firstIndex(where: { $0.id == id }), items[index].isPinned != pinned
+    else { return }
+    items[index].isPinned = pinned
+    persist()
+  }
+
+  /// Vide l'historique ; les éléments épinglés restent.
   func clear() {
-    items.forEach(deleteImage)
-    items = []
+    items.filter { !$0.isPinned }.forEach(deleteImage)
+    items.removeAll { !$0.isPinned }
     persist()
   }
 

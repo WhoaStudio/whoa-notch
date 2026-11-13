@@ -139,6 +139,60 @@ struct ClipboardHistoryStoreTests {
     #expect(!FileManager.default.fileExists(atPath: imageURL.path))
   }
 
+  @Test("retirer un élément supprime aussi son image")
+  func removeDeletesImage() throws {
+    let store = ClipboardHistoryStore(directory: makeDirectory())
+    store.add(ClipboardClassifier.classify(ClipboardSnapshot(imageData: Data([1, 2, 3])))!)
+    let item = try #require(store.items.first)
+    let imageURL = try #require(store.imageURL(for: item))
+
+    store.remove(id: item.id)
+
+    #expect(store.items.isEmpty)
+    #expect(!FileManager.default.fileExists(atPath: imageURL.path))
+  }
+
+  @Test("Clear garde les éléments épinglés")
+  func clearKeepsPinned() throws {
+    let store = ClipboardHistoryStore(directory: makeDirectory())
+    store.add(text("un"))
+    store.add(text("deux"))
+    store.setPinned(true, id: try #require(store.items.last).id)
+
+    store.clear()
+
+    #expect(store.items.map(\.text) == ["un"])
+  }
+
+  @Test("la limite ne chasse jamais un élément épinglé")
+  func limitSkipsPinned() throws {
+    let store = ClipboardHistoryStore(directory: makeDirectory(), limit: 2)
+    store.add(text("un"))
+    store.setPinned(true, id: try #require(store.items.first).id)
+    store.add(text("deux"))
+    store.add(text("trois"))
+    #expect(store.items.map(\.text) == ["trois", "un"])
+  }
+
+  @Test("un historique écrit avant les épingles se relit, sans épingle")
+  func legacyHistoryDecodes() throws {
+    let json = """
+      [{"id":"\(UUID().uuidString)","kind":"text","tag":"TEXT","text":"vieux","fingerprint":"t:vieux",\
+      "date":0}]
+      """
+    let items = try JSONDecoder().decode([ClipboardItem].self, from: Data(json.utf8))
+    #expect(items.first?.isPinned == false)
+  }
+
+  @Test("une épingle survit à un nouveau lancement")
+  func pinPersists() throws {
+    let directory = makeDirectory()
+    let store = ClipboardHistoryStore(directory: directory)
+    store.add(text("un"))
+    store.setPinned(true, id: try #require(store.items.first).id)
+    #expect(ClipboardHistoryStore(directory: directory).items.first?.isPinned == true)
+  }
+
   @Test("l'historique survit à un nouveau lancement")
   func persistence() {
     let directory = makeDirectory()
@@ -161,5 +215,44 @@ struct ClipboardAgeTests {
     #expect(age(23 * 60) == "23 min ago")
     #expect(age(3 * 3600) == "3 h ago")
     #expect(age(2 * 86_400) == "2 d ago")
+  }
+}
+
+@MainActor
+@Suite("Presse-papiers : aperçu")
+struct ClipboardPreviewTests {
+
+  @Test("l'aperçu retire lignes vides, retrait commun et tabulations")
+  func displayText() {
+    let raw = "\n\n    func a() {\r\n\n\t\t  return 1\n    }\n\n"
+    #expect(ClipboardPreview.displayText(raw) == "func a() {\n  return 1\n}")
+  }
+
+  @Test("un texte énorme est borné")
+  func displayTextIsBounded() {
+    let raw = String(repeating: "mot ", count: 50_000)
+    #expect(ClipboardPreview.displayText(raw).count <= ClipboardPreview.maxDisplayLength)
+  }
+
+  @Test("les couleurs hexadécimales et rgb() sont reconnues")
+  func colors() {
+    #expect(ClipboardPreview.colorValue(in: "#fa0")?.label == "#FFAA00")
+    #expect(ClipboardPreview.colorValue(in: " #3B82F6 ")?.label == "#3B82F6")
+    #expect(ClipboardPreview.colorValue(in: "rgb(10, 20, 30)")?.label == "rgb(10, 20, 30)")
+  }
+
+  @Test("un texte qui contient une couleur n'est pas une couleur")
+  func notColors() {
+    #expect(ClipboardPreview.colorValue(in: "fond #fff") == nil)
+    #expect(ClipboardPreview.colorValue(in: "#12345") == nil)
+    #expect(ClipboardPreview.colorValue(in: "rgb(300, 0, 0)") == nil)
+  }
+
+  @Test("un lien se coupe en domaine et reste")
+  func linkParts() {
+    let parts = ClipboardPreview.linkParts("https://www.example.com/a/b?q=1#top")
+    #expect(parts.host == "example.com")
+    #expect(parts.rest == "/a/b?q=1#top")
+    #expect(ClipboardPreview.linkParts("www.example.com").host == "example.com")
   }
 }
