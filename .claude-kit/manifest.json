@@ -29,13 +29,13 @@
     ".claude/context/conversation_memory.md": {
       "templateId": "context/memory",
       "templateVersion": 1,
-      "hash": "958154b5cad25d53134deb4e2b54ee7ac8fae16a7b6c0dc21ff0e8e7ea07838b",
+      "hash": "5169eda20d8231721403ce8bcb89a53e69b8d34242921795bd084b94641bc4ad",
       "owned": false
     },
     ".claude/context/task_context.md": {
       "templateId": "context/task",
       "templateVersion": 1,
-      "hash": "604eda943308cafea3dfb1656258789ee1c871a1ef457928e543740dcafe2fa6",
+      "hash": "838709a84047b19f3d8285fefacde5a7d1c8d8678ccb2ad3c7cc03123adfb0f6",
       "owned": false
     },
     ".claude/hooks/context-guard.cjs": {
@@ -91,7 +91,7 @@
     "CLAUDE.md": {
       "templateId": "claudemd",
       "templateVersion": 1,
-      "hash": "40864aa1c361f681349cbc635925388e0f8e8b782e2a2a5289641edb9079c0a7",
+      "hash": "957cd38251866d782c7e1e70abd8b963cdc9f6facc4008e86dd57cec27ca7d6a",
       "owned": false,
       "lastGenerated": "# whoa-stash\n\n<!-- One or two sentences: what this project is, who uses it, what matters most. -->\n\n<!-- claude-kit:begin stack -->\n## Stack\n\n- <!-- Language, framework, runtime. -->\n<!-- claude-kit:end stack -->\n\n<!-- claude-kit:begin commands -->\n## Commands\n\n<!-- How to install, run, test, lint. -->\n<!-- claude-kit:end commands -->\n\n## Conventions\n\n<!-- Project rules Claude can't infer from the code, one line each. E.g. \"Use the Result type for errors, never throw in services.\" -->\n\n<!-- claude-kit:begin workflow -->\n## Workflow\n\n- **Plan first.** For changes touching more than ~3 files, start in Plan Mode (Shift+Tab), agree on the plan, then edit.\n- **Decompose.** Split big tasks into steps that each end green (tests/typecheck pass) before starting the next.\n- **Search, then read.** Grep/glob for the symbol you need instead of opening whole directories or large files.\n- **Verify.** Run the relevant test/lint command before calling a task done.\n<!-- claude-kit:end workflow -->\n\n<!-- claude-kit:begin guardrails -->\n## Guardrails\n\n- Paths in `.claudeignore` are blocked from reading via `permissions.deny` in `.claude/settings.json`. Don't work around it with shell commands; ask if you need one of them.\n- Lockfiles, build output and `.env*` files are edit-protected by `.claude/hooks/pre-edit.cjs`. Change the source of truth instead (manifest, sources).\n<!-- claude-kit:end guardrails -->\n\n<!-- claude-kit:begin task-context -->\n## Task context\n\n- For multi-step work, keep `.claude/context/task_context.md` current (goal, status, next steps). Update it before a session ends or when context runs long; it's re-loaded after compaction.\n- When resuming a task, read it first.\n<!-- claude-kit:end task-context -->\n\n<!-- claude-kit:begin memory -->\n## Team memory\n\n- Past decisions, rejected approaches and lessons are in `.claude/context/conversation_memory.md`. Check it before revisiting a decision; append one line when a new one is made.\n<!-- claude-kit:end memory -->\n\n<!-- claude-kit:begin docs -->\n## Docs\n\n- Before changing an area, read the matching file in `docs/` (architecture, api-contracts, data-models, debugging) and update it in the same change.\n<!-- claude-kit:end docs -->\n\n<!-- claude-kit:begin map -->\n## Codebase map\n\n- `docs/INDEX.md` maps the repo by area and size. Start there instead of listing directories.\n<!-- claude-kit:end map -->\n\n<!-- claude-kit:begin agents -->\n## Subagents\n\n- Delegate broad searches to `explorer` (Haiku, read-only) so only its findings enter this context.\n- For bugs and failing tests, run `/fix <symptom>`: it finds, diagnoses (via `debugger`), fixes, tests and retries.\n- Ask `reviewer` to check the diff before calling a non-trivial change done.\n- Use `test-writer` to add coverage for new behavior.\n<!-- claude-kit:end agents -->\n\n<!-- claude-kit:begin compress -->\n## Large files\n\n- To skim a big file, run `npx @whoa-studio/claude-kit compress --outline <path>` (declarations with line numbers), then read only the ranges you need.\n<!-- claude-kit:end compress -->\n\n<!-- claude-kit:begin models -->\n<!--\nModels (for humans; not loaded into Claude's context):\n- This project defaults to `opusplan` (.claude/settings.json): Opus in Plan Mode, Sonnet while executing.\n- /model sonnet: everyday coding · /model opus: hard debugging and design · /model haiku: quick mechanical edits\n- Personal override: /model <alias>, or set \"model\" in .claude/settings.local.json (not committed).\n-->\n<!-- claude-kit:end models -->\n\n## Gotchas\n\n<!-- Things that have bitten people before: flaky tests, env quirks, ordering constraints. -->\n"
     },
@@ -104,7 +104,7 @@
     "docs/architecture.md": {
       "templateId": "docs/architecture",
       "templateVersion": 1,
-      "hash": "afdd0aa9f0bb819cc46470ca678f1443e07e93a8e105a6e00e8ee814d4cb0485",
+      "hash": "f8650219ece75532ec9f46efd52d18968f335d650601f71f5a8d22478b03200a",
       "owned": false
     },
     "docs/data-models.md": {
@@ -116,20 +116,20 @@
     "docs/debugging.md": {
       "templateId": "docs/debugging",
       "templateVersion": 1,
-      "hash": "4a629a70acfa9e991d5ce0d071f2cabe882c9adfe5e0e0926e10bc767b0baff1",
+      "hash": "343a86b92413c70b3e13c1b22fa08d06ed97bcf5efa61d906a6ff5f3e9f9a04f",
       "owned": false
     },
     "docs/INDEX.md": {
       "templateId": "docs/map",
       "templateVersion": 1,
-      "hash": "e11dc1b00cbb001f1f574c5860fd592f3365faea57c65a68f131f5c2ca249e23",
-      "owned": true,
-      "lastGenerated": "# Codebase map\n\n<!-- The table is regenerated by `claude-kit sync`. Write your notes outside the managed region. -->\n\n<!-- claude-kit:begin map -->\n## Areas\n\n408 text files, ~588.5K tokens in total. Largest areas first.\n\n| Path | Files | ~Tokens |\n|---|---:|---:|\n| `whoa-stash/Features/` | 232 | 364.3K |\n| `whoa-stashTests/` | 37 | 95K |\n| `Vendor/` | 31 | 35.3K |\n| `whoa-stash/Core/` | 30 | 33.6K |\n| `(root)` | 9 | 9.2K |\n| `whoa-stash/App/` | 4 | 9.2K |\n| `whoa-stash.xcodeproj/` | 4 | 6.8K |\n| `scripts/` | 11 | 6.4K |\n| `docs/` | 6 | 4.7K |\n| `whoa-stash/Resources/` | 16 | 4.1K |\n| `Design/` | 4 | 1.4K |\n| `Config/` | 2 | 157 |\n| `Casks/` | 1 | 134 |\n\n## Largest files\n\nRead these in ranges (or outline them first), not whole.\n\n- `whoa-stash/Features/NotchPanel/Views/NotchPanelContentView.swift`: ~15K tokens\n- `whoa-stash/Features/Dock/DockContentView.swift`: ~12.4K tokens\n- `whoa-stash/Features/NotchPanel/NotchPanelController.swift`: ~11.1K tokens\n- `whoa-stash/Features/PanelTabs/Views/FileTrayView.swift`: ~8.6K tokens\n- `whoa-stash/App/AppDelegate.swift`: ~7.5K tokens\n- `Vendor/MediaRemoteAdapter/README.md`: ~6K tokens\n- `Vendor/MediaRemoteAdapter/src/adapter/stream.m`: ~5.9K tokens\n- `whoa-stash.xcodeproj/project.pbxproj`: ~5.4K tokens\n- `whoa-stash/Features/PanelTabs/Views/ImageTransformView.swift`: ~5.4K tokens\n<!-- claude-kit:end map -->\n\n## Notes\n\n<!-- One line per area: what lives there and who owns it. -->\n"
+      "hash": "18f9bf1a3e1259b6b20d1ffb355781249972be2bbd83e744bbe219b032fa3168",
+      "owned": false,
+      "lastGenerated": "# Codebase map\n\n<!-- The table is regenerated by `claude-kit sync`. Write your notes outside the managed region. -->\n\n<!-- claude-kit:begin map -->\n## Areas\n\n470 text files, ~730.2K tokens in total. Largest areas first.\n\n| Path | Files | ~Tokens |\n|---|---:|---:|\n| `whoa-notch/Features/` | 260 | 491.8K |\n| `whoa-notchTests/` | 52 | 84K |\n| `Vendor/` | 31 | 35.3K |\n| `whoa-notch/Core/` | 30 | 34.4K |\n| `(root)` | 11 | 12.9K |\n| `whoa-notch/App/` | 4 | 9K |\n| `scripts/` | 13 | 8.2K |\n| `docs/` | 7 | 7.3K |\n| `whoa-notch.xcodeproj/` | 4 | 7.2K |\n| `whoa-notch/Resources/` | 16 | 4.1K |\n| `Design/` | 4 | 1.4K |\n| `Config/` | 2 | 157 |\n| `Casks/` | 1 | 135 |\n\n## Largest files\n\nRead these in ranges (or outline them first), not whole.\n\n- `whoa-notch/Features/NotchPanel/Views/NotchPanelContentView.swift`: ~20.6K tokens\n- `whoa-notch/Features/PanelTabs/Views/FileTrayView.swift`: ~14.3K tokens\n- `whoa-notch/Features/Agents/Views/AgentPromptCardView.swift`: ~13.5K tokens\n- `whoa-notch/Features/NotchPanel/NotchPanelController.swift`: ~13.1K tokens\n- `whoa-notch/Features/Dock/DockContentView.swift`: ~11.1K tokens\n- `whoa-notch/Features/PanelTabs/Views/AgendaListView.swift`: ~8.7K tokens\n- `whoa-notch/Features/PanelTabs/Views/Clipboard/ClipboardCardView.swift`: ~8.5K tokens\n- `whoa-notch/Features/PanelTabs/Views/Notes/NotesTabView.swift`: ~8.5K tokens\n- `whoa-notch/Features/NowPlaying/Views/NowPlayingRowView.swift`: ~7.9K tokens\n- `whoa-notch/Features/PanelTabs/Views/CameraMirrorView.swift`: ~7.7K tokens\n<!-- claude-kit:end map -->\n\n## Notes\n\n<!-- One line per area: what lives there and who owns it. -->\n"
     },
     "docs/README.md": {
       "templateId": "docs/README",
       "templateVersion": 1,
-      "hash": "bfef3cfaf580dd62c458d55516d1f29cd21132f141023e8093bf69ff252b614a",
+      "hash": "995cc10c332cbced7f79b1c3b8b61030a25b7ef8abb45d151a1bcbb60097dbb5",
       "owned": false
     }
   },
