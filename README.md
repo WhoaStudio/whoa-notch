@@ -193,7 +193,7 @@ Run a single suite:
 xcodebuild -scheme whoa-stash -destination 'platform=macOS' -only-testing:whoa-stashTests/SettingsStorageTests test
 ```
 
-The suite is in `whoa-stashTests/`. It has 462 tests: 460 in Swift Testing across 67 suites, and 2 in XCTest (`CopilotUsageTests`).
+The suite is in `whoa-stashTests/`. It has 536 tests: 534 in Swift Testing across 78 suites, and 2 in XCTest (`CopilotUsageTests`).
 
 CI builds and tests pull requests and pushes to `stable`. No app linter or formatter is configured.
 
