@@ -1,4 +1,4 @@
-# Whoa Stash
+# Whoa Notch
 
 A macOS menu-bar app that puts controls and glanceable info on the edges of the screen.
 It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open.
@@ -9,13 +9,13 @@ It has no Dock icon (`LSUIElement`) and only shows one while Preferences is open
 | Volume dial | Top-left corner | Scroll to set the default output device's volume. |
 | Edge slider | Right edge | Volume slider. |
 | Side panel | Top-right corner | Usage rings for Claude Code and GitHub Copilot, one panel per screen. |
-| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (week strip, a Now Playing player, and a Playing Next column for Apple Music and Spotify), **Calendar** (agenda and month grid: swipe or scroll the grid to change month, click a day to see its events and **Today** to come back, click an event to expand it; a red line marks now and past events are dimmed; without access, a card with a button to allow it or open System Settings), **Tray** (a 4-file drop shelf), **Clipboard** (history of the last 50 copies: text, links, images, videos, files), **Notes** (plain-text notes: a list and an editor, saved in `Application Support/whoa-stash/Notes/`), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only; pinch or scroll to zoom 1×–3×, click to freeze the frame, double-click for 1×, hover for **Flip** and **Copy frame**; without access, a card with **Allow camera** or **Open Settings**), **AI** (what Claude Code or Claude Desktop is asking you, see *Agent cards* below; when nothing is asked, what the agent is doing: Read, Edit, Bash, Done), **Terminal** (your login shell in a real PTY, started the first time the tab is opened and kept alive across folds; the panel stays open while the terminal has the keyboard and folds on a click elsewhere or the shortcut), **Color** (a pipette that picks any colour on screen: a large preview, a HEX/RGB/HSL switch, a click-to-copy value, the 8 latest picks and a Saved row; scroll the preview to adjust brightness and hue, drag it or any swatch into another app). Two more tabs open from the header instead of the tab bar: **Stay Awake** (the cup button, keeps the Mac awake with an IOKit power assertion) and **Analytics** (the usage chip: usage, filters and activity). Preferences ▸ General ▸ Notch panel chooses which tabs appear, whether it opens on click instead of hover, and the style on screens without a notch. While something plays, the folded notch shows "wings" with the track; a pill under the notch appears when a Bluetooth audio device (AirPods) connects. |
+| Notch panel | Top centre, folded onto the notch (or a pill on screens without one) | Unfolds on hover or with a global shortcut. Tabs: **Global** (week strip, a Now Playing player, and a Playing Next column for Apple Music and Spotify), **Calendar** (agenda and month grid: swipe or scroll the grid to change month, click a day to see its events and **Today** to come back, click an event to expand it; a red line marks now and past events are dimmed; without access, a card with a button to allow it or open System Settings), **Tray** (a 4-file drop shelf), **Clipboard** (history of the last 50 copies: text, links, images, videos, files), **Notes** (plain-text notes: a list and an editor, saved in `Application Support/whoa-notch/Notes/`), **Mirror** (live camera preview in a circle, with a brightness slider for the preview only; pinch or scroll to zoom 1×–3×, click to freeze the frame, double-click for 1×, hover for **Flip** and **Copy frame**; without access, a card with **Allow camera** or **Open Settings**), **AI** (what Claude Code or Claude Desktop is asking you, see *Agent cards* below; when nothing is asked, what the agent is doing: Read, Edit, Bash, Done), **Terminal** (your login shell in a real PTY, started the first time the tab is opened and kept alive across folds; the panel stays open while the terminal has the keyboard and folds on a click elsewhere or the shortcut), **Color** (a pipette that picks any colour on screen: a large preview, a HEX/RGB/HSL switch, a click-to-copy value, the 8 latest picks and a Saved row; scroll the preview to adjust brightness and hue, drag it or any swatch into another app). Two more tabs open from the header instead of the tab bar: **Stay Awake** (the cup button, keeps the Mac awake with an IOKit power assertion) and **Analytics** (the usage chip: usage, filters and activity). Preferences ▸ General ▸ Notch panel chooses which tabs appear, whether it opens on click instead of hover, and the style on screens without a notch. While something plays, the folded notch shows "wings" with the track; a pill under the notch appears when a Bluetooth audio device (AirPods) connects. |
 | Dock | Bottom centre | Custom dock: pinned and running apps (dot = running, globe = web app). Hovering the dock shows a floating pill above it to switch profile. Pinned apps are copied once from `com.apple.dock`, never written back. Clicking launches the app or brings its window forward and un-minimises it (needs Accessibility). Widgets (battery, storage) are added per profile in Preferences ▸ Profiles. Preferences ▸ Dock can hide the macOS Dock (auto-hide with a long delay) and restores your original values when turned off or on quit. |
 | Radial menu | Under the cursor, while a mouse button is held | Hold the middle (or back/forward) button, or rest three fingers on the trackpad: a round menu opens centred on the cursor and stays on screen near edges. Move toward an item and release to run it; a short press keeps it open so you can click an item instead. Esc or a click outside closes it. Items are apps (launched) and Shortcuts.app shortcuts (run), added and reordered in Preferences ▸ Radial Menu. Off by default; needs Accessibility, and the chosen button no longer reaches other apps while it is on. |
 | New mail | Notch wings, a few seconds | Sender, subject and the start of the text when a message reaches the inbox of an IMAP account set in Preferences ▸ Mail. The Mac connects directly to the mail server (IMAP IDLE, read-only); the password is in the Keychain. Off by default. Password or app password only, no OAuth yet. |
 | Agent cards | Notch wings, then the AI tab | See *Agent cards* below. |
 | Update check | Preferences ▸ General ▸ Updates | Asks the GitHub Releases API for the latest version at launch and every 24 h while *auto check* is on, and from **Check for Updates…**. It installs nothing: it shows the version and opens the release page. |
-| Welcome | Under the notch, at the first launch only | Plays a short animation with the **Start** and **See Tutorial** buttons and waits for a click. It is marked as seen as soon as it shows, so a relaunch does not replay it. |
+| Welcome | Under the notch, at the first launch only | A five-step tour inside the notch shape: hello, the notch gesture (hover or click the island), the tabs, permissions (Calendars, Camera, Accessibility, Music: why, live state, Allow or Skip) and a final screen. Arrow keys, Return and a two-finger swipe move between steps, Esc skips. It is marked as seen as soon as it shows, so a relaunch does not replay it. |
 
 ## Agent cards
 
@@ -39,16 +39,16 @@ When Claude Code (terminal or editor) or the Code tab of Claude Desktop asks for
 
 Requires macOS 26.5 or later, on Apple Silicon or Intel.
 
-Download the DMG from [GitHub Releases](https://github.com/WhoaStudio/whoa-stash/releases/latest), open it, and drag **whoa-stash.app** into **Applications**.
+Download the DMG from [GitHub Releases](https://github.com/WhoaStudio/whoa-notch/releases/latest), open it, and drag **whoa-notch.app** into **Applications**.
 
 Or install the cask from this repository (no separate tap repository):
 
 ```bash
-brew tap WhoaStudio/stash https://github.com/WhoaStudio/whoa-stash
-brew install --cask WhoaStudio/stash/whoa-stash
+brew tap WhoaStudio/stash https://github.com/WhoaStudio/whoa-notch
+brew install --cask WhoaStudio/stash/whoa-notch
 ```
 
-If Homebrew requests tap trust, run `brew trust --cask WhoaStudio/stash/whoa-stash` and retry installation.
+If Homebrew requests tap trust, run `brew trust --cask WhoaStudio/stash/whoa-notch` and retry installation.
 
 The cask becomes usable once the first release’s cask-update PR is merged. Release notes state whether the download is Developer ID signed and notarized. Without signing credentials, releases use an ad-hoc signature and are unnotarized; macOS may block them. After verifying the download source, use **System Settings → Privacy & Security → Open Anyway** if available.
 
@@ -64,7 +64,7 @@ Use one to three numeric components, such as `1`, `1.2`, or `1.2.3`, without `v`
 
 Alternatively, open **Actions → Release → Run workflow**, select **stable**, and enter the version without `v`. That run creates the commit/tag and completes the release itself. Pushing any `v*` tag also starts a release; the job rejects invalid versions and commits outside `stable`. The build always takes its version from the tag.
 
-The workflow builds a universal Release app, verifies and mounts the DMG, publishes it with `SHA256SUMS` and automatically generated commit/PR notes, then opens a PR updating `version` and `sha256` in `Casks/whoa-stash.rb`. The cask PR must pass **Build and test** and receive the required approving review before merging into `stable`. Pull after a release before starting the next one.
+The workflow builds a universal Release app, verifies and mounts the DMG, publishes it with `SHA256SUMS` and automatically generated commit/PR notes, then opens a PR updating `version` and `sha256` in `Casks/whoa-notch.rb`. The cask PR must pass **Build and test** and receive the required approving review before merging into `stable`. Pull after a release before starting the next one.
 
 The version-commit step still requires the release caller to be allowed to push release metadata to `stable` and create tags. Cask updates never push directly to `stable`. Allow Actions to create pull requests in the repository’s Actions settings; the cask workflow requests contents and pull-request write permissions. A tag pushed without a version commit still supplies the build's version.
 
@@ -78,7 +78,7 @@ To build and verify the same DMG locally without committing, tagging, or publish
 scripts/build-dmg.sh 1.2
 ```
 
-Output: `Build/release/1.2/whoa-stash-1.2.dmg`, `SHA256SUMS`, and `signing-status.txt`. Uses the selected Xcode; CI selects Xcode 26.6. Swift package build plugins are allowed as in CI; review dependency changes before building.
+Output: `Build/release/1.2/whoa-notch-1.2.dmg`, `SHA256SUMS`, and `signing-status.txt`. Uses the selected Xcode; CI selects Xcode 26.6. Swift package build plugins are allowed as in CI; review dependency changes before building.
 
 Verify the release tooling without pushing:
 
@@ -110,18 +110,18 @@ If any are missing, the build falls back to ad-hoc signing and explicitly labels
 
 - macOS 26.5 or later (the deployment target)
 - Xcode 26.6 (the version this README was checked with)
-- One Swift package: [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (Terminal tab). Xcode asks once to trust its `SwiftTermBuildInfoPlugin` build plugin; `xcodebuild` fails until you do. The Now Playing source is a vendored copy of [mediaremote-adapter](Vendor/MediaRemoteAdapter/README.md), shipped as `MediaRemoteAdapter.bin` and a Perl script in `whoa-stash/Resources/MediaRemoteAdapter/`.
+- One Swift package: [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (Terminal tab). Xcode asks once to trust its `SwiftTermBuildInfoPlugin` build plugin; `xcodebuild` fails until you do. The Now Playing source is a vendored copy of [mediaremote-adapter](Vendor/MediaRemoteAdapter/README.md), shipped as `MediaRemoteAdapter.bin` and a Perl script in `whoa-notch/Resources/MediaRemoteAdapter/`.
 
 ## Build and run
 
-Open `whoa-stash.xcodeproj` and run the `whoa-stash` scheme (⌘R), or from the terminal:
+Open `whoa-notch.xcodeproj` and run the `whoa-notch` scheme (⌘R), or from the terminal:
 
 ```bash
-xcodebuild -scheme whoa-stash -destination 'platform=macOS' build
+xcodebuild -scheme whoa-notch -destination 'platform=macOS' build
 ```
 
 ```bash
-open "$(xcodebuild -scheme whoa-stash -showBuildSettings 2>/dev/null | awk '/ BUILT_PRODUCTS_DIR /{print $3}')/whoa-stash.app"
+open "$(xcodebuild -scheme whoa-notch -showBuildSettings 2>/dev/null | awk '/ BUILT_PRODUCTS_DIR /{print $3}')/whoa-notch.app"
 ```
 
 Signing is automatic. `Config/Base.xcconfig` sets the maintainer's team (`2MPVX5W6KB`). To build with your own team, or with none, copy `Config/Local.xcconfig.example` to `Config/Local.xcconfig` (git-ignored) and override `DEVELOPMENT_TEAM` and `CODE_SIGN_IDENTITY` there.
@@ -132,7 +132,7 @@ Signing is automatic. `Config/Base.xcconfig` sets the maintainer's team (`2MPVX5
 - **Camera.** The Mirror tab asks the first time it is shown. The camera runs only while the panel is unfolded on that tab; the green LED goes off as soon as it folds or you switch tab. If you deny it, the tab shows a card that opens System Settings.
 - **Keychain items owned by other apps.** The usage rings read the OAuth tokens that Claude Code (`Claude Code-credentials*`) and GitHub (`github-copilot-app` or `gh:github.com`) store. macOS asks you to allow the GitHub one on the first read. The Claude Code item is read through `/usr/bin/security`, which it already allows, so it never prompts. If you refuse, that ring shows as unavailable. Tokens stay in memory only.
 - **Apple Events (Music).** Asked the first time the Playing Next column reads the Apple Music queue.
-- **Spotify account.** Optional. Playing Next for Spotify needs a Client ID pasted in Preferences ▸ General. Tokens are stored in the Keychain under `ugolin-olle.whoa-stash.spotify`. See [docs/external-interfaces.md](docs/external-interfaces.md).
+- **Spotify account.** Optional. Playing Next for Spotify needs a Client ID pasted in Preferences ▸ General. Tokens are stored in the Keychain under `ugolin-olle.whoa-notch.spotify`. See [docs/external-interfaces.md](docs/external-interfaces.md).
 - **Accessibility.** Requested only where a feature needs it: the Dock (bringing a window forward and un-minimising it), the radial menu (a mouse-button event tap) and the optional Claude Desktop watcher.
 - **Network.** Usage rings (Anthropic and GitHub endpoints), the update check (GitHub Releases), Spotify (Playing Next, optional) and the IMAP server you set in Preferences ▸ Mail. The IMAP password is stored in the Keychain. All of them are listed in [docs/external-interfaces.md](docs/external-interfaces.md).
 - **Claude Code settings.** `~/.claude/settings.json` is edited only when you press **Install hooks**, and our entries are removed by **Uninstall**.
@@ -147,7 +147,9 @@ Pass them after `--args` in the `open` command above, or add them to the scheme'
 
 | Flag | Effect |
 |---|---|
-| `--show-welcome` | Plays the welcome panel (with the Start and See Tutorial buttons) even if it was already seen, without changing the setting. |
+| `--show-welcome` | Plays the welcome tour even if it was already seen, without changing the setting. |
+| `--onboarding-step=hello\|notch\|tabs\|permissions\|done` | With `--show-welcome`, opens the tour on that step. |
+| `--onboarding-permissions=mock` | Fake permission states in the tour (an Allow succeeds without a system prompt). |
 | `--show-onboarding` | Opens the older onboarding window, which is no longer shown automatically. |
 | `--show-settings[=general\|appearance\|screens\|privacy\|brightness\|radialMenu\|dock\|profiles\|ai\|mail\|about]` | Opens Preferences on that pane (default `general`). |
 | `--show-notch-panel` | Unfolds the notch panel without hovering. |
@@ -184,23 +186,23 @@ Sound Effect by <a href="https://pixabay.com/users/universfield-28281460/?utm_so
 ## Tests
 
 ```bash
-xcodebuild -scheme whoa-stash -destination 'platform=macOS' test
+xcodebuild -scheme whoa-notch -destination 'platform=macOS' test
 ```
 
 Run a single suite:
 
 ```bash
-xcodebuild -scheme whoa-stash -destination 'platform=macOS' -only-testing:whoa-stashTests/SettingsStorageTests test
+xcodebuild -scheme whoa-notch -destination 'platform=macOS' -only-testing:whoa-notchTests/SettingsStorageTests test
 ```
 
-The suite is in `whoa-stashTests/`. It has 536 tests: 534 in Swift Testing across 78 suites, and 2 in XCTest (`CopilotUsageTests`).
+The suite is in `whoa-notchTests/`. It has 536 tests: 534 in Swift Testing across 78 suites, and 2 in XCTest (`CopilotUsageTests`).
 
 CI builds and tests pull requests and pushes to `stable`. No app linter or formatter is configured.
 
 ## Project structure
 
 ```
-whoa-stash/
+whoa-notch/
   App/          entry point, AppDelegate (composition root), menu-bar item, Dock presence
   Core/         shared code: settings, logging, theme, geometry, animation, shortcuts
   Features/     one folder per surface: Brightness, EdgeSlider, Volume, SidePanel,
@@ -209,7 +211,7 @@ whoa-stash/
                 DeviceStatus, Dock, RadialMenu, Mail, Updates, Welcome, Onboarding,
                 Settings (Preferences window)
   Resources/    asset catalog (app icon, menu-bar glyph), MediaRemoteAdapter (binary + script)
-whoa-stashTests/  unit tests
+whoa-notchTests/  unit tests
 Vendor/           third-party sources (MediaRemoteAdapter), not built by the Xcode project
 Design/Icon/      icon source SVGs (see Design/Icon/README.md)
 docs/             architecture and debugging notes

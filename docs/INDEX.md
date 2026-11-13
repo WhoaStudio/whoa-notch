@@ -5,37 +5,38 @@
 <!-- claude-kit:begin map -->
 ## Areas
 
-408 text files, ~588.5K tokens in total. Largest areas first.
+470 text files, ~730.2K tokens in total. Largest areas first.
 
 | Path | Files | ~Tokens |
 |---|---:|---:|
-| `whoa-stash/Features/` | 232 | 364.3K |
-| `whoa-stashTests/` | 37 | 95K |
+| `whoa-notch/Features/` | 260 | 491.8K |
+| `whoa-notchTests/` | 52 | 84K |
 | `Vendor/` | 31 | 35.3K |
-| `whoa-stash/Core/` | 30 | 33.6K |
-| `(root)` | 9 | 9.2K |
-| `whoa-stash/App/` | 4 | 9.2K |
-| `whoa-stash.xcodeproj/` | 4 | 6.8K |
-| `scripts/` | 11 | 6.4K |
-| `docs/` | 6 | 4.7K |
-| `whoa-stash/Resources/` | 16 | 4.1K |
+| `whoa-notch/Core/` | 30 | 34.4K |
+| `(root)` | 11 | 12.9K |
+| `whoa-notch/App/` | 4 | 9K |
+| `scripts/` | 13 | 8.2K |
+| `docs/` | 7 | 7.3K |
+| `whoa-notch.xcodeproj/` | 4 | 7.2K |
+| `whoa-notch/Resources/` | 16 | 4.1K |
 | `Design/` | 4 | 1.4K |
 | `Config/` | 2 | 157 |
-| `Casks/` | 1 | 134 |
+| `Casks/` | 1 | 135 |
 
 ## Largest files
 
 Read these in ranges (or outline them first), not whole.
 
-- `whoa-stash/Features/NotchPanel/Views/NotchPanelContentView.swift`: ~15K tokens
-- `whoa-stash/Features/Dock/DockContentView.swift`: ~12.4K tokens
-- `whoa-stash/Features/NotchPanel/NotchPanelController.swift`: ~11.1K tokens
-- `whoa-stash/Features/PanelTabs/Views/FileTrayView.swift`: ~8.6K tokens
-- `whoa-stash/App/AppDelegate.swift`: ~7.5K tokens
-- `Vendor/MediaRemoteAdapter/README.md`: ~6K tokens
-- `Vendor/MediaRemoteAdapter/src/adapter/stream.m`: ~5.9K tokens
-- `whoa-stash.xcodeproj/project.pbxproj`: ~5.4K tokens
-- `whoa-stash/Features/PanelTabs/Views/ImageTransformView.swift`: ~5.4K tokens
+- `whoa-notch/Features/NotchPanel/Views/NotchPanelContentView.swift`: ~20.6K tokens
+- `whoa-notch/Features/PanelTabs/Views/FileTrayView.swift`: ~14.3K tokens
+- `whoa-notch/Features/Agents/Views/AgentPromptCardView.swift`: ~13.5K tokens
+- `whoa-notch/Features/NotchPanel/NotchPanelController.swift`: ~13.1K tokens
+- `whoa-notch/Features/Dock/DockContentView.swift`: ~11.1K tokens
+- `whoa-notch/Features/PanelTabs/Views/AgendaListView.swift`: ~8.7K tokens
+- `whoa-notch/Features/PanelTabs/Views/Clipboard/ClipboardCardView.swift`: ~8.5K tokens
+- `whoa-notch/Features/PanelTabs/Views/Notes/NotesTabView.swift`: ~8.5K tokens
+- `whoa-notch/Features/NowPlaying/Views/NowPlayingRowView.swift`: ~7.9K tokens
+- `whoa-notch/Features/PanelTabs/Views/CameraMirrorView.swift`: ~7.7K tokens
 <!-- claude-kit:end map -->
 
 ## Notes

@@ -160,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       store: MockClipboardProvider.fromLaunchArguments() != nil
         ? ClipboardHistoryStore(
           directory: FileManager.default.temporaryDirectory
-            .appendingPathComponent("whoa-stash-clipboard-sample"))
+            .appendingPathComponent("whoa-notch-clipboard-sample"))
         : ClipboardHistoryStore())
     clipboard.onStateChanged = { [weak self] items in
       self?.notchPanelController?.apply(clipboardItems: items)
@@ -482,25 +482,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       SettingsWindowController.shared.show(category)
     }
 
-    // Écran de bienvenue : une seule fois. Il porte les boutons « Start » et « See Tutorial » et
-    // attend un clic. Le réglage `hasSeenOnboarding` est posé dès qu'il s'affiche, pour qu'un
-    // relancement en cours de route ne le rejoue pas. `--show-welcome` le rejoue pour le vérifier.
+    // Parcours d'accueil : une seule fois, dans le panneau de l'encoche (cinq étapes, voir
+    // `OnboardingFlow`). Le réglage `hasSeenOnboarding` est posé dès qu'il s'affiche, pour qu'un
+    // relancement en cours de route ne le rejoue pas. `--show-welcome` le rejoue pour le vérifier,
+    // `--onboarding-step=<nom>` l'ouvre sur une étape.
     if WelcomeController.shouldShow(
       hasSeenOnboarding: settings.settings.hasSeenOnboarding,
       forced: CommandLine.arguments.contains("--show-welcome"))
     {
       let welcome = WelcomeController()
-      // La fenêtre de bienvenue prend le relais une fois le panneau de l'encoche refermé.
-      welcome.onStart = {
-        OnboardingWindowController.shared.show()
-      }
-      welcome.onTutorial = { [weak self] in
-        OnboardingWindowController.shared.show()
-        self?.notchPanelController?.togglePinnedReveal()
-      }
+      let start = CommandLine.arguments
+        .first { $0.hasPrefix("--onboarding-step=") }
+        .flatMap { OnboardingStep(launchName: String($0.dropFirst("--onboarding-step=".count))) }
       welcomeController = welcome
       settings.settings.hasSeenOnboarding = true
-      welcome.activate(showsButtons: true)
+      welcome.activate(tour: start ?? .hello)
     }
 
     // La fenêtre de bienvenue s'ouvre après le panneau de l'encoche ; `--show-onboarding`

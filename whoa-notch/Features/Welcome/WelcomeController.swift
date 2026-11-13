@@ -8,10 +8,9 @@ import SwiftUI
 /// l'`AppDelegate` quoi faire, et le panneau se replie dans l'encoche.
 final class WelcomeController {
 
-  /// Sans boutons, le panneau est plus bas d'autant.
-  static func size(showsButtons: Bool) -> CGSize {
-    CGSize(width: 464, height: showsButtons ? 318 : 260)
-  }
+  static let width: CGFloat = 464
+  /// Les lancements suivants : le bonjour seul, qui se replie tout seul.
+  static let greetingSize = CGSize(width: width, height: 260)
   /// Marge latérale du contenu : les raccords concaves de la silhouette mordent sur les côtés.
   static let contentInsetX: CGFloat = PanelGeometry.cornerRadius + 12
 
@@ -20,25 +19,29 @@ final class WelcomeController {
     !hasSeenOnboarding || forced
   }
 
-  var onStart: (() -> Void)?
-  var onTutorial: (() -> Void)?
+  /// Appelée quand le parcours se termine (Finish, Skip tour ou Échap), panneau replié.
+  var onFinish: (() -> Void)?
 
   private var panel: NSPanel?
   private var root: WelcomeRootView?
+  private var input: OnboardingInput?
 
-  /// Déplie le panneau sur l'écran principal, sous l'encoche. Au premier lancement
-  /// (`showsButtons`), il attend un clic sur « Start » ou « See Tutorial » ; ensuite, il joue
-  /// l'animation puis se replie seul.
-  func activate(showsButtons: Bool) {
+  /// Déplie le panneau sur l'écran principal, sous l'encoche. Au premier lancement (`tour`), il
+  /// déroule le parcours à partir de cette étape ; ensuite, il joue le bonjour puis se replie seul.
+  func activate(tour: OnboardingStep?) {
     guard panel == nil, let screen = NSScreen.main else { return }
-    let size = Self.size(showsButtons: showsButtons)
     let notch = NotchPanelGeometry.notchRect(on: screen)
+    let topInset = (notch?.height ?? NotchPanelGeometry.pillSize.height) + 6
+    let size =
+      tour == nil
+      ? Self.greetingSize
+      : CGSize(width: Self.width, height: OnboardingFlow.maxPanelHeight(topInset: topInset))
     let frame = NSRect(
       x: screen.frame.midX - size.width / 2,
       y: NotchPanelGeometry.topAnchor(on: screen) - size.height,
       width: size.width, height: size.height)
 
-    let panel = NSPanel(
+    let panel = OnboardingPanel(
       contentRect: frame,
       styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
@@ -54,25 +57,35 @@ final class WelcomeController {
       .canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary,
     ]
     // Sans boutons, le panneau ne doit rien intercepter : il se referme tout seul.
-    panel.ignoresMouseEvents = !showsButtons
+    panel.ignoresMouseEvents = tour == nil
 
+    var model: OnboardingModel?
+    if let tour { model = OnboardingModel(start: tour) }
     let root = WelcomeRootView(
       frame: NSRect(origin: .zero, size: size),
       size: size,
-      showsButtons: showsButtons,
+      model: model,
       collapsedSize: notch?.size ?? NotchPanelGeometry.pillSize,
-      topInset: (notch?.height ?? NotchPanelGeometry.pillSize.height) + 6)
-    root.onStart = { [weak self] in self?.dismiss(then: self?.onStart) }
-    root.onTutorial = { [weak self] in self?.dismiss(then: self?.onTutorial) }
+      topInset: topInset)
     panel.contentView = root
     panel.setFrame(frame, display: false)
-    panel.orderFrontRegardless()
+    if tour == nil {
+      panel.orderFrontRegardless()
+    } else {
+      panel.makeKeyAndOrderFront(nil)
+    }
 
     self.panel = panel
     self.root = root
     root.unfold()
 
-    if !showsButtons {
+    if let model {
+      model.onFinish = { [weak self] in self?.dismiss(then: self?.onFinish) }
+      model.onStepChanged = { [weak root] step in root?.resize(to: step) }
+      let input = OnboardingInput(model: model, window: panel)
+      input.onSkip = { [weak self] in self?.dismiss(then: self?.onFinish) }
+      self.input = input
+    } else {
       // Le temps du dépliage et du dessin, puis une pause pour lire avant de se replier.
       let reading = OverlayAnimation.allowsMotion ? HelloASCIIField.duration + 2.5 : 2.5
       DispatchQueue.main.asyncAfter(deadline: .now() + reading) { [weak self] in
@@ -85,11 +98,18 @@ final class WelcomeController {
     guard let panel, let root else { return }
     self.panel = nil
     self.root = nil
+    input?.stop()
+    input = nil
     root.fold {
       panel.close()
       action?()
     }
   }
+}
+
+/// Le parcours prend le clavier (flèches, Retour, Échap) sans activer l'app.
+private final class OnboardingPanel: NSPanel {
+  override var canBecomeKey: Bool { true }
 }
 
 /// Une vue qui accepte le premier clic : le panneau est `.nonactivatingPanel`, et sans cela le
@@ -102,20 +122,24 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
 /// Les deux chemins ont la même suite de segments, ce qui rend le dépliage animable.
 private final class WelcomeRootView: NSView {
 
-  var onStart: (() -> Void)?
-  var onTutorial: (() -> Void)?
-
   private let size: CGSize
-  private let showsButtons: Bool
+  private let model: OnboardingModel?
+  /// Hauteur peinte de la silhouette : celle de l'étape courante pour le parcours, sinon toute la fenêtre.
+  private var paintedHeight: CGFloat
   private let collapsedSize: NSSize
   private let topInset: CGFloat
   private let backgroundLayer = CAShapeLayer()
   private let strokeLayer = CAShapeLayer()
   private var hosting: NSView?
 
-  init(frame: NSRect, size: CGSize, showsButtons: Bool, collapsedSize: NSSize, topInset: CGFloat) {
+  init(
+    frame: NSRect, size: CGSize, model: OnboardingModel?, collapsedSize: NSSize,
+    topInset: CGFloat
+  ) {
     self.size = size
-    self.showsButtons = showsButtons
+    self.model = model
+    paintedHeight =
+      model.map { OnboardingFlow.panelHeight(for: $0.step, topInset: topInset) } ?? size.height
     self.collapsedSize = collapsedSize
     self.topInset = topInset
     super.init(frame: frame)
@@ -146,7 +170,7 @@ private final class WelcomeRootView: NSView {
 
   private func expandedPath() -> CGPath {
     PanelGeometry.silhouette(
-      in: bounds, anchoredTo: .top, size: size,
+      in: bounds, anchoredTo: .top, size: CGSize(width: size.width, height: paintedHeight),
       shoulderRadius: NotchPanelGeometry.expandedShoulderRadius,
       farRadius: NotchPanelGeometry.expandedBottomRadius)
   }
@@ -164,15 +188,24 @@ private final class WelcomeRootView: NSView {
     }
   }
 
+  /// Change la hauteur de la silhouette pour une nouvelle étape, avec le ressort du dépliage.
+  func resize(to step: OnboardingStep) {
+    paintedHeight = OnboardingFlow.panelHeight(for: step, topInset: topInset)
+    let target = expandedPath()
+    strokeLayer.springAnimate(keyPath: "path", to: target, preset: .gentle)
+    backgroundLayer.springAnimate(keyPath: "path", to: target, preset: .gentle)
+  }
+
   private func showContent(animated: Bool) {
-    let view = FirstMouseHostingView(
-      rootView: WelcomeView(
-        animated: animated,
-        showsButtons: showsButtons,
-        size: size,
-        topInset: topInset,
-        onStart: { [weak self] in self?.onStart?() },
-        onTutorial: { [weak self] in self?.onTutorial?() }))
+    let view: NSView
+    if let model {
+      view = FirstMouseHostingView(
+        rootView: OnboardingFlowView(
+          model: model, size: size, topInset: topInset, animatesHello: animated))
+    } else {
+      view = FirstMouseHostingView(
+        rootView: WelcomeView(animated: animated, size: size, topInset: topInset))
+    }
     view.frame = bounds
     view.autoresizingMask = [.width, .height]
     addSubview(view)
