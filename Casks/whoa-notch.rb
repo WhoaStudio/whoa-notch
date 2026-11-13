@@ -1,6 +1,6 @@
 cask "whoa-notch" do
-  version "1.0"
-  sha256 "c4fcade1239bd4df46dbbdb4f04f2626541d18deaceaed98057671d5faea25ee"
+  version "1.1"
+  sha256 "bab87f8f497e1f899d8737390f5449a9476dad6b5f224f16e3690b4b8f02211b"
 
   url "https://github.com/WhoaStudio/whoa-notch/releases/download/v#{version}/whoa-notch-#{version}.dmg"
   name "Whoa Notch"
