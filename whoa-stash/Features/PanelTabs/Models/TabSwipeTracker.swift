@@ -24,14 +24,23 @@ struct TabSwipeTracker {
   private(set) var offset: CGFloat = 0
   private(set) var isSwiping = false
 
+  private(set) var velocity: CGFloat = 0
+  private var lastSample: Double?
   private var vertical: CGFloat = 0
   private var isAbandoned = false
 
   /// Ajoute un déplacement. Renvoie `true` tant que le geste est un balayage en cours, c'est-à-dire
   /// quand la vue doit suivre le doigt (et garder l'événement pour elle).
   @discardableResult
-  mutating func move(dx: CGFloat, dy: CGFloat) -> Bool {
+  mutating func move(dx: CGFloat, dy: CGFloat, timestamp: Double? = nil) -> Bool {
     guard !isAbandoned else { return false }
+    if let timestamp {
+      if let lastSample, timestamp > lastSample {
+        let interval = timestamp - lastSample
+        velocity = interval < 0.12 ? dx / interval : 0
+      }
+      lastSample = timestamp
+    }
     offset += dx
     vertical += dy
 
@@ -49,10 +58,16 @@ struct TabSwipeTracker {
 
   /// Termine le geste. Renvoie le sens à suivre, ou `nil` si c'était un clic, un défilement ou un
   /// balayage trop court. Le suiveur est remis à zéro.
-  mutating func end() -> Direction? {
+  func releaseVelocity(at timestamp: Double) -> CGFloat {
+    guard let lastSample, timestamp - lastSample < 0.10 else { return 0 }
+    return velocity
+  }
+
+  mutating func end(velocity: CGFloat = 0) -> Direction? {
     defer { self = TabSwipeTracker() }
-    guard isSwiping, abs(offset) >= Self.commitThreshold else { return nil }
-    return offset < 0 ? .next : .previous
+    let projected = offset + velocity * 0.08
+    guard isSwiping, abs(projected) >= Self.commitThreshold else { return nil }
+    return projected < 0 ? .next : .previous
   }
 
   /// Abandonne le geste sans rien décider (fenêtre qui perd la souris, repli du panneau).

@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreImage
 import OSLog
 
 /// Où en est l'autorisation d'accès à la caméra, réduite à ce que l'onglet Mirror distingue.
@@ -29,6 +30,49 @@ protocol CameraMirrorProviding: AnyObject {
 
   /// Éteint la caméra : c'est ce qui fait retomber le voyant vert.
   func stopCapture()
+
+  /// Dernière image reçue, pour la copier. `nil` sans image (fausse source, caméra éteinte).
+  func snapshot() -> CGImage?
+}
+
+extension CameraMirrorProviding {
+  func snapshot() -> CGImage? { nil }
+}
+
+/// Garde la dernière image de la caméra. Le délégué tourne sur la file de capture : l'image
+/// passe par un verrou, et seule la référence est conservée (la conversion en `CGImage` se fait
+/// à la demande, jamais à chaque image).
+nonisolated final class MirrorFrameGrabber: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
+  @unchecked Sendable
+{
+  private let lock = NSLock()
+  nonisolated(unsafe) private var latest: CVPixelBuffer?
+  private let context = CIContext()
+
+  func captureOutput(
+    _ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
+    from connection: AVCaptureConnection
+  ) {
+    let buffer = CMSampleBufferGetImageBuffer(sampleBuffer)
+    lock.lock()
+    latest = buffer
+    lock.unlock()
+  }
+
+  func image() -> CGImage? {
+    lock.lock()
+    let buffer = latest
+    lock.unlock()
+    guard let buffer else { return nil }
+    let image = CIImage(cvPixelBuffer: buffer)
+    return context.createCGImage(image, from: image.extent)
+  }
+
+  func clear() {
+    lock.lock()
+    latest = nil
+    lock.unlock()
+  }
 }
 
 /// La vraie caméra, via une `AVCaptureSession`. `startRunning()` et `stopRunning()` bloquent
@@ -38,6 +82,8 @@ final class AVCameraMirrorService: CameraMirrorProviding {
 
   private(set) var session: AVCaptureSession?
   private let queue = DispatchQueue(label: "ugolin-olle.whoa-stash.camera-mirror")
+  private let frameQueue = DispatchQueue(label: "ugolin-olle.whoa-stash.camera-mirror.frames")
+  private let grabber = MirrorFrameGrabber()
 
   var accessStatus: CameraAccess {
     switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -61,11 +107,16 @@ final class AVCameraMirrorService: CameraMirrorProviding {
       do {
         let input = try AVCaptureDeviceInput(device: device)
         let newSession = AVCaptureSession()
-        // Un aperçu de quelques centaines de points n'a pas besoin de la pleine
-        // résolution du capteur.
-        newSession.sessionPreset = .medium
+        // Un cercle de 240 pt fait 480 px sur un écran Retina : `.medium` (480×360) était étiré,
+        // `.high` suffit sans demander la pleine résolution du capteur.
+        newSession.sessionPreset = .high
         guard newSession.canAddInput(input) else { return false }
         newSession.addInput(input)
+        // Sortie d'images, pour copier l'image figée.
+        let output = AVCaptureVideoDataOutput()
+        output.alwaysDiscardsLateVideoFrames = true
+        output.setSampleBufferDelegate(grabber, queue: frameQueue)
+        if newSession.canAddOutput(output) { newSession.addOutput(output) }
         session = newSession
       } catch {
         Log.camera.error(
@@ -89,8 +140,11 @@ final class AVCameraMirrorService: CameraMirrorProviding {
     queue.async {
       if running.isRunning { running.stopRunning() }
     }
+    grabber.clear()
     Log.camera.info("Caméra arrêtée")
   }
+
+  func snapshot() -> CGImage? { grabber.image() }
 }
 
 // MARK: - Source de développement

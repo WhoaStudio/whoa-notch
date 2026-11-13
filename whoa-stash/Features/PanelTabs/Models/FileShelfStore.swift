@@ -132,6 +132,26 @@ final class FileShelfStore {
     commit()
   }
 
+  /// Met un fichier du bac à la corbeille et le retire de la liste. Un fichier déjà disparu du
+  /// disque est simplement retiré. Renvoie `false` — et laisse le fichier dans le bac — si la
+  /// corbeille le refuse.
+  @discardableResult
+  func trash(_ url: URL) -> Bool {
+    guard urls.contains(url) else { return false }
+    if fileManager.fileExists(atPath: url.path) {
+      do {
+        try fileManager.trashItem(at: url, resultingItemURL: nil)
+      } catch {
+        Log.sidePanel.error(
+          "Corbeille impossible : \(error.localizedDescription, privacy: .private)")
+        return false
+      }
+    }
+    urls.removeAll { $0 == url }
+    commit()
+    return true
+  }
+
   private func commit() {
     persist()
     NotificationCenter.default.post(name: Self.didChangeNotification, object: self)

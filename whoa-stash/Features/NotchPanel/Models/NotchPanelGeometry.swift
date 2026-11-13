@@ -82,7 +82,9 @@ enum NotchPanelGeometry {
 
   /// Réserve haute du gabarit de l'île et de la vue Transform, indépendante des onglets.
   private static let islandTopSizeAllowance: CGFloat = 2
-  static let islandGearDrop: CGFloat = 0
+  /// En mode île, la silhouette commence `islandTopGap` sous le bord du cadre : l'engrenage est
+  /// descendu d'autant pour que ses glyphes restent entièrement dans la silhouette.
+  static let islandGearDrop: CGFloat = islandTopGap
 
   /// Dont l'engrenage des Préférences est descendu sous le centre de la bande de l'encoche :
   /// c'est l'air qu'il garde au-dessus de lui, à régler pour le monter ou le descendre.
@@ -172,7 +174,7 @@ enum NotchPanelGeometry {
 
   /// Onglet Analytics : un seul bloc vertical (en-tête, carte du fournisseur, filtres, activité), plus haut que les autres onglets. Le panneau ne grandit donc que pour lui (voir
   /// `panelRect`).
-  static let analyticsTabHeight: CGFloat = 280
+  static let analyticsTabHeight: CGFloat = 320
 
   /// Largeur du contenu par défaut, celle des onglets Global, Calendar, Mirror et Stay Awake.
   static let aiTabWidth: CGFloat = 440
@@ -184,7 +186,7 @@ enum NotchPanelGeometry {
   /// Onglet Clipboard : plus haut et plus large que les autres, pour que les cartes de
   /// l'historique aient la place de respirer. Seul cet onglet s'élargit ; les autres gardent
   /// la largeur de `aiTabWidth` (voir `contentWidth(for:)`).
-  static let clipboardTabHeight: CGFloat = 160
+  static let clipboardTabHeight: CGFloat = 168
   static let clipboardTabWidth: CGFloat = 560
 
   /// Onglet Tray : seul onglet à s'élargir pour ses vignettes de fichiers.

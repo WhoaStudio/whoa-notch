@@ -34,6 +34,7 @@ final class WeekAgendaRowView: NSView {
 
     strip.onSelectionChanged = { [weak self] _ in self?.reloadSelectedDay() }
     agendaList.apply(.loading)
+    agendaList.onAccessResolved = { [weak self] in self?.reloadSelectedDay() }
     applyPalette()
   }
 

@@ -17,19 +17,12 @@ nonisolated enum ActivityFormatting {
     }
   }
 
-  /// « $12.34 » ; au-delà de 1 000 $ les centimes ne disent plus rien. `nil` : aucun modèle de
-  /// la période n'a de tarif connu.
-  static func money(_ amount: Double?) -> String {
-    guard let amount else { return "n/a" }
-    return amount < 1_000 ? String(format: "$%.2f", amount) : "$" + tokens(Int(amount.rounded()))
-  }
-
   static func activeDays(_ summary: ActivitySummary) -> String {
     "\(summary.activeDays)/\(summary.daysInPeriod)"
   }
 
-  /// « 1.8M · $49.13 » : jetons et coût du mois, sur une ligne, pour la pastille de l'en-tête.
+  /// « 1.8M » : les jetons du mois, pour la pastille de l'en-tête.
   static func chip(_ summary: ActivitySummary) -> String {
-    "\(tokens(summary.tokens)) · \(money(summary.cost))"
+    tokens(summary.tokens)
   }
 }

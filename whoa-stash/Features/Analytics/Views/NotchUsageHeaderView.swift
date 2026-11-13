@@ -43,6 +43,7 @@ final class NotchUsageIconButton: NSView {
 
   private let iconView = NSImageView()
   private var isHovered = false
+  private var isSpinning = false
   private var trackingArea: NSTrackingArea?
 
   init(symbolName: String, description: String) {
@@ -51,8 +52,33 @@ final class NotchUsageIconButton: NSView {
     iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: description)?
       .withSymbolConfiguration(configuration)
     iconView.imageScaling = .scaleProportionallyDown
+    iconView.wantsLayer = true
     addSubview(iconView)
     applyTint()
+    setAccessibilityElement(true)
+    setAccessibilityRole(.button)
+    setAccessibilityLabel(description)
+    toolTip = description
+  }
+
+  /// L'icône tourne tant qu'une lecture est en cours ; sans mouvement permis, elle s'estompe.
+  func setSpinning(_ spinning: Bool) {
+    guard spinning != isSpinning else { return }
+    isSpinning = spinning
+    iconView.layer?.removeAnimation(forKey: "spin")
+    iconView.alphaValue = 1
+    guard spinning else { return }
+    guard OverlayAnimation.allowsMotion else {
+      iconView.alphaValue = 0.4
+      return
+    }
+    let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+    spin.fromValue = 0
+    spin.toValue = -2 * Double.pi
+    spin.duration = 0.9
+    spin.repeatCount = .infinity
+    spin.timingFunction = CAMediaTimingFunction(name: .linear)
+    iconView.layer?.add(spin, forKey: "spin")
   }
 
   @available(*, unavailable)
@@ -67,6 +93,9 @@ final class NotchUsageIconButton: NSView {
   override func layout() {
     super.layout()
     iconView.frame = bounds
+    // La rotation se fait autour du centre de l'icône.
+    iconView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+    iconView.layer?.position = CGPoint(x: iconView.frame.midX, y: iconView.frame.midY)
   }
 
   override func updateTrackingAreas() {
@@ -118,6 +147,9 @@ final class NotchUsageProviderTabView: NSView {
 
   private let markView = NotchUsageMarkView()
   private let label = NSTextField(labelWithString: "")
+  private let ring = NotchUsageRingView()
+  private var tone = NotchUsageTone.plenty
+  private static let ringSize: CGFloat = 13
 
   var isSelected = false {
     didSet { applySelection() }
@@ -133,7 +165,10 @@ final class NotchUsageProviderTabView: NSView {
     label.font = .monospacedSystemFont(ofSize: 12.5, weight: .medium)
     addSubview(markView)
     addSubview(label)
+    addSubview(ring)
     applySelection()
+    setAccessibilityElement(true)
+    setAccessibilityRole(.button)
   }
 
   @available(*, unavailable)
@@ -145,17 +180,26 @@ final class NotchUsageProviderTabView: NSView {
     let percentage = reading.remainingPercentage.map { "\($0)%" } ?? "--"
     label.stringValue = "\(reading.windowLabel) \(percentage)"
     label.sizeToFit()
+    tone = NotchUsageTone(remaining: reading.remaining)
+    ring.remaining = reading.remaining
+    setAccessibilityLabel("\(provider.name), \(reading.windowLabel) \(percentage) remaining")
+    applySelection()
     invalidateIntrinsicContentSize()
     superview?.needsLayout = true
   }
 
   private func applySelection() {
     layer?.backgroundColor = NSColor.white.withAlphaComponent(isSelected ? 0.12 : 0).cgColor
-    label.textColor = NSColor.white.withAlphaComponent(isSelected ? 1 : 0.8)
+    // Blanc tant qu'il en reste ; ambre puis rouge quand la limite approche.
+    label.textColor =
+      tone == .plenty
+      ? NSColor.white.withAlphaComponent(isSelected ? 1 : 0.8)
+      : tone.textColor.withAlphaComponent(isSelected ? 1 : 0.9)
   }
 
   var fittingWidth: CGFloat {
-    Self.padding + Self.markSize + Self.gap + ceil(label.intrinsicContentSize.width) + Self.padding
+    Self.padding + Self.markSize + Self.gap + ceil(label.intrinsicContentSize.width) + Self.gap
+      + Self.ringSize + Self.padding
   }
 
   override func layout() {
@@ -167,6 +211,9 @@ final class NotchUsageProviderTabView: NSView {
     label.frame = NSRect(
       x: markView.frame.maxX + Self.gap, y: (bounds.height - size.height) / 2,
       width: ceil(size.width), height: size.height)
+    ring.frame = NSRect(
+      x: label.frame.maxX + Self.gap, y: (bounds.height - Self.ringSize) / 2,
+      width: Self.ringSize, height: Self.ringSize)
   }
 
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -222,6 +269,10 @@ final class NotchUsageHeaderView: NSView {
     needsLayout = true
   }
 
+  func setRefreshing(_ refreshing: Bool) {
+    refreshButton.setSpinning(refreshing)
+  }
+
   func select(_ provider: NotchUsageProvider) {
     for tab in tabs { tab.isSelected = tab.provider == provider }
   }
@@ -247,7 +298,9 @@ final class NotchUsageHeaderView: NSView {
     let free = NSRect(
       x: titleLabel.frame.maxX, y: 0,
       width: settingsButton.frame.minX - titleLabel.frame.maxX, height: bounds.height)
-    var x = max(free.minX, free.midX - groupWidth / 2)
+    // Centré, mais jamais sur le titre ni sur l'engrenage, même quand un libellé s'allonge.
+    let centered = free.midX - groupWidth / 2
+    var x = max(free.minX + 8, min(centered, free.maxX - groupWidth - 8))
 
     refreshButton.frame = NSRect(
       x: x, y: (bounds.height - buttonSize) / 2, width: buttonSize, height: buttonSize)

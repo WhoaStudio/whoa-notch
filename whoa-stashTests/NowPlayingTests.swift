@@ -124,7 +124,17 @@ struct NowPlayingViewModelTests {
     init() {}
     func start() {}
     func stop() {}
+    var seeks: [TimeInterval] = []
     func send(_ command: NowPlayingCommand) { sent.append(command) }
+    func seek(to seconds: TimeInterval) { seeks.append(seconds) }
+  }
+
+  @Test("un déplacement sur la barre est transmis au lecteur, en secondes")
+  func forwardsSeek() {
+    let provider = RecordingProvider()
+    let model = NowPlayingViewModel(provider: provider)
+    model.seek(to: 125.5)
+    #expect(provider.seeks == [125.5])
   }
 
   @Test("la vue apparaît dès que ça joue et se masque après le délai d'arrêt")

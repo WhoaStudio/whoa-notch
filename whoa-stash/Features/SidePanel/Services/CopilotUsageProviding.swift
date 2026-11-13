@@ -8,6 +8,7 @@ struct MockCopilotUsageProvider: CopilotUsageProviding {
   let percent: Double
 
   func fetchSnapshot() async throws -> CopilotUsageSnapshot {
+    try await MockUsageBehavior.apply(provider: "copilot")
     let now = Date()
     return CopilotUsageSnapshot(
       premiumInteractions: ClaudeUsageWindow(

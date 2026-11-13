@@ -86,3 +86,14 @@ nonisolated struct MonthGridLayout: Equatable {
     }
   }
 }
+
+extension MonthGridLayout {
+
+  /// Nombre de semaines qui portent au moins un jour du mois : quatre à six. La grille se
+  /// découpe sur ce nombre et non sur `weekRowCount`, sans quoi la plupart des mois traînent
+  /// une ligne vide qui écrase toutes les autres.
+  var rowCount: Int {
+    guard let last = days.lastIndex(where: { $0 != nil }) else { return Self.weekRowCount }
+    return last / Self.columnCount + 1
+  }
+}

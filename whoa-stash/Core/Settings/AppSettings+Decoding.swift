@@ -173,12 +173,16 @@ extension MailSettings {
 
 extension ColorPickerSettings {
   enum CodingKeys: String, CodingKey {
-    case recent
+    case recent, saved, format
   }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.init(recent: container.value(.recent, ColorPickerSettings().recent))
+    let defaults = ColorPickerSettings()
+    self.init(
+      recent: container.value(.recent, defaults.recent),
+      saved: container.value(.saved, defaults.saved),
+      format: container.value(.format, defaults.format))
   }
 }
 

@@ -41,4 +41,14 @@ final class ClipboardHistoryViewModel {
     store.add(classification, sourceBundleID: item.sourceBundleID)
     onStateChanged?(store.items)
   }
+
+  func remove(_ item: ClipboardItem) {
+    store.remove(id: item.id)
+    onStateChanged?(store.items)
+  }
+
+  func togglePin(_ item: ClipboardItem) {
+    store.setPinned(!item.isPinned, id: item.id)
+    onStateChanged?(store.items)
+  }
 }

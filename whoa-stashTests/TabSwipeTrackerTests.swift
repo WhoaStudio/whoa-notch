@@ -64,6 +64,23 @@ struct TabSwipeTrackerTests {
     #expect(tracker.offset == 0)
   }
 
+  @Test func unGesteCourtEtRapidePeutChangerDOnglet() {
+    var tracker = TabSwipeTracker()
+    tracker.move(dx: -8, dy: 0, timestamp: 1)
+    tracker.move(dx: -12, dy: 0, timestamp: 1.02)
+    let velocity = tracker.releaseVelocity(at: 1.03)
+    #expect(tracker.end(velocity: velocity) == .next)
+  }
+
+  @Test func unePauseAvantLeRelacheAnnuleLaVitesse() {
+    var tracker = TabSwipeTracker()
+    tracker.move(dx: -8, dy: 0, timestamp: 1)
+    tracker.move(dx: -12, dy: 0, timestamp: 1.02)
+    let velocity = tracker.releaseVelocity(at: 1.20)
+    #expect(velocity == 0)
+    #expect(tracker.end(velocity: velocity) == nil)
+  }
+
   @Test func lOngletVoisinNeReboucleJamais() {
     #expect(NotchTab.global.neighbor(.previous) == nil)
     #expect(NotchTab.colorPicker.neighbor(.next) == nil)

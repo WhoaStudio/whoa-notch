@@ -65,6 +65,7 @@ final class NotchPanelContentView: NSView {
   /// L'onglet que la pastille a quitté, où un second clic ramène (comme `tabBeforeStayAwake`).
   private var tabBeforeAnalytics: NotchTab = .global
   private let stayAwakeTab = StayAwakeTabView()
+  private let stayAwakeIdleIndicator = StayAwakeIdleIndicator()
   private var stayAwakeState = StayAwakeState()
 
   /// L'onglet que la tasse a quitté, où un second clic ramène : Stay Awake n'a pas de bulle
@@ -125,6 +126,12 @@ final class NotchPanelContentView: NSView {
   var onSelectClipboardItem: ((ClipboardItem) -> Void)? {
     didSet { clipboardTab.onSelect = onSelectClipboardItem }
   }
+  var onDeleteClipboardItem: ((ClipboardItem) -> Void)? {
+    didSet { clipboardTab.onDelete = onDeleteClipboardItem }
+  }
+  var onTogglePinClipboardItem: ((ClipboardItem) -> Void)? {
+    didSet { clipboardTab.onTogglePin = onTogglePinClipboardItem }
+  }
   var clipboardImageURL: ((ClipboardItem) -> URL?)? {
     didSet { clipboardTab.imageURLProvider = clipboardImageURL }
   }
@@ -167,7 +174,9 @@ final class NotchPanelContentView: NSView {
   var terminalSession: TerminalSession?
 
   /// Vrai quand le panneau est déplié sur l'onglet Terminal ou Notes : c'est alors lui qui doit avoir le clavier.
-  var wantsKeyboard: Bool { isExpanded && (selectedTab == .terminal || selectedTab == .notes) }
+  var wantsKeyboard: Bool {
+    isExpanded && (selectedTab == .terminal || selectedTab == .notes)
+  }
 
   /// Une demande à laquelle on peut répondre est affichée sur l'onglet AI : la fenêtre peut prendre le
   /// clavier au clic (sans le voler à l'ouverture), pour les touches de la carte et ses champs.
@@ -195,12 +204,24 @@ final class NotchPanelContentView: NSView {
   /// toujours le cadre déplié, donc la vue est bien plus large que ce qu'elle dessine, et
   /// seule la forme peinte doit répondre (voir `hitTest(_:)`).
   private var silhouette: CGPath?
+  private var shapeBounds: CGRect = .zero
+  private var transitionGeneration = 0
+  private var shapeGeneration = 0
+  private var waitingForShape = false
+  private var waitingForFade = false
+  private var verticalStart: CGPath?
+  private var verticalTarget: CGPath?
+  private var verticalSwipe = TabSwipeTracker()
+  private var verticalReleaseVelocity: CGFloat = 0
+  var isTrackingVerticalSwipe: Bool { verticalSwipe.isSwiping }
+  private let peekTitle = NSTextField(labelWithString: "")
 
   /// Taille de la silhouette repliée, décidée par l'écran : l'encoche matérielle n'a pas les
   /// mêmes dimensions d'un Mac à l'autre, et une pastille les remplace quand il n'y en a pas.
   var collapsedSize: NSSize = NotchPanelGeometry.pillSize {
     didSet {
       guard collapsedSize != oldValue else { return }
+      shapeBounds = .zero
       needsLayout = true
     }
   }
@@ -210,8 +231,21 @@ final class NotchPanelContentView: NSView {
   var collapsedTopGap: CGFloat = 0 {
     didSet {
       guard collapsedTopGap != oldValue else { return }
+      shapeBounds = .zero
       needsLayout = true
     }
+  }
+
+  var hasHardwareNotch = false {
+    didSet {
+      guard hasHardwareNotch != oldValue else { return }
+      shapeBounds = .zero
+      needsLayout = true
+    }
+  }
+
+  private var stayAwakeNotchExtension: CGFloat {
+    hasHardwareNotch && stayAwakeState.isActive ? StayAwakeIdleIndicator.notchExtension : 0
   }
 
   private(set) var isExpanded = false
@@ -223,6 +257,7 @@ final class NotchPanelContentView: NSView {
     guard peeking != isHoverPeeking else { return }
     isHoverPeeking = peeking
     guard !isExpanded else { return }
+    layoutNowPlaying()
     applyShape(expanded: false, animated: true)
   }
 
@@ -268,6 +303,7 @@ final class NotchPanelContentView: NSView {
     // montre « Nothing playing ».
     nowPlayingRow.apply(nil)
     nowPlayingRow.onCommand = { [weak self] command in self?.onNowPlayingCommand?(command) }
+    nowPlayingRow.onSeek = { [weak self] seconds in self?.onNowPlayingSeek?(seconds) }
     globalTab.addSubview(nowPlayingRow)
     contentContainer.addSubview(globalTab)
 
@@ -305,6 +341,14 @@ final class NotchPanelContentView: NSView {
     addSubview(capsule)
     nowPlayingWings.layer?.opacity = 0
     addSubview(nowPlayingWings)
+    peekTitle.font = .systemFont(ofSize: 12, weight: .medium)
+    peekTitle.textColor = .white
+    peekTitle.lineBreakMode = .byTruncatingTail
+    peekTitle.maximumNumberOfLines = 1
+    peekTitle.alignment = .center
+    peekTitle.wantsLayer = true
+    peekTitle.layer?.opacity = 0
+    addSubview(peekTitle)
     // Réglées comme la pochette du lecteur, qui est l'état d'arrivée du dépliage.
     flightArtwork.badgeScale = 0.36
     flightArtwork.badgeInset = 4
@@ -321,6 +365,7 @@ final class NotchPanelContentView: NSView {
     addSubview(agentEventPill)
     mailMessagePill.layer?.opacity = 0
     addSubview(mailMessagePill)
+    addSubview(stayAwakeIdleIndicator)
     applySelection(animated: false)
 
     // Le panneau tout entier est la cible de dépôt, et pas le rectangle du bac : un fichier
@@ -354,9 +399,26 @@ final class NotchPanelContentView: NSView {
   }
 
   func apply(stayAwakeState: StayAwakeState) {
+    let toggled = self.stayAwakeState.isActive != stayAwakeState.isActive
     self.stayAwakeState = stayAwakeState
     stayAwakeTab.apply(stayAwakeState)
-    updateStayAwakeButton()
+    if toggled {
+      updateStayAwakeButton()
+      if !isExpanded, hasHardwareNotch {
+        layoutNowPlaying()
+        applyShape(expanded: false, animated: true)
+      }
+      updateStayAwakeIdleIndicator(animated: true)
+    }
+  }
+
+  private func updateStayAwakeIdleIndicator(animated: Bool, shapeSettled: Bool = false) {
+    let revealingNotch = hasHardwareNotch && !shapeSettled
+      && backgroundLayer.animation(forKey: "path") != nil && stayAwakeIdleIndicator.layer?.opacity == 0
+    stayAwakeIdleIndicator.apply(
+      active: stayAwakeState.isActive && !revealingNotch,
+      expanded: isExpanded || waitingForFade,
+      animated: animated)
   }
 
   /// Jaune tant que le Mac est tenu éveillé ; sinon, clair quand l'onglet est ouvert.
@@ -394,13 +456,13 @@ final class NotchPanelContentView: NSView {
     }
   }
 
-  /// Posée juste à gauche de l'encoche, centrée sur la hauteur des boutons.
+  /// Posée au bord gauche du panneau, sur la marge du contenu (le glyphe tombe sur ce bord, comme
+  /// l'engrenage à droite), centrée sur la hauteur des boutons.
   private func layoutUsageChip() {
     let width = usageChip.fittingWidth
     let height = NotchUsageChipView.fittingHeight
-    let notchLeft = bounds.midX - collapsedSize.width / 2
     usageChip.frame = NSRect(
-      x: notchLeft - 4 - width,
+      x: panelRect.minX + NotchPanelGeometry.contentInsetX - NotchUsageChipView.edgePadding,
       y: stayAwakeButton.frame.midY - height / 2,
       width: width, height: height)
   }
@@ -511,10 +573,11 @@ final class NotchPanelContentView: NSView {
     guard tab != selectedTab else { return }
     closeTransform(animated: false)
     cancelNowPlayingFlight()
+    let outgoing = contentView(for: selectedTab)
     let travel: CGFloat = tab.rawValue > selectedTab.rawValue ? 12 : -12
     selectedTab = tab
     capsule.select(tab, animated: animated)
-    applySelection(animated: animated, travel: travel)
+    applySelection(animated: animated, travel: travel, outgoing: outgoing)
     // Seuls les onglets AI et Mirror sont plus hauts : la silhouette et la capsule suivent leur hauteur.
     layoutTabBodies()
     moveCapsuleToSelectedTab(animated: animated)
@@ -555,11 +618,28 @@ final class NotchPanelContentView: NSView {
   /// Montre l'onglet choisi et retire les autres. Les vues inactives sont réellement masquées
   /// et pas seulement transparentes : le bac à fichiers ne doit pas capter un glisser pendant
   /// qu'un autre onglet est affiché.
-  private func applySelection(animated: Bool, travel: CGFloat = 0) {
+  private func applySelection(animated: Bool, travel: CGFloat = 0, outgoing: NSView? = nil) {
     let active = contentView(for: selectedTab)
 
     for view in tabContentViews {
       let isActive = view === active
+      if animated, OverlayAnimation.allowsMotion, isExpanded, view === outgoing,
+        let layer = view.layer {
+        let shift = layer.presentation()?.value(forKeyPath: "transform.translation.x") as? CGFloat ?? 0
+        CATransaction.begin()
+        PanelFold.fade(layer, to: 0)
+        layer.springAnimate(keyPath: "transform.translation.x", to: shift - travel)
+        CATransaction.setCompletionBlock { [weak self, weak view] in
+          MainActor.assumeIsolated {
+            guard let self, let view, view !== self.contentView(for: self.selectedTab),
+              view.layer?.animation(forKey: "opacity") == nil else { return }
+            view.isHidden = true
+          }
+        }
+        CATransaction.commit()
+        continue
+      }
+      resetSwipeOffset(of: view, animated: false)
       view.isHidden = !isActive
       view.layer?.removeAnimation(forKey: "contentReveal")
       view.layer?.opacity = isActive ? 1 : 0
@@ -582,10 +662,19 @@ final class NotchPanelContentView: NSView {
     // La capsule est hors de la silhouette — c'est tout l'objet de sa forme détachée — donc
     // elle répond pour elle-même, et seulement dépliée : repliée elle est invisible, et rien
     // d'invisible ne doit avaler un clic.
-    guard silhouette.contains(local) || (isExpanded && capsuleShape().contains(local)) else {
+    let visibleShape = backgroundLayer.presentation()?.path ?? silhouette
+    guard visibleShape.contains(local) ||
+      (isExpanded && capsuleShape().contains(local) && isContentVisible)
+    else {
       return nil
     }
-    return super.hitTest(point)
+    if !isExpanded || !isContentVisible { return self }
+    let hit = super.hitTest(point)
+    if hit === peekTitle { return self }
+    if let hit, tabContentViews.contains(where: {
+      $0 !== contentView(for: selectedTab) && (hit === $0 || hit.isDescendant(of: $0))
+    }) { return self }
+    return hit
   }
 
   /// Le contour de la capsule, pour le test de contact : son cadre est un rectangle, mais ses
@@ -596,6 +685,117 @@ final class NotchPanelContentView: NSView {
     return CGPath(roundedRect: frame, cornerWidth: radius, cornerHeight: radius, transform: nil)
   }
 
+  /// Seul le centre libre de l'en-tête démarre un geste vertical.
+  func resetSelectionWhenFolded() {
+    guard !waitingForFade, verticalStart == nil,
+      backgroundLayer.animation(forKey: "path") == nil else { return }
+    select(.global, animated: false)
+  }
+
+  func acceptsVerticalSwipe(at point: NSPoint) -> Bool {
+    let path = backgroundLayer.presentation()?.path ?? silhouette
+    return path?.contains(point) == true &&
+      abs(point.x - bounds.midX) <= collapsedSize.width / 2 &&
+      point.y >= bounds.maxY - collapsedTopGap - collapsedSize.height
+  }
+
+  func trackVerticalSwipe(_ event: NSEvent) -> Bool? {
+    if event.phase.contains(.began) { cancelVerticalSwipe() }
+    if event.phase.contains(.cancelled) {
+      cancelVerticalSwipe()
+      return nil
+    }
+    if event.phase.contains(.ended) {
+      let velocity = verticalSwipe.releaseVelocity(at: event.timestamp)
+      let offset = verticalSwipe.offset
+      let direction = verticalSwipe.end(velocity: velocity)
+      let commits = direction == (isExpanded ? .previous : .next)
+      if commits {
+        let travel = max(1, panelRect.height - collapsedSize.height - abs(offset))
+        verticalReleaseVelocity = min(8, abs(velocity) / travel)
+      } else {
+        cancelVerticalSwipe()
+      }
+      return commits ? !isExpanded : nil
+    }
+
+    let dy = event.isDirectionInvertedFromDevice ? event.scrollingDeltaY : -event.scrollingDeltaY
+    guard verticalSwipe.move(dx: -dy, dy: event.scrollingDeltaX, timestamp: event.timestamp) else { return nil }
+    let travel = verticalSwipe.offset * (isExpanded ? 1 : -1)
+    guard OverlayAnimation.allowsMotion, travel > 0 || verticalStart != nil else { return nil }
+
+    if verticalStart == nil {
+      verticalStart = backgroundLayer.presentation()?.path ?? silhouette
+      verticalTarget = isExpanded ? foldedPath : expandedPath()
+    }
+    guard let verticalStart, let verticalTarget else { return nil }
+    let progress = min(1, max(0, travel / max(1, panelRect.height - collapsedSize.height)))
+    guard let path = Self.interpolate(from: verticalStart, to: verticalTarget, progress: progress)
+    else { return nil }
+    PanelFold.apply(path: path, to: [backgroundLayer, strokeLayer, contentMask], in: bounds,
+                    to: 0, animated: false)
+    if let layer = contentContainer.layer { PanelFold.fade(layer, to: 0) }
+    if let layer = capsule.layer { PanelFold.fade(layer, to: 0) }
+    return nil
+  }
+
+  private var isContentVisible: Bool {
+    guard let layer = contentContainer.layer else { return false }
+    return (layer.presentation()?.opacity ?? layer.opacity) > 0.1
+  }
+
+  func cancelVerticalSwipe() {
+    verticalSwipe.cancel()
+    verticalReleaseVelocity = 0
+    guard verticalStart != nil else { return }
+    verticalStart = nil
+    verticalTarget = nil
+    waitingForShape = isExpanded
+    applyShape(expanded: isExpanded, animated: true, force: true)
+    if isExpanded {
+      GlassReveal.play(on: contentContainer)
+      applyCapsuleReveal(animated: true)
+    }
+  }
+
+  private static func interpolate(from: CGPath, to: CGPath, progress: CGFloat) -> CGPath? {
+    func elements(_ path: CGPath) -> [(CGPathElementType, [CGPoint])] {
+      var result: [(CGPathElementType, [CGPoint])] = []
+      path.applyWithBlock { pointer in
+        let element = pointer.pointee
+        let count: Int
+        switch element.type {
+        case .moveToPoint, .addLineToPoint: count = 1
+        case .addQuadCurveToPoint: count = 2
+        case .addCurveToPoint: count = 3
+        default: count = 0
+        }
+        result.append((element.type, Array(UnsafeBufferPointer(start: element.points, count: count))))
+      }
+      return result
+    }
+
+    let start = elements(from)
+    let end = elements(to)
+    guard start.count == end.count else { return nil }
+    let path = CGMutablePath()
+    for (first, last) in zip(start, end) {
+      guard first.0 == last.0 else { return nil }
+      let points = zip(first.1, last.1).map { a, b in
+        CGPoint(x: a.x + (b.x - a.x) * progress, y: a.y + (b.y - a.y) * progress)
+      }
+      switch first.0 {
+      case .moveToPoint: path.move(to: points[0])
+      case .addLineToPoint: path.addLine(to: points[0])
+      case .addQuadCurveToPoint: path.addQuadCurve(to: points[1], control: points[0])
+      case .addCurveToPoint: path.addCurve(to: points[2], control1: points[0], control2: points[1])
+      case .closeSubpath: path.closeSubpath()
+      @unknown default: return nil
+      }
+    }
+    return path
+  }
+
   // MARK: - Balayage d'onglets
 
   /// Balayage à deux doigts. Les vues qui défilent d'elles-mêmes (la semaine, le presse-papiers)
@@ -603,7 +803,7 @@ final class NotchPanelContentView: NSView {
   /// et ce que ces vues ne savent pas défiler. Les molettes sans phase (souris) sont ignorées :
   /// à la souris, on glisse.
   override func scrollWheel(with event: NSEvent) {
-    guard isExpanded, event.hasPreciseScrollingDeltas, !event.phase.isEmpty else {
+    guard isExpanded, isContentVisible, event.hasPreciseScrollingDeltas, !event.phase.isEmpty else {
       super.scrollWheel(with: event)
       return
     }
@@ -614,13 +814,14 @@ final class NotchPanelContentView: NSView {
       return
     }
 
-    if swipe.move(dx: event.scrollingDeltaX, dy: event.scrollingDeltaY) {
+    if swipe.move(dx: event.scrollingDeltaX, dy: event.scrollingDeltaY, timestamp: event.timestamp) {
       followSwipe()
     } else if !swipe.isSwiping {
       super.scrollWheel(with: event)
     }
     if event.phase.contains(.ended) {
-      settleSwipe(direction: swipe.end())
+      let velocity = swipe.releaseVelocity(at: event.timestamp)
+      settleSwipe(direction: swipe.end(velocity: velocity), velocity: velocity)
     }
   }
 
@@ -629,8 +830,8 @@ final class NotchPanelContentView: NSView {
   }
 
   override func mouseDragged(with event: NSEvent) {
-    guard isExpanded else { return }
-    if swipe.move(dx: event.deltaX, dy: -event.deltaY) { followSwipe() }
+    guard isExpanded, isContentVisible else { return }
+    if swipe.move(dx: event.deltaX, dy: -event.deltaY, timestamp: event.timestamp) { followSwipe() }
   }
 
   override func mouseUp(with event: NSEvent) {
@@ -638,40 +839,56 @@ final class NotchPanelContentView: NSView {
       swipe.cancel()
       return
     }
-    settleSwipe(direction: swipe.end())
+    let velocity = swipe.releaseVelocity(at: event.timestamp)
+    settleSwipe(direction: swipe.end(velocity: velocity), velocity: velocity)
   }
 
   /// L'onglet affiché suit le doigt, atténué pour qu'on sente qu'il va partir. La résistance
   /// croît aux deux bouts de la rangée, où il n'y a pas d'onglet voisin.
   private func followSwipe() {
-    guard let layer = contentView(for: selectedTab).layer else { return }
+    guard OverlayAnimation.allowsMotion, let layer = contentView(for: selectedTab).layer else { return }
     let direction: TabSwipeTracker.Direction = swipe.offset < 0 ? .next : .previous
     let resistance: CGFloat = selectedTab.neighbor(direction) == nil ? 0.25 : 1
     let shift = swipe.offset * resistance
     CATransaction.begin()
     CATransaction.setDisableActions(true)
+    layer.removeAnimation(forKey: "transform.translation.x")
+    layer.removeAnimation(forKey: "contentReveal")
+    layer.removeAnimation(forKey: "opacity")
     layer.transform = CATransform3DMakeTranslation(shift, 0, 0)
     layer.opacity = Float(max(0.3, 1 - abs(shift) / 300))
     CATransaction.commit()
   }
 
   /// Fin du geste : change d'onglet si un voisin existe, sinon ramène l'onglet à sa place.
-  private func settleSwipe(direction: TabSwipeTracker.Direction?) {
+  private func settleSwipe(direction: TabSwipeTracker.Direction?, velocity: CGFloat = 0) {
     let current = contentView(for: selectedTab)
-    resetSwipeOffset(of: current, animated: true)
-    guard let direction, let target = selectedTab.neighbor(direction) else { return }
-    current.layer?.removeAllAnimations()
-    current.layer?.transform = CATransform3DIdentity
+    guard let direction, let target = selectedTab.neighbor(direction) else {
+      resetSwipeOffset(of: current, animated: true, velocity: velocity)
+      return
+    }
+    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     select(target, animated: true)
   }
 
-  private func resetSwipeOffset(of view: NSView, animated: Bool) {
+  private func resetSwipeOffset(of view: NSView, animated: Bool, velocity: CGFloat = 0) {
     guard let layer = view.layer else { return }
-    let hadOffset = !CATransform3DIsIdentity(layer.transform)
-    layer.transform = CATransform3DIdentity
-    layer.opacity = 1
-    guard animated, hadOffset, OverlayAnimation.allowsMotion else { return }
-    layer.springAnimate(keyPath: "transform.translation.x", to: 0, preset: .gentle)
+    let hadOffset = !CATransform3DIsIdentity(layer.transform) || layer.opacity != 1
+    let shift = layer.presentation()?.value(forKeyPath: "transform.translation.x")
+      ?? layer.value(forKeyPath: "transform.translation.x")
+    if animated, hadOffset, OverlayAnimation.allowsMotion {
+      PanelFold.fade(layer, to: 1)
+      let distance = -(shift as? CGFloat ?? 0)
+      let relativeVelocity = abs(distance) > 1 ? max(-8, min(8, velocity / distance)) : 0
+      layer.springAnimate(
+        keyPath: "transform.translation.x", to: 0, from: shift, preset: .gentle,
+        velocity: relativeVelocity)
+    } else {
+      layer.removeAnimation(forKey: "transform.translation.x")
+      layer.removeAnimation(forKey: "opacity")
+      layer.transform = CATransform3DIdentity
+      layer.opacity = 1
+    }
   }
 
   // MARK: - Dépôt
@@ -739,7 +956,10 @@ final class NotchPanelContentView: NSView {
   override func layout() {
     super.layout()
 
-    applyShape(expanded: isExpanded, animated: false)
+    if shapeBounds != bounds {
+      shapeBounds = bounds
+      applyShape(expanded: isExpanded, animated: false, force: true)
+    }
 
     // Le panneau n'occupe pas tout le cadre : la bande basse revient à la capsule. Le
     // conteneur, lui, garde le cadre entier — son masque est la silhouette, qui est décrite
@@ -754,9 +974,19 @@ final class NotchPanelContentView: NSView {
     // sortie ne décale le calque : c'est le point d'arrivée de la course, et il ne peut pas
     // être lu plus tard, quand la capsule est justement ailleurs.
     capsuleRestingPosition = capsule.layer?.position ?? .zero
-    applyCapsuleReveal(animated: false)
+    if capsule.layer?.animation(forKey: "position") == nil {
+      applyCapsuleReveal(animated: false)
+    }
 
     let wingsY = panel.maxY - collapsedTopGap - collapsedSize.height
+    let stayAwakeIndicatorSize = StayAwakeIdleIndicator.size
+    let stayAwakeIndicatorY = hasHardwareNotch
+      ? wingsY - StayAwakeIdleIndicator.notchExtension / 2
+      : wingsY + collapsedSize.height / 2
+    stayAwakeIdleIndicator.frame = NSRect(
+      x: bounds.midX - stayAwakeIndicatorSize / 2,
+      y: stayAwakeIndicatorY - stayAwakeIndicatorSize / 2,
+      width: stayAwakeIndicatorSize, height: stayAwakeIndicatorSize)
     launchGreeting.frame = NSRect(
       x: bounds.midX - collapsedSize.width / 2 - DeviceStatusPillView.wingWidth,
       y: wingsY, width: DeviceStatusPillView.wingWidth, height: collapsedSize.height)
@@ -769,16 +999,30 @@ final class NotchPanelContentView: NSView {
     let mailWidth = collapsedSize.width + 2 * MailMessagePillView.wingWidth
     mailMessagePill.frame = NSRect(
       x: bounds.midX - mailWidth / 2, y: wingsY, width: mailWidth, height: collapsedSize.height)
-    let media = nowPlayingSize
-    let mediaExtra = media.height - collapsedSize.height
-    nowPlayingWings.lift = collapsedTopGap > 0 ? 0 : NowPlayingWingsView.extraHeight / 2
-    // Un peu plus haute que l'encoche : c'est ce qui signale la lecture, repliée.
-    nowPlayingWings.frame = NSRect(
-      x: bounds.midX - media.width / 2, y: wingsY - mediaExtra, width: media.width,
-      height: media.height)
-
+    layoutNowPlaying()
     layoutTabBodies()
   }
+
+  private func layoutNowPlaying() {
+    let media = nowPlayingSize
+    nowPlayingWings.lift = collapsedTopGap > 0 ? 0 : NowPlayingWingsView.extraHeight / 2
+    nowPlayingWings.frame = NSRect(
+      x: bounds.midX - media.width / 2,
+      y: bounds.maxY - collapsedTopGap - media.height,
+      width: media.width, height: media.height)
+    peekTitle.frame = NSRect(
+      x: bounds.midX - (media.width - 36) / 2,
+      y: nowPlayingWings.frame.minY - 19 - stayAwakeNotchExtension,
+      width: media.width - 36, height: 16)
+    if let layer = peekTitle.layer, !shouldShowPeekTitle {
+      PanelFold.fade(layer, to: 0)
+    }
+  }
+
+  private var shouldShowPeekTitle: Bool {
+    isHoverPeeking && !isExpanded && showsNowPlayingWingsWhenFolded
+  }
+
 
   /// Taille de la silhouette pendant la lecture : l'encoche élargie de ses ailes et un peu plus
   /// haute ; en mode île, plus étroite et plus haute (voir `NowPlayingWingsView.islandWingWidth`).
@@ -1132,11 +1376,16 @@ final class NotchPanelContentView: NSView {
 
   /// Appelé par la ligne de pilotage : précédent, lecture/pause, suivant.
   var onNowPlayingCommand: ((NowPlayingCommand) -> Void)?
+  /// Position choisie sur la barre de progression du lecteur, en secondes.
+  var onNowPlayingSeek: ((TimeInterval) -> Void)?
 
   /// Lit les événements d'un jour pour la rangée de la semaine.
   var dayAgendaLoader: ((Date) async -> CalendarAgendaState)? {
     get { weekRow.dayLoader }
-    set { weekRow.dayLoader = newValue }
+    set {
+      weekRow.dayLoader = newValue
+      calendarWidget.dayLoader = newValue
+    }
   }
 
   /// Appelé quand le panneau vient de se déplier : le lecteur relit alors la suite du morceau.
@@ -1163,6 +1412,7 @@ final class NotchPanelContentView: NSView {
       return
     }
 
+    peekTitle.stringValue = state.title
     nowPlayingWings.apply(state)
     flightArtwork.setArtwork(state.artwork)
     flightArtwork.setSource(bundleIdentifier: state.bundleIdentifier)
@@ -1175,6 +1425,9 @@ final class NotchPanelContentView: NSView {
 
   /// Les ailes de lecture ne se voient que repliées et sans pastille Bluetooth par-dessus.
   private func updateNowPlayingWingsOpacity(animated: Bool) {
+    if !shouldShowPeekTitle, let layer = peekTitle.layer {
+      PanelFold.fade(layer, to: 0)
+    }
     guard let layer = nowPlayingWings.layer else { return }
     let visible = showsNowPlayingWingsWhenFolded && !isExpanded
     let opacity: Float = visible ? 1 : 0
@@ -1228,6 +1481,7 @@ final class NotchPanelContentView: NSView {
     nowPlayingWings.setSharedElementsHidden(true)
     nowPlayingRow.setSharedElementsHidden(true)
     nowPlayingFlight.isHidden = false
+    if let layer = nowPlayingFlight.layer { PanelFold.fade(layer, to: 1) }
 
     fly(flightArtwork, from: artStart, to: artEnd) { [weak self] in
       self?.endNowPlayingFlight(generation)
@@ -1276,7 +1530,7 @@ final class NotchPanelContentView: NSView {
 
   /// Fin du trajet : les vraies vues reprennent la main. Ignorée si un autre trajet a commencé.
   private func endNowPlayingFlight(_ generation: Int) {
-    guard generation == flightGeneration else { return }
+    guard generation == flightGeneration, !waitingForShape else { return }
     cancelNowPlayingFlight()
   }
 
@@ -1289,6 +1543,8 @@ final class NotchPanelContentView: NSView {
       view.layer?.transform = CATransform3DIdentity
     }
     nowPlayingFlight.isHidden = true
+    nowPlayingFlight.layer?.removeAnimation(forKey: "opacity")
+    nowPlayingFlight.layer?.opacity = 1
     nowPlayingWings.setSharedElementsHidden(false)
     nowPlayingRow.setSharedElementsHidden(false)
   }
@@ -1304,16 +1560,17 @@ final class NotchPanelContentView: NSView {
 
   private func collapsedPath() -> CGPath {
     let growth = NotchPanelGeometry.hoverPeekGrowth
-    let size =
+    var size =
       isHoverPeeking
       ? NSSize(
         width: collapsedSize.width + growth.width, height: collapsedSize.height + growth.height)
       : collapsedSize
     if collapsedTopGap > 0 {
-      return PanelGeometry.islandSilhouette(in: panelRect, size: size, topGap: collapsedTopGap)
+      return PanelGeometry.islandSilhouette(in: bounds, size: size, topGap: collapsedTopGap)
     }
+    size.height += stayAwakeNotchExtension
     return PanelGeometry.silhouette(
-      in: panelRect,
+      in: bounds,
       anchoredTo: .top,
       size: size,
       shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
@@ -1325,7 +1582,7 @@ final class NotchPanelContentView: NSView {
   private func wingedPath() -> CGPath {
     // La pastille Bluetooth impose sa largeur et garde la hauteur de l'encoche ; sinon la
     // lecture donne sa taille (`nowPlayingSize`).
-    let size =
+    var size =
       isShowingMailMessage
       ? NSSize(
         width: collapsedSize.width + 2 * MailMessagePillView.wingWidth,
@@ -1339,11 +1596,13 @@ final class NotchPanelContentView: NSView {
             width: collapsedSize.width + 2 * DeviceStatusPillView.wingWidth,
             height: collapsedSize.height)
           : nowPlayingSize
+    if shouldShowPeekTitle { size.height += 23 }
     if collapsedTopGap > 0 {
-      return PanelGeometry.islandSilhouette(in: panelRect, size: size, topGap: collapsedTopGap)
+      return PanelGeometry.islandSilhouette(in: bounds, size: size, topGap: collapsedTopGap)
     }
+    size.height += stayAwakeNotchExtension
     return PanelGeometry.silhouette(
-      in: panelRect,
+      in: bounds,
       anchoredTo: .top,
       size: size,
       shoulderRadius: NotchPanelGeometry.collapsedShoulderRadius,
@@ -1391,15 +1650,24 @@ final class NotchPanelContentView: NSView {
   /// permanence le cadre déplié (voir `NotchPanelGeometry.windowFrame`).
   func setExpanded(_ expanded: Bool, animated: Bool) {
     guard expanded != isExpanded else { return }
-    // Relevé avant que le dépliage ne retire les pastilles : les ailes étaient-elles à l'écran ?
+    let motion = animated && OverlayAnimation.allowsMotion
     let wingsShown = showsNowPlayingWingsWhenFolded
+    transitionGeneration += 1
+    let generation = transitionGeneration
     isExpanded = expanded
-    if !expanded { closeTransform(animated: false) }
-    if animated, OverlayAnimation.allowsMotion, wingsShown, selectedTab == .global {
-      flyNowPlaying(opening: expanded)
-    } else {
-      cancelNowPlayingFlight()
-    }
+    stayAwakeTab.setPanelExpanded(expanded)
+    waitingForShape = expanded && motion
+    let content = contentContainer.layer
+    let visibleOpacity = content?.presentation()?.opacity ?? content?.opacity ?? 0
+    waitingForFade = !expanded && motion && visibleOpacity > 0.01
+    if expanded || waitingForFade { updateStayAwakeIdleIndicator(animated: motion) }
+    verticalStart = nil
+    verticalTarget = nil
+    verticalSwipe.cancel()
+    swipe.cancel()
+    resetSwipeOffset(of: contentView(for: selectedTab), animated: false)
+
+
     if expanded {
       hideLaunchGreeting(animated: animated)
       hideDeviceStatus(animated: animated)
@@ -1408,44 +1676,91 @@ final class NotchPanelContentView: NSView {
       nowPlayingRow.refreshVolume()
       onExpanded?()
     }
-    applyShape(expanded: expanded, animated: animated, opening: expanded)
-    updateNowPlayingWingsOpacity(animated: animated)
+
+    layoutNowPlaying()
+    let fly = motion && wingsShown && selectedTab == .global
+    if !fly { cancelNowPlayingFlight() }
+    if fly { flyNowPlaying(opening: expanded) }
+    applyCapsuleReveal(animated: motion)
+
+    if expanded && motion {
+      GlassReveal.play(on: contentContainer)
+    } else if let content {
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      if waitingForFade {
+        CATransaction.setCompletionBlock { [weak self] in
+          MainActor.assumeIsolated {
+            guard let self, self.transitionGeneration == generation else { return }
+            self.waitingForFade = false
+            GlassReveal.cancel(on: self.contentContainer)
+            self.applyShape(expanded: false, animated: true)
+            self.updateStayAwakeIdleIndicator(animated: true)
+            self.updateNowPlayingWingsOpacity(animated: true)
+            self.closeTransform(animated: false)
+          }
+        }
+        // Un balayage peut déjà viser zéro alors que le contenu reste visible.
+        if content.opacity == 0 { content.opacity = visibleOpacity }
+        PanelFold.fade(content, to: 0)
+      } else {
+        GlassReveal.cancel(on: contentContainer)
+        content.removeAnimation(forKey: "opacity")
+        content.opacity = expanded ? 1 : 0
+      }
+      CATransaction.commit()
+    }
+    if !waitingForFade {
+      applyShape(expanded: expanded, animated: motion, force: true)
+      updateStayAwakeIdleIndicator(animated: motion)
+      updateNowPlayingWingsOpacity(animated: motion)
+      if !expanded { closeTransform(animated: false) }
+    }
     updateCameraActivity()
     updateTerminal()
   }
 
-  private func applyShape(expanded: Bool, animated: Bool, opening: Bool = false) {
-    guard bounds.width > 0, bounds.height > 0 else { return }
+  private var foldedPath: CGPath {
+    isShowingLaunchGreeting || isShowingDeviceStatus || isShowingAgentEvent
+      || isShowingMailMessage || isShowingNowPlaying ? wingedPath() : collapsedPath()
+  }
 
-    let path =
-      expanded
-      ? expandedPath()
-      : (isShowingLaunchGreeting || isShowingDeviceStatus || isShowingAgentEvent
-        || isShowingMailMessage || isShowingNowPlaying ? wingedPath() : collapsedPath())
-    // La forme visée, et non celle de l'image en cours : pendant le dépliage, c'est déjà sur
-    // le panneau déplié qu'on vient cliquer ou déposer.
+  private func applyShape(expanded: Bool, animated: Bool, force: Bool = false) {
+    guard bounds.width > 0, bounds.height > 0, !waitingForFade, verticalStart == nil else { return }
+    let path = expanded ? expandedPath() : foldedPath
+    guard force || silhouette != path else { return }
     silhouette = path
-
-    // Le contenu suit le dépliage en fondu plutôt qu'au ressort, et il est découpé par la
-    // silhouette elle-même (`contentMask`) : pendant le dépliage il ne doit rien dépasser de
-    // la forme, qui est encore plus étroite que lui.
-    // La capsule ne se contente pas de suivre le fondu du contenu : elle monte à sa place et
-    // y redescend, puisqu'elle est la seule surface à ne pas être portée par la silhouette.
-    applyCapsuleReveal(animated: animated)
-
-    // Au dépliage animé le contenu apparaît en verre dépoli (`GlassReveal`) ; au repli il
-    // garde le fondu rapide de `PanelFold`.
-    let glassOpening = opening && animated && OverlayAnimation.allowsMotion
-    if !expanded { GlassReveal.cancel(on: contentContainer) }
+    shapeGeneration += 1
+    let generation = shapeGeneration
+    let visiblePath = backgroundLayer.presentation()?.path ?? backgroundLayer.path
+    let moves = animated && visiblePath != path
+    let velocity = verticalReleaseVelocity
+    verticalReleaseVelocity = 0
     PanelFold.apply(
-      path: path,
-      to: [backgroundLayer, strokeLayer, contentMask],
-      in: bounds,
-      fading: glassOpening ? [] : (contentContainer.layer.map { [$0] } ?? []),
-      to: expanded ? 1 : 0,
-      animated: animated
-    )
-    if glassOpening { GlassReveal.play(on: contentContainer) }
+      path: path, to: [backgroundLayer, strokeLayer, contentMask], in: bounds,
+      to: expanded ? 1 : 0, animated: moves, velocity: velocity
+    ) { [weak self] in
+      guard let self, self.shapeGeneration == generation, self.verticalStart == nil else { return }
+      self.updateStayAwakeIdleIndicator(animated: animated, shapeSettled: true)
+      if let layer = self.peekTitle.layer {
+        PanelFold.fade(layer, to: self.shouldShowPeekTitle ? 1 : 0)
+      }
+      guard self.isExpanded, self.waitingForShape else { return }
+      self.waitingForShape = false
+      self.revealPlayerAfterFlight()
+    }
+  }
+
+  private func revealPlayerAfterFlight() {
+    guard !nowPlayingFlight.isHidden, let layer = nowPlayingFlight.layer else { return }
+    let generation = flightGeneration
+    nowPlayingRow.setSharedElementsHidden(false)
+    CATransaction.begin()
+    CATransaction.setCompletionBlock { [weak self] in
+      MainActor.assumeIsolated { self?.endNowPlayingFlight(generation) }
+    }
+    PanelFold.fade(layer, to: 0)
+    CATransaction.commit()
   }
 }
 

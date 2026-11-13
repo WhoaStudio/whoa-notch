@@ -1,5 +1,6 @@
 import AppKit
 import OSLog
+import Quartz
 import QuickLookThumbnailing
 
 /// Onglet Tray : une zone de dépôt qui retient les fichiers qu'on y lâche, rangés en grille de
@@ -17,9 +18,14 @@ import QuickLookThumbnailing
 ///
 /// Un fichier en ressort comme de n'importe quel bac du système : on le glisse vers le Finder ou
 /// une autre app, et il ne quitte le bac qu'une fois le dépôt abouti (voir `FileTrayItemView`).
+///
+/// Les vignettes sont **réutilisées** d'une mise à jour à l'autre (appariées par URL) : seules
+/// celles qui arrivent ou partent s'animent, les autres glissent vers leur nouvelle place.
 final class FileTrayView: NSView {
 
+  private let emptyIcon = NSImageView()
   private let emptyLabel = NSTextField(labelWithString: "Drop files here")
+  private let emptyHint = NSTextField(labelWithString: "Up to 4 files · drag them back out to move")
   private let dropHighlightLayer = CAShapeLayer()
   private var items: [FileTrayItemView] = []
 
@@ -38,16 +44,24 @@ final class FileTrayView: NSView {
   private var isDragFromTray = false
   private let airDropZone = AirDropZoneView()
   private let keepIcon = NSImageView()
+  private let keepLabel = NSTextField(labelWithString: "Keep in tray")
   /// Bouton « Transform », présent tant que le glisser est une image venue du bac : la lâcher
   /// dessus ouvre la vue Transform (voir `showsTransformTile`).
   private let transformTile = TransformDropTileView()
   private var showsTransformTile = false
   /// Fichiers cochés dans le bac : un clic sur une vignette la coche ou la décoche, et le menu
-  /// contextuel (Copy, Open) porte sur toute la sélection.
+  /// contextuel (Copy, Open…) porte sur toute la sélection.
   private var selection: Set<URL> = []
   /// Défilement de la grille quand elle dépasse le bac, et sa course maximale.
   private var scrollOffset: CGFloat = 0
   private var maxScrollOffset: CGFloat = 0
+  /// Vrai pour la prochaine mise en page : les vignettes déjà posées glissent vers leur place
+  /// au lieu d'y sauter. Faux pour un simple redimensionnement.
+  private var animatesNextLayout = false
+
+  /// Bandeau du haut, présent tant que le bac contient des fichiers : « Clear ».
+  private let clearButton = HomePillButton()
+  private static let stripHeight: CGFloat = 20
 
   private static let transformTileSize = NSSize(width: 96, height: 52)
 
@@ -86,26 +100,55 @@ final class FileTrayView: NSView {
     dropHighlightLayer.lineDashPattern = [4, 4]
     layer?.addSublayer(dropHighlightLayer)
 
-    emptyLabel.isBezeled = false
-    emptyLabel.drawsBackground = false
-    emptyLabel.isEditable = false
-    emptyLabel.isSelectable = false
-    emptyLabel.alignment = .center
-    emptyLabel.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .regular)
-    addSubview(emptyLabel)
+    emptyIcon.image = NSImage(
+      systemSymbolName: "tray.and.arrow.down", accessibilityDescription: nil)?
+      .withSymbolConfiguration(.init(pointSize: 24, weight: .light))
+    emptyIcon.imageScaling = .scaleNone
+    emptyIcon.wantsLayer = true
+    addSubview(emptyIcon)
+
+    for (label, size, weight) in [
+      (emptyLabel, NSFont.systemFontSize(for: .small), NSFont.Weight.medium),
+      (emptyHint, 10, .regular),
+    ] {
+      label.isBezeled = false
+      label.drawsBackground = false
+      label.isEditable = false
+      label.isSelectable = false
+      label.alignment = .center
+      label.font = .systemFont(ofSize: size, weight: weight)
+      label.lineBreakMode = .byTruncatingTail
+      label.wantsLayer = true
+      addSubview(label)
+    }
 
     keepIcon.image = NSImage(
       systemSymbolName: "tray.and.arrow.down", accessibilityDescription: "Keep in tray")?
       .withSymbolConfiguration(.init(pointSize: 30, weight: .regular))
     keepIcon.imageScaling = .scaleNone
+    keepIcon.wantsLayer = true
     keepIcon.isHidden = true
     addSubview(keepIcon)
+
+    keepLabel.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .medium)
+    keepLabel.alignment = .center
+    keepLabel.isBezeled = false
+    keepLabel.drawsBackground = false
+    keepLabel.wantsLayer = true
+    keepLabel.isHidden = true
+    addSubview(keepLabel)
 
     airDropZone.isHidden = true
     addSubview(airDropZone)
 
     transformTile.isHidden = true
     addSubview(transformTile)
+
+    clearButton.title = "Clear"
+    clearButton.toolTip = "Move every file to the Bin"
+    clearButton.isHidden = true
+    clearButton.onClick = { [weak self] in self?.clearAll() }
+    addSubview(clearButton)
 
     // Il y a une vue par écran, et elles vont et viennent avec les fenêtres : chacune suit
     // le bac partagé plutôt que d'être tenue par lui.
@@ -118,6 +161,7 @@ final class FileTrayView: NSView {
     }
 
     rebuildRows()
+    updateChrome(animated: false)
   }
 
   override func viewDidChangeEffectiveAppearance() {
@@ -128,10 +172,51 @@ final class FileTrayView: NSView {
   private func applyPalette() {
     let palette = OverlayPalette.resolved(for: effectiveAppearance)
     // Gris au repos, blanc quand la zone est survolée : le bleu est réservé à AirDrop.
-    emptyLabel.textColor = .gray
-    keepIcon.contentTintColor = dropTarget == .keep ? .white : .gray
-    dropHighlightLayer.strokeColor = (dropTarget == .keep ? NSColor.white : NSColor.gray).cgColor
+    let hovered = dropTarget == .keep
+    emptyIcon.contentTintColor = .gray
+    emptyLabel.textColor = .lightGray
+    emptyHint.textColor = .gray
+    keepIcon.contentTintColor = hovered ? .white : .gray
+    keepLabel.textColor = hovered ? .white : .gray
+    dropHighlightLayer.strokeColor = (hovered ? NSColor.white : NSColor.gray).cgColor
+    dropHighlightLayer.fillColor =
+      hovered ? NSColor.white.withAlphaComponent(0.06).cgColor : nil
+    dropHighlightLayer.lineDashPattern = hovered ? nil : [4, 4]
     items.forEach { $0.applyPalette(palette) }
+  }
+
+  /// Pose l'opacité d'un calque, au ressort ou d'un coup.
+  private func setOpacity(_ layer: CALayer?, _ value: Float, animated: Bool) {
+    guard let layer else { return }
+    if animated {
+      layer.springAnimate(keyPath: "opacity", to: value)
+    } else {
+      layer.removeAnimation(forKey: "opacity")
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      layer.opacity = value
+      CATransaction.commit()
+    }
+  }
+
+  /// Ce qui est visible hors des vignettes : l'état vide au repos, le liseré quand le bac est
+  /// vide ou qu'un glisser le survole, le bandeau (compte, Clear) quand il y a des fichiers.
+  private func updateChrome(animated: Bool) {
+    let idleEmpty = store.isEmpty && !isDragActive
+    let showsStrip = !store.isEmpty && !isDragActive
+    let animated = animated && OverlayAnimation.allowsMotion
+
+    for layer in [emptyIcon.layer, emptyLabel.layer, emptyHint.layer] {
+      setOpacity(layer, idleEmpty ? 1 : 0, animated: animated)
+    }
+    setOpacity(dropHighlightLayer, idleEmpty || isDragActive ? 1 : 0, animated: animated)
+
+    let stripWasHidden = clearButton.isHidden
+    clearButton.isHidden = !showsStrip
+    if showsStrip, stripWasHidden, animated {
+      clearButton.layer?.crossfadeIn(delay: 0.05, duration: 0.18)
+    }
+    needsLayout = true
   }
 
   // MARK: - Dépôt
@@ -177,6 +262,7 @@ final class FileTrayView: NSView {
         || showsTile != showsTransformTile
     else { return }
     let appearing = active && !isDragActive
+    let previousTarget = dropTarget
     isDragActive = active
     isDragFromTray = fromTray
     dropTarget = active ? target : nil
@@ -184,16 +270,24 @@ final class FileTrayView: NSView {
     transformTile.isHidden = !showsTile
     airDropZone.isHidden = !active
     keepIcon.isHidden = !active
+    keepLabel.isHidden = !active
     airDropZone.isHighlighted = dropTarget == .airDrop
     transformTile.isHighlighted = dropTarget == .transform
     keepIcon.alphaValue = dropTarget == .keep ? 1 : 0.6
-    items.forEach { $0.isHidden = active }
-    emptyLabel.isHidden = active || !store.isEmpty
+    keepLabel.alphaValue = dropTarget == .keep ? 1 : 0.6
+    // Les vignettes s'effacent sous les zones au lieu de disparaître d'un coup.
+    items.forEach { $0.setDimmed(active, animated: true) }
+    if previousTarget != dropTarget {
+      keepIcon.layer?.springScale(to: dropTarget == .keep ? 1.12 : 1)
+    }
     applyPalette()
+    updateChrome(animated: true)
     needsLayout = true
     if appearing {
       layoutSubtreeIfNeeded()
       airDropZone.playEntrance()
+      keepIcon.layer?.springReveal(y: 10, preset: .gentle)
+      keepLabel.layer?.springReveal(y: 10, preset: .gentle)
     }
   }
 
@@ -278,41 +372,78 @@ final class FileTrayView: NSView {
     items.forEach { $0.isSelected = selection.contains($0.url) }
   }
 
-  /// Cible du menu contextuel : la sélection si la vignette cliquée en fait partie, sinon cette
-  /// vignette seule — comme dans le Finder.
+  /// Cible du menu contextuel et du glisser : la sélection si la vignette cliquée en fait
+  /// partie, sinon cette vignette seule — comme dans le Finder.
   private func urlsForMenu(on url: URL) -> [URL] {
     selection.contains(url) ? store.urls.filter(selection.contains) : [url]
   }
 
+  /// Met les fichiers à la corbeille. Vrai si au moins un est parti.
+  private func trash(_ urls: [URL]) -> Bool {
+    var removedAny = false
+    for url in urls where store.trash(url) { removedAny = true }
+    return removedAny
+  }
+
+  private func clearAll() {
+    _ = trash(store.urls)
+  }
+
+  private func quickLook(_ url: URL) {
+    let urls = items.map(\.url)
+    guard let index = urls.firstIndex(of: url) else { return }
+    TrayQuickLook.shared.show(urls, at: index)
+  }
+
+  private func makeItem(for url: URL) -> FileTrayItemView {
+    let item = FileTrayItemView(url: url, store: store)
+    item.isSelected = selection.contains(url)
+    item.onToggleSelection = { [weak self] in self?.toggleSelection(of: url) }
+    item.urlsForMenu = { [weak self] in self?.urlsForMenu(on: url) ?? [url] }
+    item.onQuickLook = { [weak self] in self?.quickLook(url) }
+    item.onTrash = { [weak self] urls in self?.trash(urls) ?? false }
+    return item
+  }
+
+  /// Aligne les vignettes sur le bac sans rien reconstruire : celles qui y sont encore gardent
+  /// leur vue (donc leur aperçu), celles qui n'y sont plus s'animent vers la sortie, celles qui
+  /// arrivent entrent l'une après l'autre.
   private func rebuildRows() {
-    let previousURLs = items.map(\.url)
-    items.forEach { $0.removeFromSuperview() }
+    let wasEmpty = items.isEmpty
+    let current = Dictionary(items.map { ($0.url, $0) }, uniquingKeysWith: { first, _ in first })
     selection.formIntersection(store.urls)
+
+    let animated =
+      window != nil && !isHiddenOrHasHiddenAncestor && !isDragActive && OverlayAnimation.allowsMotion
+
+    for item in items where !store.urls.contains(item.url) {
+      item.leave { [weak item] in item?.removeFromSuperview() }
+    }
+
+    var arrivals: [FileTrayItemView] = []
     items = store.urls.map { url in
-      let item = FileTrayItemView(url: url, store: store)
-      item.isSelected = selection.contains(url)
-      item.onToggleSelection = { [weak self] in self?.toggleSelection(of: url) }
-      item.urlsForMenu = { [weak self] in self?.urlsForMenu(on: url) ?? [url] }
+      if let existing = current[url] { return existing }
+      let item = makeItem(for: url)
+      item.setDimmed(isDragActive, animated: false)
+      addSubview(item)
+      arrivals.append(item)
       return item
     }
-    items.forEach(addSubview)
-    emptyLabel.isHidden = isDragActive || !store.isEmpty
-    items.forEach { $0.isHidden = isDragActive }
-    applyPalette()
-    needsLayout = true
-    if !isDragActive, window != nil, !isHiddenOrHasHiddenAncestor, previousURLs != store.urls {
-      if items.isEmpty {
-        emptyLabel.wantsLayer = true
-        emptyLabel.layer?.springReveal()
-      } else {
-        for (index, item) in items.enumerated()
-        where previousURLs.indices.contains(index) == false
-          || previousURLs[index] != item.url
-        {
-          item.layer?.springReveal()
-        }
-      }
+    // Les vignettes déjà posées glissent vers leur nouvelle place.
+    animatesNextLayout = animated
+
+    for (index, item) in arrivals.enumerated() {
+      item.appear(delay: animated ? 0.05 * Double(index) : 0)
     }
+
+    if wasEmpty != items.isEmpty, items.isEmpty, animated {
+      emptyIcon.layer?.crossfadeIn(delay: 0.1, duration: 0.22)
+      emptyLabel.layer?.crossfadeIn(delay: 0.12, duration: 0.22)
+      emptyHint.layer?.crossfadeIn(delay: 0.14, duration: 0.22)
+    }
+    applyPalette()
+    updateChrome(animated: animated)
+    needsLayout = true
   }
 
   override func layout() {
@@ -337,11 +468,18 @@ final class FileTrayView: NSView {
     transformTile.frame = NSRect(
       x: bounds.midX - tileSize.width / 2, y: bounds.minY + 2, width: tileSize.width,
       height: tileSize.height)
+
     let iconSize = keepIcon.intrinsicContentSize
+    let keepLabelHeight = keepLabel.intrinsicContentSize.height
+    let keepTotal = iconSize.height + 4 + keepLabelHeight
     keepIcon.frame = NSRect(
-      x: keepFrame.midX - iconSize.width / 2, y: keepFrame.midY - iconSize.height / 2,
+      x: keepFrame.midX - iconSize.width / 2,
+      y: keepFrame.midY + keepTotal / 2 - iconSize.height,
       width: iconSize.width, height: iconSize.height
     )
+    keepLabel.frame = NSRect(
+      x: keepFrame.minX, y: keepIcon.frame.minY - 4 - keepLabelHeight,
+      width: keepFrame.width, height: keepLabelHeight)
 
     dropHighlightLayer.frame = bounds
     dropHighlightLayer.path = CGPath(
@@ -351,18 +489,33 @@ final class FileTrayView: NSView {
       transform: nil
     )
 
-    let labelHeight = emptyLabel.intrinsicContentSize.height
+    // État vide : icône, invite et indication, centrées en pile.
+    let emptyIconSize = emptyIcon.intrinsicContentSize
+    let titleHeight = emptyLabel.intrinsicContentSize.height
+    let hintHeight = emptyHint.intrinsicContentSize.height
+    let emptyTotal = emptyIconSize.height + 6 + titleHeight + 2 + hintHeight
+    let emptyTop = bounds.midY + emptyTotal / 2
+    emptyIcon.frame = NSRect(
+      x: bounds.midX - emptyIconSize.width / 2, y: emptyTop - emptyIconSize.height,
+      width: emptyIconSize.width, height: emptyIconSize.height)
     emptyLabel.frame = NSRect(
-      x: bounds.minX,
-      y: bounds.midY - labelHeight / 2,
-      width: bounds.width,
-      height: labelHeight
-    )
+      x: bounds.minX + 8, y: emptyIcon.frame.minY - 6 - titleHeight,
+      width: max(0, bounds.width - 16), height: titleHeight)
+    emptyHint.frame = NSRect(
+      x: bounds.minX + 8, y: emptyLabel.frame.minY - 2 - hintHeight,
+      width: max(0, bounds.width - 16), height: hintHeight)
 
-    // Grille centrée, rangée par rangée : le nombre de colonnes suit la largeur, et une
-    // rangée incomplète se centre d'elle-même plutôt que de coller à gauche.
-    let tile = FileTrayItemView.tileSize
+    // Bandeau du haut : « Clear » à droite.
     let inset: CGFloat = 8
+    let strip = store.isEmpty ? 0 : Self.stripHeight + 4
+    let stripY = bounds.maxY - 2 - Self.stripHeight
+    let clearWidth = min(bounds.width / 2, clearButton.fittingWidth)
+    clearButton.frame = NSRect(
+      x: bounds.maxX - inset - clearWidth, y: stripY, width: clearWidth, height: Self.stripHeight)
+
+    // Grille centrée dans ce qui reste sous le bandeau, rangée par rangée : le nombre de
+    // colonnes est fixe, et une rangée incomplète se centre d'elle-même.
+    let tile = FileTrayItemView.tileSize
     let columns = 4
     // Quatre vignettes par rangée ; si le bac est trop étroit, elles rétrécissent plutôt que de sortir.
     let tileWidth = min(
@@ -370,28 +523,91 @@ final class FileTrayView: NSView {
     )
     let rowCount = (items.count + columns - 1) / columns
     let gridHeight = CGFloat(rowCount) * tile.height + CGFloat(max(0, rowCount - 1)) * tileSpacing
+    let area = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - strip))
 
     // Quand la grille dépasse le bac, elle défile depuis le haut et les vignettes coupées sont
     // rognées au bord ; sinon elle reste centrée.
-    maxScrollOffset = max(0, gridHeight - (bounds.height - 2 * inset))
+    maxScrollOffset = max(0, gridHeight - (area.height - 2 * inset))
     scrollOffset = min(max(0, scrollOffset), maxScrollOffset)
     let gridTop =
       maxScrollOffset > 0
-      ? bounds.maxY - inset + scrollOffset
-      : bounds.midY + gridHeight / 2
+      ? area.maxY - inset + scrollOffset
+      : area.midY + gridHeight / 2
 
+    let animate = animatesNextLayout
+    animatesNextLayout = false
     for (position, item) in items.enumerated() {
       let row = position / columns
       let column = position % columns
       let inRow = min(columns, items.count - row * columns)
       let rowWidth = CGFloat(inRow) * tileWidth + CGFloat(inRow - 1) * tileSpacing
-      item.frame = NSRect(
-        x: bounds.midX - rowWidth / 2 + CGFloat(column) * (tileWidth + tileSpacing),
-        y: gridTop - CGFloat(row + 1) * tile.height - CGFloat(row) * tileSpacing,
-        width: tileWidth,
-        height: tile.height
-      )
+      item.place(
+        NSRect(
+          x: bounds.midX - rowWidth / 2 + CGFloat(column) * (tileWidth + tileSpacing),
+          y: gridTop - CGFloat(row + 1) * tile.height - CGFloat(row) * tileSpacing,
+          width: tileWidth,
+          height: tile.height
+        ),
+        animated: animate)
     }
+  }
+}
+
+// MARK: - Coupe des noms
+
+/// Coupe un nom **au milieu** quand il ne tient pas, comme le Finder : on garde le début et la
+/// fin, donc l'extension. Séparé de la vue pour pouvoir se tester : `fits` dit si un texte tient.
+enum TrayNameFitter {
+
+  /// `tailLength` : nombre de caractères gardés en fin de nom (l'extension, point compris) ;
+  /// trois de plus sont toujours conservés pour que la fin reste reconnaissable.
+  static func fit(_ name: String, tailLength: Int, fits: (String) -> Bool) -> String {
+    guard !fits(name) else { return name }
+
+    let characters = Array(name)
+    let kept = min(characters.count / 2, tailLength + 3)
+    let tail = String(characters.suffix(kept))
+    var low = 0
+    var high = characters.count - kept
+    while low < high {
+      let middle = (low + high + 1) / 2
+      if fits(String(characters.prefix(middle)) + "…" + tail) {
+        low = middle
+      } else {
+        high = middle - 1
+      }
+    }
+    return String(characters.prefix(low)) + "…" + tail
+  }
+}
+
+// MARK: - Quick Look
+
+/// Le panneau Quick Look du bac. Le panneau de l'encoche ne prend pas le clavier sur cet onglet,
+/// donc la chaîne des répondeurs ne peut pas le piloter : on lui donne ses fichiers directement.
+/// Il s'ouvre dans sa propre fenêtre, qui reste quand le panneau de l'encoche se replie.
+@MainActor
+final class TrayQuickLook: NSObject, QLPreviewPanelDataSource {
+
+  static let shared = TrayQuickLook()
+
+  private var urls: [URL] = []
+
+  func show(_ urls: [URL], at index: Int) {
+    guard !urls.isEmpty, let panel = QLPreviewPanel.shared() else { return }
+    self.urls = urls
+    panel.dataSource = self
+    panel.reloadData()
+    panel.currentPreviewItemIndex = min(max(0, index), urls.count - 1)
+    // L'app n'a pas d'icône du Dock : sans activation, l'aperçu s'ouvrirait derrière.
+    NSApp.activate()
+    panel.makeKeyAndOrderFront(nil)
+  }
+
+  func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { urls.count }
+
+  func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
+    urls.indices.contains(index) ? urls[index] as NSURL : nil
   }
 }
 
@@ -407,6 +623,10 @@ final class FileTrayView: NSView {
 /// dépôt a abouti — `draggingSession(_:endedAt:operation:)` reçoit alors une opération non
 /// vide ; un glisser annulé, ou relâché dans le vide, en reçoit une vide et laisse la vignette en
 /// place.
+///
+/// Gestes : clic = cocher, double clic = Quick Look, survol = ✕ de retrait, balayage vers le
+/// haut à deux doigts = retrait, glisser = sortir le fichier (toute la sélection si la vignette
+/// en fait partie).
 private final class FileTrayItemView: NSView, NSDraggingSource {
 
   static let tileSize = NSSize(width: 104, height: 110)
@@ -414,13 +634,18 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
   let url: URL
   private let store: FileShelfStore
   private let iconView = NSImageView()
+  private let hoverLayer = CALayer()
   private let selectionLayer = CAShapeLayer()
   private let checkBadge = NSImageView()
+  private let removeButton = TrayRemoveButton()
 
   /// Appelé au clic simple (sans glisser) : le bac coche ou décoche la vignette.
   var onToggleSelection: (() -> Void)?
-  /// Fichiers visés par le menu contextuel, donnés par le bac.
+  /// Fichiers visés par le menu contextuel et le glisser, donnés par le bac.
   var urlsForMenu: (() -> [URL])?
+  var onQuickLook: (() -> Void)?
+  /// Met des fichiers à la corbeille ; faux si rien n'a pu partir.
+  var onTrash: (([URL]) -> Bool)?
 
   var isSelected = false {
     didSet {
@@ -430,7 +655,7 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
       if isSelected { checkBadge.layer?.springReveal(y: -3) }
     }
   }
-  private let label = NSTextField(labelWithString: "")
+  private let label = NSTextField(wrappingLabelWithString: "")
   private var thumbnailTask: Task<Void, Never>?
 
   private let previewSize: CGFloat = 64
@@ -438,17 +663,42 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
   private let maxLabelLines = 2
   private let labelFont = NSFont.systemFont(
     ofSize: NSFont.systemFontSize(for: .small), weight: .regular)
+  /// Largeur pour laquelle le nom a été coupé : on ne le recoupe que si elle change.
+  private var fittedWidth: CGFloat = -1
 
   /// Distance à parcourir avant qu'un `mouseDragged` devienne un glisser : sans ce seuil, le
   /// moindre tremblement au clic en lancerait un.
   private let dragThreshold: CGFloat = 3
   private var mouseDownLocation: NSPoint?
+  private var draggedURLs: [URL] = []
+
+  private var trackingArea: NSTrackingArea?
+  private var isHovered = false
+  private var hasBeenPlaced = false
+  private var isLeaving = false
+  private var isDimmed = false
+  private var exitsUpward = false
+
+  // Balayage vers le haut : retrait. Décidé une fois, au début du geste.
+  private enum Swipe { case idle, undecided, engaged, passthrough }
+  private var swipe = Swipe.idle
+  private var swipeUp: CGFloat = 0
+  private var swipeSideways: CGFloat = 0
+  private var swallowsMomentum = false
+  private static let swipeEngage: CGFloat = 4
+  private static let swipeCommit: CGFloat = 40
 
   init(url: URL, store: FileShelfStore) {
     self.url = url
     self.store = store
     super.init(frame: .zero)
     wantsLayer = true
+
+    hoverLayer.cornerRadius = 12
+    hoverLayer.cornerCurve = .continuous
+    hoverLayer.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+    hoverLayer.opacity = 0
+    layer?.insertSublayer(hoverLayer, at: 0)
 
     iconView.image = NSWorkspace.shared.icon(forFile: url.path)
     iconView.imageScaling = .scaleProportionallyUpOrDown
@@ -463,7 +713,7 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     selectionLayer.strokeColor = NSColor.white.withAlphaComponent(0.55).cgColor
     selectionLayer.lineWidth = 2
     selectionLayer.isHidden = true
-    layer?.insertSublayer(selectionLayer, at: 0)
+    layer?.insertSublayer(selectionLayer, at: 1)
 
     checkBadge.image = NSImage(
       systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Selected")?
@@ -473,6 +723,11 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     checkBadge.isHidden = true
     addSubview(checkBadge)
 
+    removeButton.alphaValue = 0
+    removeButton.isHidden = true
+    removeButton.onClick = { [weak self] in self?.trashSelf() }
+    addSubview(removeButton)
+
     label.isBezeled = false
     label.drawsBackground = false
     label.isEditable = false
@@ -481,8 +736,12 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     label.font = labelFont
     label.lineBreakMode = .byCharWrapping
     label.maximumNumberOfLines = maxLabelLines
-    label.stringValue = truncatedName(url.lastPathComponent)
+    label.stringValue = url.lastPathComponent
     addSubview(label)
+
+    toolTip = url.lastPathComponent
+    setAccessibilityLabel(url.lastPathComponent)
+    setAccessibilityRole(.button)
 
     loadThumbnail()
   }
@@ -502,6 +761,91 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     if superview == nil { thumbnailTask?.cancel() }
   }
 
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    isLeaving ? nil : super.hitTest(point)
+  }
+
+  override func accessibilityPerformPress() -> Bool {
+    onQuickLook?()
+    return true
+  }
+
+  // MARK: - Apparition, sortie, place
+
+  /// Entre en ressort après `delay` : fondu, léger grossissement et petite montée. Sans
+  /// mouvement autorisé, la vignette est simplement là.
+  func appear(delay: TimeInterval) {
+    guard OverlayAnimation.allowsMotion, let layer else { return }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    layer.opacity = 0
+    layer.setValue(0.85, forKeyPath: "transform.scale")
+    layer.setValue(-8, forKeyPath: "transform.translation.y")
+    CATransaction.commit()
+
+    let run: @MainActor @Sendable () -> Void = { [weak self] in
+      guard let self, !self.isLeaving, let layer = self.layer else { return }
+      let target: Float = self.isDimmed ? 0 : 1
+      layer.springAnimate(keyPath: "opacity", to: target)
+      layer.springAnimate(keyPath: "transform.scale", to: CGFloat(1), preset: .gentle)
+      layer.springAnimate(keyPath: "transform.translation.y", to: CGFloat(0), preset: .gentle)
+    }
+    if delay > 0 {
+      DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: run)
+    } else {
+      run()
+    }
+  }
+
+  /// Sort : fondu et rétrécissement (en montant, si c'est un balayage), puis `completion`.
+  func leave(completion: @escaping () -> Void) {
+    guard !isLeaving else { return }
+    isLeaving = true
+    thumbnailTask?.cancel()
+    guard OverlayAnimation.allowsMotion, let layer else {
+      completion()
+      return
+    }
+    layer.springAnimate(keyPath: "transform.scale", to: CGFloat(0.8))
+    if exitsUpward {
+      layer.springAnimate(keyPath: "transform.translation.y", to: CGFloat(24))
+    }
+    layer.springAnimate(keyPath: "opacity", to: Float(0), completion: completion)
+  }
+
+  /// S'efface (ou revient) quand un glisser survole le bac, pour laisser la place aux zones.
+  func setDimmed(_ dimmed: Bool, animated: Bool) {
+    isDimmed = dimmed
+    guard !isLeaving, let layer else { return }
+    let value: Float = dimmed ? 0 : 1
+    if animated {
+      layer.springAnimate(keyPath: "opacity", to: value)
+    } else {
+      layer.removeAnimation(forKey: "opacity")
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      layer.opacity = value
+      CATransaction.commit()
+    }
+  }
+
+  /// Pose la vignette ; si elle était déjà posée et que `animated`, elle glisse depuis son
+  /// ancienne place au ressort.
+  func place(_ frame: NSRect, animated: Bool) {
+    guard !isLeaving else { return }
+    let previous = layer?.presentation()?.position ?? layer?.position
+    self.frame = frame
+    defer { hasBeenPlaced = true }
+    guard animated, hasBeenPlaced, let layer, let previous, previous != layer.position else {
+      return
+    }
+    layer.springAnimate(
+      keyPath: "position", to: NSValue(point: layer.position), from: NSValue(point: previous),
+      preset: .gentle)
+  }
+
   // MARK: - Aperçu
 
   private func loadThumbnail() {
@@ -518,6 +862,7 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
           .generateBestRepresentation(for: request)
         guard !Task.isCancelled else { return }
         self?.iconView.image = representation.nsImage
+        self?.iconView.layer?.crossfadeIn(delay: 0, duration: 0.15)
       } catch {
         // Pas de vignette de contenu pour ce type : l'icône du Finder reste.
         Log.sidePanel.debug(
@@ -528,48 +873,81 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
 
   // MARK: - Nom
 
-  /// Coupe le nom **au milieu** quand il ne tient pas sur `maxLabelLines` lignes, comme le
-  /// Finder : on garde le début et la fin, donc l'extension. `NSTextField` ne sait couper qu'en
-  /// fin de dernière ligne sur plusieurs lignes, d'où la mesure à la main.
-  private func truncatedName(_ name: String) -> String {
-    let width = Self.tileSize.width
+  /// Coupe le nom au milieu pour qu'il tienne sur `maxLabelLines` lignes **dans la largeur
+  /// réelle du champ**. Mesuré avec la cellule du champ — qui compte ses marges internes — et
+  /// refait quand la largeur change : une mesure faite une fois, à une autre largeur, laissait
+  /// le texte déborder sur une troisième ligne.
+  private func fitName(forWidth width: CGFloat) {
+    guard width > 0, abs(width - fittedWidth) > 0.5 else { return }
+    fittedWidth = width
+    let name = url.lastPathComponent
+
+    // Le champ dessine son texte dans une marge et coupe un peu plus court que `boundingRect` :
+    // on mesure avec de la marge de sécurité, avec la même coupe de ligne que lui.
     let style = NSMutableParagraphStyle()
     style.lineBreakMode = .byCharWrapping
     style.alignment = .center
     let attributes: [NSAttributedString.Key: Any] = [.font: labelFont, .paragraphStyle: style]
-    let lineHeight = ceil(labelFont.ascender - labelFont.descender + labelFont.leading)
-
-    func fits(_ text: String) -> Bool {
-      let rect = (text as NSString).boundingRect(
-        with: NSSize(width: width, height: .greatestFiniteMagnitude),
-        options: .usesLineFragmentOrigin,
-        attributes: attributes
-      )
-      return ceil(rect.height) <= lineHeight * CGFloat(maxLabelLines)
+    let inner = NSSize(width: max(1, width - 10), height: .greatestFiniteMagnitude)
+    func height(of text: String) -> CGFloat {
+      ceil(
+        (text as NSString).boundingRect(
+          with: inner, options: .usesLineFragmentOrigin, attributes: attributes
+        ).height)
     }
+    let limit = height(of: "Ag") * CGFloat(maxLabelLines)
 
-    guard !fits(name) else { return name }
-
-    let characters = Array(name)
-    let tailLength = min(characters.count / 2, (url.pathExtension.count + 1) + 3)
-    let tail = String(characters.suffix(tailLength))
-    var low = 0
-    var high = characters.count - tailLength
-    while low < high {
-      let middle = (low + high + 1) / 2
-      if fits(String(characters.prefix(middle)) + "…" + tail) {
-        low = middle
-      } else {
-        high = middle - 1
-      }
+    label.stringValue = TrayNameFitter.fit(name, tailLength: url.pathExtension.count + 1) {
+      height(of: $0) <= limit
     }
-    return String(characters.prefix(low)) + "…" + tail
   }
 
-  // MARK: - Glisser vers l'extérieur
+  // MARK: - Survol
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let trackingArea { removeTrackingArea(trackingArea) }
+    let area = NSTrackingArea(
+      rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
+    addTrackingArea(area)
+    trackingArea = area
+  }
+
+  override func mouseEntered(with event: NSEvent) { setHovered(true) }
+  override func mouseExited(with event: NSEvent) { setHovered(false) }
+
+  private func setHovered(_ hovered: Bool) {
+    guard hovered != isHovered, !isLeaving else { return }
+    isHovered = hovered
+    if hovered { toolTip = Self.description(of: url) }
+    hoverLayer.setValue(hovered ? Float(1) : Float(0), forKeyPath: "opacity")
+    hoverLayer.springAnimate(keyPath: "opacity", to: hovered ? Float(1) : Float(0))
+    if hovered { removeButton.isHidden = false }
+    removeButton.layer?.springAnimate(
+      keyPath: "opacity", to: hovered ? Float(1) : Float(0)
+    ) { [weak self] in
+      if self?.isHovered == false { self?.removeButton.isHidden = true }
+    }
+  }
+
+  /// Nom, type et taille : l'infobulle dit ce que la vignette ne montre pas.
+  private static func description(of url: URL) -> String {
+    let values = try? url.resourceValues(forKeys: [
+      .localizedTypeDescriptionKey, .fileSizeKey, .totalFileSizeKey,
+    ])
+    var parts = [url.lastPathComponent]
+    if let kind = values?.localizedTypeDescription { parts.append(kind) }
+    if let size = values?.totalFileSize ?? values?.fileSize {
+      parts.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
+    }
+    return parts.joined(separator: "\n")
+  }
+
+  // MARK: - Souris
 
   override func mouseDown(with event: NSEvent) {
     mouseDownLocation = convert(event.locationInWindow, from: nil)
+    layer?.springScale(to: 0.96)
   }
 
   override func mouseDragged(with event: NSEvent) {
@@ -577,13 +955,106 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     let location = convert(event.locationInWindow, from: nil)
     guard hypot(location.x - origin.x, location.y - origin.y) >= dragThreshold else { return }
     mouseDownLocation = nil
+    layer?.springScale(to: 1)
     beginDrag(with: event)
   }
 
   override func mouseUp(with event: NSEvent) {
-    // Sans glisser entre-temps, c'est un clic : il coche la vignette.
-    if mouseDownLocation != nil { onToggleSelection?() }
-    mouseDownLocation = nil
+    layer?.springScale(to: 1)
+    defer { mouseDownLocation = nil }
+    guard mouseDownLocation != nil else { return }
+    // Double clic : Quick Look. Le premier clic a déjà coché la vignette, le second ne la
+    // décoche pas.
+    if event.clickCount >= 2 {
+      onQuickLook?()
+    } else {
+      onToggleSelection?()
+    }
+  }
+
+  // MARK: - Balayage vers le haut
+
+  override func scrollWheel(with event: NSEvent) {
+    guard event.hasPreciseScrollingDeltas, !isLeaving else { return super.scrollWheel(with: event) }
+
+    if !event.momentumPhase.isEmpty {
+      if swallowsMomentum { return }
+      return super.scrollWheel(with: event)
+    }
+    if event.phase.contains(.began) || event.phase.contains(.mayBegin) {
+      swipe = .undecided
+      swipeUp = 0
+      swipeSideways = 0
+      swallowsMomentum = false
+    }
+
+    switch swipe {
+    case .idle, .passthrough:
+      super.scrollWheel(with: event)
+    case .undecided:
+      swipeUp -= event.scrollingDeltaY
+      swipeSideways += event.scrollingDeltaX
+      if abs(swipeUp) > Self.swipeEngage || abs(swipeSideways) > Self.swipeEngage {
+        // Surtout vers le haut : c'est un retrait. Sinon le geste appartient au panneau
+        // (balayage d'onglet) et on le lui laisse.
+        if swipeUp > 0, swipeUp > abs(swipeSideways) * 1.5 {
+          swipe = .engaged
+          layer?.removeAnimation(forKey: "transform")
+          followSwipe()
+        } else {
+          swipe = .passthrough
+          super.scrollWheel(with: event)
+        }
+      } else {
+        super.scrollWheel(with: event)
+      }
+    case .engaged:
+      swipeUp -= event.scrollingDeltaY
+      followSwipe()
+    }
+
+    if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+      finishSwipe(cancelled: event.phase.contains(.cancelled))
+    }
+  }
+
+  /// La vignette suit les doigts ; au-delà du seuil le déplacement se durcit, pour dire
+  /// « c'est bon, tu peux lâcher ».
+  private func followSwipe() {
+    let up = max(0, swipeUp)
+    let shown = min(up, Self.swipeCommit) + max(0, up - Self.swipeCommit) * 0.25
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    layer?.transform = CATransform3DMakeTranslation(0, shown, 0)
+    layer?.opacity = Float(isDimmed ? 0 : 1 - min(0.5, shown / 120))
+    CATransaction.commit()
+  }
+
+  private func finishSwipe(cancelled: Bool) {
+    defer {
+      swipe = .idle
+      swipeUp = 0
+      swipeSideways = 0
+    }
+    guard swipe == .engaged else { return }
+    swallowsMomentum = true
+    if !cancelled, swipeUp >= Self.swipeCommit {
+      exitsUpward = true
+      if onTrash?([url]) == true { return }
+      exitsUpward = false
+    }
+    settleBack()
+  }
+
+  private func settleBack() {
+    layer?.springAnimate(
+      keyPath: "transform", to: NSValue(caTransform3D: CATransform3DIdentity), preset: .snappy)
+    layer?.springAnimate(keyPath: "opacity", to: Float(isDimmed ? 0 : 1))
+  }
+
+  private func trashSelf() {
+    exitsUpward = false
+    _ = onTrash?([url])
   }
 
   // MARK: - Menu contextuel
@@ -595,19 +1066,23 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     // `OverlayContextMenu.isPresenting`) : sans cela, il se replierait sous ce menu.
     menu.delegate = OverlayContextMenu.shared
 
-    let copy = NSMenuItem(title: "Copy", action: #selector(copyFiles(_:)), keyEquivalent: "")
-    copy.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
-    copy.target = self
-    copy.representedObject = urls
-    menu.addItem(copy)
-
-    let open = NSMenuItem(title: "Open", action: #selector(openFiles(_:)), keyEquivalent: "")
-    open.image = NSImage(systemSymbolName: "arrow.up.forward.app", accessibilityDescription: nil)
-    open.target = self
-    open.representedObject = urls
-    menu.addItem(open)
+    func add(_ title: String, _ symbol: String, _ action: Selector) {
+      let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+      item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+      item.target = self
+      item.representedObject = urls
+      menu.addItem(item)
+    }
+    add("Quick Look", "eye", #selector(quickLook(_:)))
+    add("Open", "arrow.up.forward.app", #selector(openFiles(_:)))
+    add("Show in Finder", "folder", #selector(revealFiles(_:)))
+    add("Copy", "doc.on.doc", #selector(copyFiles(_:)))
+    menu.addItem(.separator())
+    add("Move to Bin", "trash", #selector(trashFiles(_:)))
     return menu
   }
+
+  @objc private func quickLook(_ sender: NSMenuItem) { onQuickLook?() }
 
   @objc private func copyFiles(_ sender: NSMenuItem) {
     guard let urls = sender.representedObject as? [URL] else { return }
@@ -621,16 +1096,38 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     urls.forEach { NSWorkspace.shared.open($0) }
   }
 
+  @objc private func revealFiles(_ sender: NSMenuItem) {
+    guard let urls = sender.representedObject as? [URL] else { return }
+    NSWorkspace.shared.activateFileViewerSelecting(urls)
+  }
+
+  @objc private func trashFiles(_ sender: NSMenuItem) {
+    guard let urls = sender.representedObject as? [URL] else { return }
+    exitsUpward = false
+    _ = onTrash?(urls)
+  }
+
+  // MARK: - Glisser vers l'extérieur
+
   private func beginDrag(with event: NSEvent) {
-    let item = NSDraggingItem(pasteboardWriter: url as NSURL)
-    // L'image sous le curseur est l'aperçu de la vignette, pas la vignette entière : c'est
-    // le fichier qu'on déplace.
-    item.setDraggingFrame(iconView.frame, contents: iconView.image)
+    setHovered(false)
+    // La sélection part avec la vignette si celle-ci en fait partie ; sinon, elle seule.
+    let urls = urlsForMenu?() ?? [url]
+    draggedURLs = urls
+    let image = iconView.image
+    let items = urls.enumerated().map { index, fileURL -> NSDraggingItem in
+      let item = NSDraggingItem(pasteboardWriter: fileURL as NSURL)
+      // L'image sous le curseur est l'aperçu de la vignette, pas la vignette entière : c'est
+      // le fichier qu'on déplace. Les suivants sont décalés en éventail.
+      let offset = CGFloat(index) * 4
+      item.setDraggingFrame(iconView.frame.offsetBy(dx: offset, dy: -offset), contents: image)
+      return item
+    }
 
     // Le panneau se replie dès que le curseur le quitte : il faut geler ce suivi le temps du
     // glisser, sans quoi le bac se refermerait sous la main qui en sort un fichier.
     store.isDraggingOut = true
-    beginDraggingSession(with: [item], event: event, source: self)
+    beginDraggingSession(with: items, event: event, source: self)
   }
 
   func draggingSession(
@@ -652,20 +1149,24 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     operation: NSDragOperation
   ) {
     store.isDraggingOut = false
-    // Seul un déplacement hors de l'app retire le fichier : vide (annulé) ou copie (AirDrop
-    // depuis le bac), il reste.
+    let moved = draggedURLs
+    draggedURLs = []
+    // Seul un déplacement hors de l'app retire les fichiers : vide (annulé) ou copie (AirDrop
+    // depuis le bac), ils restent.
     guard operation.contains(.move) else { return }
-    store.remove(url)
+    moved.forEach { store.remove($0) }
   }
 
   override func layout() {
     super.layout()
 
+    hoverLayer.frame = bounds
+    let preview = min(previewSize, max(0, bounds.width - 10))
     iconView.frame = NSRect(
-      x: bounds.midX - previewSize / 2,
-      y: bounds.maxY - previewSize,
-      width: previewSize,
-      height: previewSize
+      x: bounds.midX - preview / 2,
+      y: bounds.maxY - preview - 4,
+      width: preview,
+      height: preview
     )
 
     selectionLayer.frame = bounds
@@ -676,14 +1177,79 @@ private final class FileTrayItemView: NSView, NSDraggingSource {
     checkBadge.frame = NSRect(
       x: iconView.frame.maxX - badge.width / 2 - 6, y: iconView.frame.minY - badge.height / 2 + 6,
       width: badge.width, height: badge.height)
+    removeButton.frame = NSRect(
+      x: max(0, iconView.frame.minX - 6), y: iconView.frame.maxY - 12, width: 18, height: 18)
 
     let labelTop = iconView.frame.minY - labelGap
-    label.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, labelTop))
-    // Le texte se cale en haut de la zone, juste sous l'aperçu, quelle que soit sa hauteur.
+    let labelWidth = max(0, bounds.width - 4)
+    fitName(forWidth: labelWidth)
     let textHeight = min(
-      label.sizeThatFits(NSSize(width: bounds.width, height: .greatestFiniteMagnitude)).height,
-      labelTop)
-    label.frame = NSRect(x: 0, y: labelTop - textHeight, width: bounds.width, height: textHeight)
+      label.sizeThatFits(NSSize(width: labelWidth, height: .greatestFiniteMagnitude)).height,
+      max(0, labelTop))
+    label.frame = NSRect(x: 2, y: labelTop - textHeight, width: labelWidth, height: textHeight)
+  }
+}
+
+// MARK: - Bouton de retrait
+
+/// Le ✕ qui apparaît au survol d'une vignette : une pastille sombre, un petit rétrécissement à
+/// l'appui, l'action au relâchement dans la pastille.
+private final class TrayRemoveButton: NSView {
+
+  var onClick: (() -> Void)?
+
+  private let glyph = NSImageView()
+  private var isPressed = false {
+    didSet {
+      guard isPressed != oldValue else { return }
+      layer?.springScale(to: isPressed ? 0.88 : 1)
+    }
+  }
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    layer?.backgroundColor = NSColor.black.withAlphaComponent(0.6).cgColor
+    layer?.borderColor = NSColor.white.withAlphaComponent(0.25).cgColor
+    layer?.borderWidth = 0.5
+    glyph.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Move to Bin")?
+      .withSymbolConfiguration(.init(pointSize: 8, weight: .bold))
+    glyph.contentTintColor = .white
+    glyph.imageScaling = .scaleNone
+    addSubview(glyph)
+    toolTip = "Move to Bin"
+    setAccessibilityRole(.button)
+    setAccessibilityLabel("Move to Bin")
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+  override func accessibilityPerformPress() -> Bool {
+    onClick?()
+    return true
+  }
+
+  override func mouseDown(with event: NSEvent) { isPressed = true }
+  override func mouseDragged(with event: NSEvent) {
+    isPressed = bounds.contains(convert(event.locationInWindow, from: nil))
+  }
+  override func mouseUp(with event: NSEvent) {
+    let inside = bounds.contains(convert(event.locationInWindow, from: nil))
+    isPressed = false
+    if inside { onClick?() }
+  }
+
+  override func layout() {
+    super.layout()
+    layer?.cornerRadius = bounds.height / 2
+    let size = glyph.intrinsicContentSize
+    glyph.frame = NSRect(
+      x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2,
+      width: size.width, height: size.height)
   }
 }
 

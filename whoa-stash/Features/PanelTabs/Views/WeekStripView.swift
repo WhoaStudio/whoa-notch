@@ -13,8 +13,11 @@ final class WeekStripView: NSView {
   private static let leadingInset: CGFloat = 56
   private static let trailingInset: CGFloat = 24
 
-  /// Les fondus débordent un peu des marges, pour que le bord d'un jour ne se voie pas coupé.
-  private static let leadingFadeWidth: CGFloat = leadingInset + 28
+  /// Les jours s'effacent par un masque sur la bande, pas par un voile noir posé dessus : un
+  /// voile laissait voir le chiffre d'un jour à travers le nom du mois, et dessinait des
+  /// rectangles sombres sur le verre. À gauche le masque est totalement transparent sous le
+  /// mois et opaque dès le premier jour ; à droite il s'éteint sur `trailingFadeWidth`.
+  private static let leadingFadeWidth: CGFloat = 12
   private static let trailingFadeWidth: CGFloat = trailingInset + 24
 
   /// Raideur du ressort d'arrêt, en rad/s. Amorti de façon critique : il se pose sans jamais
@@ -44,8 +47,7 @@ final class WeekStripView: NSView {
   private var isFingerDown = false
 
   private let monthLabel = PassthroughLabel(labelWithString: "")
-  private let leadingFade = CAGradientLayer()
-  private let trailingFade = CAGradientLayer()
+  private let edgeMask = CAGradientLayer()
   private var monthIndex: Int?
 
   private let monthFormatter: DateFormatter = {
@@ -104,19 +106,17 @@ final class WeekStripView: NSView {
     }
     addSubview(scrollView)
 
-    // Fondus noir → transparent sur chaque bord, puis le mois par-dessus celui de gauche.
-    let black = NSColor.black.cgColor
+    // Masque d'alpha sur la bande ; le mois reste au-dessus, hors masque.
+    edgeMask.startPoint = CGPoint(x: 0, y: 0.5)
+    edgeMask.endPoint = CGPoint(x: 1, y: 0.5)
+    let opaque = NSColor.black.cgColor
     let clear = NSColor.black.withAlphaComponent(0).cgColor
-    for fade in [leadingFade, trailingFade] {
-      fade.startPoint = CGPoint(x: 0, y: 0.5)
-      fade.endPoint = CGPoint(x: 1, y: 0.5)
-      layer?.addSublayer(fade)
-    }
-    leadingFade.colors = [black, clear]
-    trailingFade.colors = [clear, black]
+    edgeMask.colors = [clear, clear, opaque, opaque, clear]
+    scrollView.wantsLayer = true
+    scrollView.layer?.mask = edgeMask
 
     monthLabel.wantsLayer = true
-    monthLabel.font = .systemFont(ofSize: 22, weight: .bold)
+    monthLabel.font = .systemFont(ofSize: 20, weight: .bold)
     monthLabel.isBezeled = false
     monthLabel.drawsBackground = false
     monthLabel.isEditable = false
@@ -231,10 +231,15 @@ final class WeekStripView: NSView {
 
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    leadingFade.frame = NSRect(x: 0, y: 0, width: Self.leadingFadeWidth, height: bounds.height)
-    trailingFade.frame = NSRect(
-      x: bounds.width - Self.trailingFadeWidth, y: 0, width: Self.trailingFadeWidth,
-      height: bounds.height)
+    edgeMask.frame = scrollView.bounds
+    if bounds.width > 0 {
+      let width = bounds.width
+      let clearUntil = (Self.leadingInset - Self.leadingFadeWidth) / width
+      let opaqueFrom = Self.leadingInset / width
+      let opaqueUntil = (width - Self.trailingFadeWidth) / width
+      edgeMask.locations = [0, clearUntil, opaqueFrom, max(opaqueFrom, opaqueUntil), 1]
+        .map { NSNumber(value: min(max(Double($0), 0), 1)) }
+    }
     CATransaction.commit()
 
     let monthHeight = monthLabel.intrinsicContentSize.height

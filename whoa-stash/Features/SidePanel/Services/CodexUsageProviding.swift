@@ -11,6 +11,7 @@ struct MockCodexUsageProvider: CodexUsageProviding {
   let weeklyPercent: Double
 
   func fetchSnapshot() async throws -> CodexUsageSnapshot {
+    try await MockUsageBehavior.apply(provider: "codex")
     let now = Date()
     return CodexUsageSnapshot(
       fiveHour: ClaudeUsageWindow(

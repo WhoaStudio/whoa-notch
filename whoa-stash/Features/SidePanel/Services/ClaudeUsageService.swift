@@ -1,12 +1,36 @@
 import Foundation
 
-enum ClaudeUsageServiceError: LocalizedError {
+enum ClaudeUsageServiceError: LocalizedError, Equatable {
   case badStatus(Int)
+  /// HTTP 429 : le point d'entrée limite les requêtes. `retryAfter` vient de l'en-tête
+  /// `Retry-After` (en secondes) quand le serveur en donne un.
+  case rateLimited(retryAfter: TimeInterval?)
   case unrecognizedPayload(keys: [String])
+
+  /// L'erreur d'une réponse hors 2xx. `retryAfter` : la valeur brute de l'en-tête `Retry-After`.
+  static func error(
+    forStatus code: Int, retryAfter: String?, now: Date = Date()
+  ) -> ClaudeUsageServiceError {
+    guard code == 429 else { return .badStatus(code) }
+    return .rateLimited(retryAfter: retryAfter.flatMap { delay(fromRetryAfter: $0, now: now) })
+  }
+
+  /// `Retry-After` vaut soit un nombre de secondes, soit une date HTTP (RFC 9110).
+  static func delay(fromRetryAfter raw: String, now: Date) -> TimeInterval? {
+    let value = raw.trimmingCharacters(in: .whitespaces)
+    if let seconds = Double(value) { return max(0, seconds) }
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(identifier: "GMT")
+    formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+    return formatter.date(from: value).map { max(0, $0.timeIntervalSince(now)) }
+  }
 
   var errorDescription: String? {
     switch self {
     case .badStatus(let code): return "Réponse inattendue du serveur (HTTP \(code))."
+    case .rateLimited:
+      return "Claude limite les requêtes d'utilisation (HTTP 429)."
     case .unrecognizedPayload(let keys):
       return "Réponse illisible (clés reçues : \(keys.joined(separator: ", ")))."
     }
@@ -43,7 +67,8 @@ struct ClaudeUsageService: ClaudeUsageProviding {
 
     let (data, response) = try await session.data(for: request)
     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-      throw ClaudeUsageServiceError.badStatus(http.statusCode)
+      throw ClaudeUsageServiceError.error(
+        forStatus: http.statusCode, retryAfter: http.value(forHTTPHeaderField: "Retry-After"))
     }
 
     return try Self.parse(data)

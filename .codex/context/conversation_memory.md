@@ -1,2 +1,6 @@
 - Motion audit: keep existing AppKit view ownership and reuse shared springs for the overlay. Calendar event rows have no detail interaction.
 - Tab padding: share notch content insets with the island; keep the island's outer size allowance separate.
+- Notch transition: the rendered silhouette owns the open/close handoff. Keep the compact media wings fixed and reveal the track title below them during click-mode hover. Committed swipes use alignment haptics.
+- Notch reveal: overlap the frosted content reveal with the shape spring. The mask clips the reveal as the container grows, and independent blur and opacity animations keep close reversals continuous.
+- Stay Awake: keep power management and timing in the existing view model. Use the status card for click, hold, and countdown scrolling. The approved folded-island hook hosts a passive amber cup, and a successful hold gives one alignment haptic.
+- Stay Awake idle indicator: center the cup in software pills and place it below the physical notch, extending the existing folded silhouette only while active.

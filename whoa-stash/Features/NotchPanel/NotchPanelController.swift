@@ -17,6 +17,9 @@ final class NotchPanelController {
   // déplier le panneau comme un survol le ferait, sans quoi il n'y aurait rien pour recevoir
   // le dépôt (voir `handleCursor(at:)`).
   private let mouseMonitor = GlobalMouseMonitor(tracksDrags: true)
+  private var scrollMonitors: [Any] = []
+  private var swipeDisplay: CGDirectDisplayID?
+  private var swipeDismissedDisplay: CGDirectDisplayID?
   private let storage: SettingsStorage
   private let appLauncher = AppLauncher()
   private var launchListCancellable: AnyCancellable?
@@ -88,6 +91,12 @@ final class NotchPanelController {
   var clipboardImageURL: ((ClipboardItem) -> URL?)? {
     didSet { windows.values.forEach { $0.clipboardImageURL = clipboardImageURL } }
   }
+  var onDeleteClipboardItem: ((ClipboardItem) -> Void)? {
+    didSet { windows.values.forEach { $0.onDeleteClipboardItem = onDeleteClipboardItem } }
+  }
+  var onTogglePinClipboardItem: ((ClipboardItem) -> Void)? {
+    didSet { windows.values.forEach { $0.onTogglePinClipboardItem = onTogglePinClipboardItem } }
+  }
   private var isActive = false
 
   /// Dernière lecture connue, rejouée sur chaque panneau neuf comme l'agenda.
@@ -101,6 +110,10 @@ final class NotchPanelController {
   /// Boutons de la ligne « en lecture » ; posé avant ou après la construction des fenêtres.
   var onNowPlayingCommand: ((NowPlayingCommand) -> Void)? {
     didSet { windows.values.forEach { $0.onNowPlayingCommand = onNowPlayingCommand } }
+  }
+
+  var onNowPlayingSeek: ((TimeInterval) -> Void)? {
+    didSet { windows.values.forEach { $0.onNowPlayingSeek = onNowPlayingSeek } }
   }
 
   /// Lit les événements d'un jour, pour la rangée de la semaine de chaque panneau.
@@ -261,6 +274,14 @@ final class NotchPanelController {
       self?.handleCursor(at: location, clicked: true)
     }
     mouseMonitor.start()
+    if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel, handler: {
+      [weak self] event in
+      self?.handleVerticalSwipe(event)
+    }) { scrollMonitors.append(monitor) }
+    if let monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel, handler: {
+      [weak self] event in
+      self?.handleVerticalSwipe(event) == true ? nil : event
+    }) { scrollMonitors.append(monitor) }
   }
 
   private func stop() {
@@ -268,6 +289,10 @@ final class NotchPanelController {
     isActive = false
 
     mouseMonitor.stop()
+    scrollMonitors.forEach(NSEvent.removeMonitor)
+    scrollMonitors.removeAll()
+    swipeDisplay = nil
+    swipeDismissedDisplay = nil
     if let screenObserver {
       NotificationCenter.default.removeObserver(screenObserver)
       self.screenObserver = nil
@@ -780,10 +805,55 @@ final class NotchPanelController {
 
   /// `clicked` : l'appel vient d'un appui du bouton gauche. En mode « clic », seul cet appui
   /// ouvre le panneau depuis la zone sensible ; le survol ne fait que le garder ouvert.
+  @discardableResult
+  private func handleVerticalSwipe(_ event: NSEvent) -> Bool {
+    guard event.hasPreciseScrollingDeltas, !event.phase.isEmpty, event.momentumPhase.isEmpty,
+      !colorPickerState.isSampling, !OverlayContextMenu.shared.isPresenting,
+      !FileShelfStore.shared.isDraggingOut else {
+      if let swipeDisplay { windows[swipeDisplay]?.cancelVerticalSwipe() }
+      swipeDisplay = nil
+      return false
+    }
+    let location = NSEvent.mouseLocation
+    if event.phase.contains(.began) {
+      if let swipeDisplay { windows[swipeDisplay]?.cancelVerticalSwipe() }
+      swipeDisplay = NSScreen.screens.first(where: { $0.frame.contains(location) })?.displayID
+      if let id = swipeDisplay, let window = windows[id],
+        window.isSuppressed || !window.acceptsVerticalSwipe(at: location) {
+        swipeDisplay = nil
+      }
+    }
+    guard let id = swipeDisplay, let window = windows[id], !window.isSuppressed else {
+      swipeDisplay = nil
+      return false
+    }
+    let wasTracking = window.isTrackingVerticalSwipe
+    let target = window.trackVerticalSwipe(event)
+    if event.phase.contains(.ended) || event.phase.contains(.cancelled) { swipeDisplay = nil }
+    if let target {
+      NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+      if target {
+        swipeDismissedDisplay = nil
+        window.prepareForPointerOpen()
+        revealPinned(tab: agentPrompts.current == nil ? nil : .ai, on: id)
+        hasVisitedPinnedPanel = true
+      } else {
+        swipeDismissedDisplay = id
+        collapseActive()
+      }
+    }
+    return wasTracking || window.isTrackingVerticalSwipe || target != nil
+  }
+
   private func handleCursor(at location: NSPoint, clicked: Bool = false) {
     // Calculé avant les gardes : le détecteur doit voir chaque relâchement, même quand le
     // suivi est gelé plus bas, sans quoi il garderait un compteur périmé.
     let draggingFiles = isDraggingFiles()
+    if let swipeDisplay {
+      if !clicked { return }
+      windows[swipeDisplay]?.cancelVerticalSwipe()
+      self.swipeDisplay = nil
+    }
 
     // Prélèvement en cours : le panneau est replié exprès, et le curseur qui vise l'écran
     // passerait sur la zone sensible du haut pour le rouvrir sous le compte-gouttes.
@@ -851,7 +921,8 @@ final class NotchPanelController {
       return
     }
 
-    let opensHere = inHotZone && (!opensOnClick || clicked)
+    if !inHotZone || clicked { swipeDismissedDisplay = nil }
+    let opensHere = inHotZone && swipeDismissedDisplay != displayID && (!opensOnClick || clicked)
     guard opensHere || overPanel else {
       collapseActive()
       return
@@ -868,7 +939,13 @@ final class NotchPanelController {
     window.apply(agendaState: agendaState)
     // Une demande attend : le panneau s'ouvre sur l'onglet AI, où elle est lisible. Seulement à
     // l'ouverture, pour ne pas ramener l'onglet à chaque mouvement du curseur.
-    if !window.isExpanded, agentPrompts.current != nil { window.select(.ai) }
+    if !window.isExpanded {
+      if agentPrompts.current != nil {
+        window.select(.ai)
+      } else {
+        window.prepareForPointerOpen()
+      }
+    }
     updatePeek(on: nil)
     window.setExpanded(true)
     startPolling()
@@ -949,6 +1026,8 @@ final class NotchPanelController {
         window.onClearClipboard = onClearClipboard
         window.onSelectClipboardItem = onSelectClipboardItem
         window.clipboardImageURL = clipboardImageURL
+        window.onDeleteClipboardItem = onDeleteClipboardItem
+        window.onTogglePinClipboardItem = onTogglePinClipboardItem
         window.apply(clipboardItems: clipboardItems)
         window.onCreateNote = onCreateNote
         window.onEditNote = onEditNote
@@ -959,6 +1038,7 @@ final class NotchPanelController {
         window.apply(colorPickerState: colorPickerState)
         window.apply(stayAwakeState: stayAwakeState)
         window.onNowPlayingCommand = onNowPlayingCommand
+        window.onNowPlayingSeek = onNowPlayingSeek
         window.dayAgendaLoader = dayAgendaLoader
         window.showNowPlaying(nowPlayingState)
         window.updateNowPlayingPlayer(nowPlayingPlayer)
@@ -991,6 +1071,7 @@ final class NotchPanelController {
     for (displayID, window) in windows where !connected.contains(displayID) {
       window.close()
       windows.removeValue(forKey: displayID)
+      if swipeDisplay == displayID { swipeDisplay = nil }
       if expandedDisplay == displayID {
         expandedDisplay = nil
         stopPolling()

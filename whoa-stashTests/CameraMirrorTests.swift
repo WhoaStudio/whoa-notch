@@ -128,15 +128,59 @@ struct CameraMirrorViewModelTests {
     #expect(provider.stops == 1)
   }
 
-  @Test("sans réponse encore, l'autorisation est demandée puis la caméra démarre")
-  func requestsAccessFirst() async {
+  @Test("sans réponse encore, l'onglet propose le bouton et n'ouvre pas l'invite de lui-même")
+  func needsAccessDoesNotPrompt() async {
     let provider = SpyProvider(access: .notDetermined)
     let model = CameraMirrorViewModel(provider: provider)
 
     model.setActive(true)
     await settle()
 
+    #expect(model.state == .needsAccess)
+    #expect(provider.starts == 0)
+  }
+
+  @Test("le bouton demande l'autorisation puis la caméra démarre")
+  func buttonRequestsAccessThenStarts() async {
+    let provider = SpyProvider(access: .notDetermined)
+    let model = CameraMirrorViewModel(provider: provider)
+
+    model.setActive(true)
+    model.requestAccess()
+    await settle()
+
     #expect(model.state == .running)
+    #expect(provider.starts == 1)
+  }
+
+  @Test("une autorisation accordée dans Réglages Système fait démarrer l'aperçu")
+  func grantedElsewhereStarts() async throws {
+    let provider = SpyProvider(access: .denied)
+    let model = CameraMirrorViewModel(
+      provider: provider, accessPollInterval: .milliseconds(5))
+
+    model.setActive(true)
+    #expect(model.state == .denied)
+    provider.accessStatus = .granted
+    for _ in 0..<200 where model.state != .running { try await Task.sleep(for: .milliseconds(5)) }
+
+    #expect(model.state == .running)
+    #expect(provider.starts == 1)
+  }
+
+  @Test("replié, l'onglet ne surveille plus l'autorisation")
+  func collapsedStopsWatching() async throws {
+    let provider = SpyProvider(access: .denied)
+    let model = CameraMirrorViewModel(
+      provider: provider, accessPollInterval: .milliseconds(5))
+
+    model.setActive(true)
+    model.setActive(false)
+    provider.accessStatus = .granted
+    try await Task.sleep(for: .milliseconds(60))
+
+    #expect(provider.starts == 0)
+    #expect(model.state == .idle)
   }
 
   @Test("refusée, l'onglet montre l'écriteau et la caméra ne s'allume jamais")
@@ -167,10 +211,73 @@ struct CameraMirrorViewModelTests {
     let model = CameraMirrorViewModel(provider: provider)
 
     model.setActive(true)
+    model.requestAccess()
     model.setActive(false)
     await settle()
 
     #expect(provider.starts == 0)
     #expect(model.state == .idle)
+  }
+}
+
+@Suite("Zoom de l'aperçu")
+struct MirrorZoomTests {
+
+  @Test("au repos l'aperçu n'est pas zoomé")
+  func startsAtOne() {
+    let zoom = MirrorZoom()
+    #expect(zoom.displayed == 1)
+    #expect(!zoom.isZoomed)
+  }
+
+  @Test("un pincement agrandit, dans les bornes")
+  func magnifyWithinRange() {
+    var zoom = MirrorZoom()
+    zoom.magnify(by: 0.5)
+    #expect(zoom.displayed == 1.5)
+    #expect(zoom.isZoomed)
+    #expect(!zoom.isOutOfRange)
+  }
+
+  @Test("au-delà de 3×, l'image résiste puis revient sur la borne")
+  func rubberBandAndSettle() {
+    var zoom = MirrorZoom()
+    zoom.magnify(by: 4)
+    #expect(zoom.isOutOfRange)
+    #expect(zoom.displayed > 3)
+    #expect(zoom.displayed < 3.3)
+    zoom.settle()
+    #expect(zoom.displayed == 3)
+  }
+
+  @Test("sous 1×, le dépassement reste minime")
+  func belowOneBarelyMoves() {
+    var zoom = MirrorZoom()
+    zoom.magnify(by: -0.6)
+    #expect(zoom.displayed < 1)
+    #expect(zoom.displayed > 0.94)
+    zoom.settle()
+    #expect(zoom.displayed == 1)
+  }
+
+  @Test("la molette zoome vers le haut et dézoome vers le bas")
+  func scrollDirection() {
+    var zoom = MirrorZoom()
+    zoom.scroll(by: 20)
+    let zoomedIn = zoom.displayed
+    #expect(zoomedIn > 1)
+    zoom.scroll(by: -20)
+    #expect(abs(zoom.displayed - 1) < 1e-9)
+  }
+
+  @Test("le rectangle visible est un carré centré, plus petit quand on zoome")
+  func visibleRect() {
+    let size = CGSize(width: 1280, height: 720)
+    #expect(
+      MirrorZoom.visibleRect(imageSize: size, zoom: 1)
+        == CGRect(x: 280, y: 0, width: 720, height: 720))
+    #expect(
+      MirrorZoom.visibleRect(imageSize: size, zoom: 2)
+        == CGRect(x: 460, y: 180, width: 360, height: 360))
   }
 }

@@ -51,26 +51,35 @@ nonisolated enum ActivityAggregator {
     }
 
     var tokens = 0
-    var cost = 0.0
-    var hasPricedRecord = false
     var days: Set<Date> = []
     for record in scoped {
       tokens += record.tokens.work
       days.insert(calendar.startOfDay(for: record.date))
-      if let pricing = ModelPricing.pricing(for: record.model) {
-        cost += pricing.cost(of: record.tokens)
-        hasPricedRecord = true
+    }
+    return ActivitySummary(tokens: tokens, activeDays: days.count, daysInPeriod: daysInPeriod)
+  }
+
+  /// Les jetons du mois choisi, un point par jour calendaire (zéro les jours sans activité),
+  /// avec les mêmes filtres que `summarize` : la somme de la courbe vaut `summary.tokens`.
+  static func dailyTokens(
+    records: [ActivityRecord], filter: ActivityFilter, now: Date, calendar: Calendar
+  ) -> [ActivityDay] {
+    let interval = month(offset: filter.monthOffset, now: now, calendar: calendar)
+    let daysInPeriod = calendar.range(of: .day, in: .month, for: interval.start)?.count ?? 0
+
+    var perDay: [Date: Int] = [:]
+    for record in inMonth(records, filter: filter, now: now, calendar: calendar)
+    where (filter.agent == nil || record.agent == filter.agent)
+      && (filter.model == nil || record.model == filter.model)
+      && (filter.project == nil || record.project == filter.project)
+    {
+      perDay[calendar.startOfDay(for: record.date), default: 0] += record.tokens.work
+    }
+    return (0..<daysInPeriod).compactMap { offset in
+      calendar.date(byAdding: .day, value: offset, to: interval.start).map {
+        ActivityDay(date: $0, tokens: perDay[$0] ?? 0)
       }
     }
-
-    let total: Double? = hasPricedRecord ? cost : (scoped.isEmpty ? 0 : nil)
-    return ActivitySummary(
-      tokens: tokens,
-      cost: total,
-      forecast: total.map { forecast(of: $0, interval: interval, now: now) },
-      activeDays: days.count,
-      daysInPeriod: daysInPeriod
-    )
   }
 
   /// Les `limit` modèles les plus utilisés du mois choisi, par jetons décroissants (le nom
@@ -79,28 +88,15 @@ nonisolated enum ActivityAggregator {
     records: [ActivityRecord], filter: ActivityFilter, now: Date, calendar: Calendar, limit: Int
   ) -> [ActivityBreakdownRow] {
     var tokens: [String: Int] = [:]
-    var cost: [String: Double] = [:]
     for record in inMonth(records, filter: filter, now: now, calendar: calendar)
     where filter.agent == nil || record.agent == filter.agent {
       tokens[record.model, default: 0] += record.tokens.work
-      if let pricing = ModelPricing.pricing(for: record.model) {
-        cost[record.model, default: 0] += pricing.cost(of: record.tokens)
-      }
     }
     return
       tokens
-      .map { ActivityBreakdownRow(model: $0.key, tokens: $0.value, cost: cost[$0.key]) }
+      .map { ActivityBreakdownRow(model: $0.key, tokens: $0.value) }
       .sorted { ($0.tokens, $1.model) > ($1.tokens, $0.model) }
       .prefix(limit)
       .map { $0 }
-  }
-
-  /// Coût du mois projeté au rythme observé. Un mois fini vaut son coût ; la première journée
-  /// compte pour un jour entier, sans quoi quelques heures d'activité s'extrapoleraient à
-  /// l'infini.
-  private static func forecast(of cost: Double, interval: DateInterval, now: Date) -> Double {
-    guard interval.contains(now) else { return cost }
-    let elapsedDays = max(1, now.timeIntervalSince(interval.start) / 86_400)
-    return cost / elapsedDays * (interval.duration / 86_400)
   }
 }

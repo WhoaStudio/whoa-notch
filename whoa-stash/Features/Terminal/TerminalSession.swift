@@ -15,16 +15,13 @@ import os
 @MainActor
 final class TerminalSession {
 
-  let view: LocalProcessTerminalView
+  let view: TerminalSurface
   private(set) var isRunning = false
   private var startedAt: Date?
   private let delegateProxy = DelegateProxy()
 
   init() {
-    view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 480, height: 200))
-    view.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-    view.nativeBackgroundColor = NSColor(white: 0.06, alpha: 1)
-    view.nativeForegroundColor = NSColor(white: 0.92, alpha: 1)
+    view = TerminalSurface(frame: NSRect(x: 0, y: 0, width: 480, height: 200))
     delegateProxy.session = self
     view.processDelegate = delegateProxy
   }

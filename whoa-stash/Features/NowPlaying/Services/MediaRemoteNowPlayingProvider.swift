@@ -77,6 +77,25 @@ final class MediaRemoteNowPlayingProvider: NowPlayingProviding {
     }
   }
 
+  /// L'adaptateur attend la position en microsecondes entières.
+  func seek(to seconds: TimeInterval) {
+    guard let paths = Self.adapterPaths, seconds.isFinite else { return }
+    let microseconds = Int(max(0, seconds) * 1_000_000)
+    Task.detached {
+      let process = Process()
+      process.executableURL = URL(filePath: "/usr/bin/perl")
+      process.arguments = [paths.script, paths.framework, "seek", String(microseconds)]
+      process.standardOutput = FileHandle.nullDevice
+      process.standardError = FileHandle.nullDevice
+      do {
+        try process.run()
+      } catch {
+        Log.nowPlaying.error(
+          "déplacement impossible : \(error.localizedDescription, privacy: .public)")
+      }
+    }
+  }
+
   // MARK: - Flux
 
   private func launch() {
