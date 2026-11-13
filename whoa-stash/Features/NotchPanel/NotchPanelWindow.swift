@@ -151,6 +151,16 @@ final class NotchPanelWindow {
     set { contentView.onSelectClipboardItem = newValue }
   }
 
+  var onDeleteClipboardItem: ((ClipboardItem) -> Void)? {
+    get { contentView.onDeleteClipboardItem }
+    set { contentView.onDeleteClipboardItem = newValue }
+  }
+
+  var onTogglePinClipboardItem: ((ClipboardItem) -> Void)? {
+    get { contentView.onTogglePinClipboardItem }
+    set { contentView.onTogglePinClipboardItem = newValue }
+  }
+
   var clipboardImageURL: ((ClipboardItem) -> URL?)? {
     get { contentView.clipboardImageURL }
     set { contentView.clipboardImageURL = newValue }
@@ -292,6 +302,11 @@ final class NotchPanelWindow {
     set { contentView.onNowPlayingCommand = newValue }
   }
 
+  var onNowPlayingSeek: ((TimeInterval) -> Void)? {
+    get { contentView.onNowPlayingSeek }
+    set { contentView.onNowPlayingSeek = newValue }
+  }
+
   var dayAgendaLoader: ((Date) async -> CalendarAgendaState)? {
     get { contentView.dayAgendaLoader }
     set { contentView.dayAgendaLoader = newValue }
@@ -333,7 +348,9 @@ final class NotchPanelWindow {
     panel.setFrame(frame, display: true)
     contentView.frame = NSRect(origin: .zero, size: frame.size)
     contentView.collapsedSize = NotchPanelGeometry.collapsedSize(on: screen, style: style)
-    if let notch = NotchPanelGeometry.notchRect(on: screen) {
+    let hardwareNotch = NotchPanelGeometry.notchRect(on: screen)
+    contentView.hasHardwareNotch = hardwareNotch != nil
+    if let notch = hardwareNotch {
       Log.notchPanel.debug(
         "Encoche matérielle \(notch.width, privacy: .public) × \(notch.height, privacy: .public) pt, déplié \(frame.width, privacy: .public) pt"
       )
@@ -370,16 +387,24 @@ final class NotchPanelWindow {
     contentView.setHoverPeek(peeking)
   }
 
+  func prepareForPointerOpen() {
+    if FileShelfStore.shared.isEmpty { contentView.resetSelectionWhenFolded() }
+  }
+
+  func acceptsVerticalSwipe(at location: NSPoint) -> Bool {
+    contentView.acceptsVerticalSwipe(at: NSPoint(
+      x: location.x - panel.frame.minX, y: location.y - panel.frame.minY))
+  }
+
+  var isTrackingVerticalSwipe: Bool { contentView.isTrackingVerticalSwipe }
+
+  func trackVerticalSwipe(_ event: NSEvent) -> Bool? { contentView.trackVerticalSwipe(event) }
+  func cancelVerticalSwipe() { contentView.cancelVerticalSwipe() }
+
   func setExpanded(_ expanded: Bool, animated: Bool = true) {
+    guard isExpanded != expanded else { return }
     if expanded {
       contentView.refreshWeek()
-    } else {
-      // Le panneau rouvre sur Global — sauf si le bac retient des fichiers : ils doivent
-      // être là à la réouverture, pas derrière un clic sur l'onglet. Sans animation, le
-      // repli étant déjà en cours.
-      if FileShelfStore.shared.isEmpty {
-        contentView.select(.global, animated: false)
-      }
     }
     // Les onglets ne sont cliquables que dépliés — voir la note en tête de type.
     panel.ignoresMouseEvents = !expanded

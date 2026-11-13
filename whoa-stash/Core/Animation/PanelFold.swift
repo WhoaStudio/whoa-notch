@@ -40,6 +40,7 @@ enum PanelFold {
     dissolving: [CALayer] = [],
     to opacity: Float,
     animated: Bool,
+    velocity: CGFloat = 0,
     completion: (() -> Void)? = nil
   ) {
     // `OverlayAnimation` coupe le mouvement de tout l'overlay d'un seul réglage : le
@@ -70,6 +71,7 @@ enum PanelFold {
         keyPath: "path",
         to: path,
         preset: .gentle,
+        velocity: velocity,
         completion: shape === leading ? completion : nil
       )
     }

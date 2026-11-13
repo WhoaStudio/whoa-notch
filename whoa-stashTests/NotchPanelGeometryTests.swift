@@ -42,6 +42,47 @@ struct NotchPanelGeometryTests {
     )
   }
 
+  @Test("le contenu se révèle sans attendre la fin du ressort", arguments: [false, true])
+  func openingRevealsContentDuringMorph(island: Bool) throws {
+    let size = NotchPanelGeometry.expandedSize(collapsedHeight: Self.collapsedHeight, island: island)
+    let view = NotchPanelContentView(frame: NSRect(origin: .zero, size: size))
+    view.collapsedTopGap = island ? NotchPanelGeometry.islandTopGap : 0
+    view.layoutSubtreeIfNeeded()
+    let content = try #require(view.subviews.compactMap(\.layer).first { $0.mask is CAShapeLayer })
+
+    view.setExpanded(true, animated: true)
+
+    #expect(content.opacity == 1)
+    if OverlayAnimation.allowsMotion {
+      #expect(content.mask?.animation(forKey: "path") is CASpringAnimation)
+      let reveal = try #require(content.animation(forKey: "opacity") as? CABasicAnimation)
+      #expect((reveal.fromValue as? NSNumber)?.floatValue == 0)
+    }
+  }
+
+  @Test("le témoin Stay Awake tient sous l’encoche matérielle")
+  func stayAwakeIndicatorFitsBelowHardwareNotch() throws {
+    let size = NotchPanelGeometry.expandedSize(collapsedHeight: Self.collapsedHeight)
+    let view = NotchPanelContentView(frame: NSRect(origin: .zero, size: size))
+    view.hasHardwareNotch = true
+    view.layoutSubtreeIfNeeded()
+    let indicators = view.subviews.compactMap { $0 as? StayAwakeIdleIndicator }
+    let masks = view.subviews.compactMap { $0.layer?.mask as? CAShapeLayer }
+    let indicator = try #require(indicators.first)
+    let mask = try #require(masks.first)
+    #expect(indicator.frame.maxY < view.bounds.maxY - view.collapsedSize.height)
+    #expect(mask.path?.contains(indicator.frame.origin) == false)
+
+    view.apply(stayAwakeState: StayAwakeState(duration: .forever))
+
+    let foldedPath = try #require(mask.path)
+    #expect(foldedPath.contains(indicator.frame.origin))
+    #expect(foldedPath.contains(CGPoint(x: indicator.frame.maxX, y: indicator.frame.maxY)))
+
+    view.apply(stayAwakeState: StayAwakeState())
+    #expect(mask.path?.contains(indicator.frame.origin) == false)
+  }
+
   @Test("les quatre coins de la boîte de contenu tombent dans la silhouette dépliée")
   func contentBoxFitsInsideExpandedSilhouette() {
     let size = NotchPanelGeometry.expandedSize(collapsedHeight: Self.collapsedHeight)

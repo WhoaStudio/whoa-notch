@@ -15,6 +15,11 @@ final class WelcomeController {
   /// Marge latérale du contenu : les raccords concaves de la silhouette mordent sur les côtés.
   static let contentInsetX: CGFloat = PanelGeometry.cornerRadius + 12
 
+  /// Le panneau ne s'affiche qu'une fois : tant que l'accueil n'a pas été vu, ou si on le force.
+  static func shouldShow(hasSeenOnboarding: Bool, forced: Bool) -> Bool {
+    !hasSeenOnboarding || forced
+  }
+
   var onStart: (() -> Void)?
   var onTutorial: (() -> Void)?
 

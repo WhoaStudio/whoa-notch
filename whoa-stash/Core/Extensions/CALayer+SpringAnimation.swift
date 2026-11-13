@@ -92,7 +92,7 @@ extension CALayer {
   /// modèle en parallèle pour que le calque reste dans le bon état une fois l'animation retirée.
   func springAnimate(
     keyPath: String, to newValue: Any, from initialValue: Any? = nil,
-    preset: SpringPreset = .snappy, completion: (() -> Void)? = nil
+    preset: SpringPreset = .snappy, velocity: CGFloat = 0, completion: (() -> Void)? = nil
   ) {
     // Réglage `General > Enable animations` coupé : la valeur est posée sèchement, et la
     // complétion appelée tout de suite — les appelants s'en servent pour retirer une fenêtre
@@ -113,6 +113,12 @@ extension CALayer {
     }
 
     let animation = preset.makeAnimation(keyPath: keyPath)
+    // Vitesse relative, au sens de `CASpringAnimation` : la vitesse du geste divisée par la
+    // distance qui reste à parcourir. Elle raccorde le ressort au doigt qui vient de lâcher.
+    if velocity != 0 {
+      animation.initialVelocity = velocity
+      animation.duration = animation.settlingDuration
+    }
     animation.fromValue =
       initialValue ?? presentation()?.value(forKeyPath: keyPath) ?? self.value(forKeyPath: keyPath)
     animation.toValue = newValue

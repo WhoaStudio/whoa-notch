@@ -21,6 +21,14 @@ final class AgentEventPillView: NSView {
   /// Les dernières secondes montrées par l'anneau.
   private static let ringWindow: TimeInterval = 30
 
+  /// Le vert de l'état « terminé » : icône, texte, et dégradé de fond. Défini une seule fois.
+  /// `systemGreen` s'adapte au mode clair/sombre (l'app force `.darkAqua`).
+  static let doneTint: NSColor = .systemGreen
+
+  /// Dégradé horizontal du fond : transparent au milieu, vert au bord droit. Visible seulement
+  /// pour l'état « terminé ».
+  private let backgroundGradient = CAGradientLayer()
+
   private static let dotSize: CGFloat = 8
   private let inset: CGFloat = NotchPanelGeometry.wingEdgeInset
   private let iconSize: CGFloat = 18
@@ -39,6 +47,14 @@ final class AgentEventPillView: NSView {
     dotView.layer?.borderWidth = 1.5
     dotView.layer?.borderColor = NSColor.black.cgColor
     addSubview(dotView)
+
+    backgroundGradient.startPoint = CGPoint(x: 0.5, y: 0.5)
+    backgroundGradient.endPoint = CGPoint(x: 1, y: 0.5)
+    backgroundGradient.colors = [
+      NSColor.clear.cgColor, Self.doneTint.withAlphaComponent(0.25).cgColor,
+    ]
+    backgroundGradient.isHidden = true
+    layer?.insertSublayer(backgroundGradient, at: 0)
 
     ringLayer.fillColor = nil
     ringLayer.lineWidth = 1.5
@@ -82,7 +98,7 @@ final class AgentEventPillView: NSView {
       tint = .systemTeal
     case .reply, .message, nil:
       text = event.kind.statusText
-      tint = event.kind == .needsInput ? .systemOrange : .systemGreen
+      tint = event.kind == .needsInput ? .systemOrange : Self.doneTint
     }
     if queued > 0 { text += " +\(queued)" }
     return (text, tint)
@@ -106,6 +122,8 @@ final class AgentEventPillView: NSView {
     }
     dotView.isHidden = event.prompt == nil
     dotView.layer?.backgroundColor = status.tint.cgColor
+    // Dégradé vert seulement pour un état « terminé » (sans demande, ni attente).
+    backgroundGradient.isHidden = event.prompt != nil || event.kind == .needsInput
     projectLabel.stringValue = event.project
     statusLabel.stringValue = status.text
     statusLabel.textColor = status.tint
@@ -176,6 +194,11 @@ final class AgentEventPillView: NSView {
       radius: ringFrame.width / 2 - 0.75, startAngle: .pi / 2, endAngle: .pi / 2 - 2 * .pi,
       clockwise: true)
     ringLayer.path = path
+    CATransaction.commit()
+
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    backgroundGradient.frame = bounds
     CATransaction.commit()
 
     let labelHeight = projectLabel.intrinsicContentSize.height
