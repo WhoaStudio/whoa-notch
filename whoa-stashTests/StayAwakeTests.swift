@@ -53,6 +53,24 @@ struct StayAwakeTests {
     #expect(viewModel.state.scope == .macOnly)
   }
 
+  @Test("changer la durée conserve la prise active")
+  func durationChangeKeepsAssertion() {
+    let (viewModel, provider, clock) = makeViewModel()
+    viewModel.start(.minutes15)
+    clock.date.addTimeInterval(10 * 60)
+    provider.refusesToHold = true
+
+    viewModel.start(.hour1)
+
+    #expect(provider.heldScope == .macAndDisplay)
+    #expect(viewModel.state.duration == .hour1)
+    #expect(viewModel.state.remaining == 3600)
+    clock.date.addTimeInterval(5 * 60)
+    viewModel.tick()
+    #expect(viewModel.state.remaining == 3300)
+    viewModel.turnOff()
+  }
+
   @Test("changer la portée à l'arrêt ne tient rien")
   func scopeChangeWhileInactive() {
     let (viewModel, provider, _) = makeViewModel()
@@ -104,6 +122,66 @@ struct StayAwakeTests {
     provider.refusesToHold = true
     viewModel.start(.hour1)
     #expect(!viewModel.state.isActive)
+  }
+
+  @Test("ajuster déplace l'échéance dans les bornes et garde la prise")
+  func adjustMovesDeadline() {
+    let (viewModel, provider, clock) = makeViewModel()
+    viewModel.start(.minutes15)
+    viewModel.adjust(by: 5 * 60)
+    #expect(viewModel.state.remaining == 20 * 60)
+    #expect(viewModel.state.total == 20 * 60)
+    #expect(viewModel.state.isAdjusted)
+    clock.date.addTimeInterval(5 * 60)
+    viewModel.tick()
+    #expect(viewModel.state.remaining == 15 * 60)
+    viewModel.adjust(by: -3600)
+    #expect(viewModel.state.remaining == 60)
+    viewModel.adjust(by: 100 * 3600)
+    #expect(viewModel.state.remaining == 12 * 3600)
+    #expect(provider.heldScope != nil)
+    viewModel.start(.hour1)
+    #expect(!viewModel.state.isAdjusted)
+    viewModel.turnOff()
+  }
+
+  @Test("ajuster sans échéance ou à l'arrêt ne fait rien")
+  func adjustWithoutDeadline() {
+    let (viewModel, _, _) = makeViewModel()
+    viewModel.adjust(by: 600)
+    #expect(!viewModel.state.isActive)
+    viewModel.start(.forever)
+    viewModel.adjust(by: 600)
+    #expect(viewModel.state.remaining == nil)
+    viewModel.turnOff()
+  }
+
+  @Test("seule l'échéance appelle onExpired")
+  func expiryCallback() {
+    let (viewModel, _, clock) = makeViewModel()
+    var expired = 0
+    viewModel.onExpired = { expired += 1 }
+    viewModel.start(.minutes15)
+    viewModel.turnOff()
+    #expect(expired == 0)
+    viewModel.start(.minutes15)
+    clock.date.addTimeInterval(15 * 60)
+    viewModel.tick()
+    #expect(expired == 1)
+  }
+
+  @Test("le compte à rebours s'écrit en chiffres")
+  func countdownText() {
+    var state = StayAwakeState()
+    #expect(state.countdownText == "0:00")
+    state.duration = .hours2
+    state.remaining = 47 * 60 + 12
+    #expect(state.countdownText == "47:12")
+    state.remaining = 3600 + 59 * 60 + 3
+    #expect(state.countdownText == "1:59:03")
+    state.duration = .forever
+    state.remaining = nil
+    #expect(state.countdownText == "∞")
   }
 
   @Test("le balayage ne mène ni à Stay Awake ni à Analytics, ni n'en part")

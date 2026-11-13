@@ -6,6 +6,12 @@ import Foundation
 final class StayAwakeViewModel {
 
   var onStateChanged: ((StayAwakeState) -> Void)?
+  /// Appelé quand le minuteur arrive à son terme (pas sur un « Turn Off »).
+  var onExpired: (() -> Void)?
+
+  /// Bornes du réglage à la main : une minute au moins, douze heures au plus.
+  static let minimumRemaining: TimeInterval = 60
+  static let maximumRemaining: TimeInterval = 12 * 3600
 
   private(set) var state = StayAwakeState()
 
@@ -27,17 +33,33 @@ final class StayAwakeViewModel {
     switch action {
     case .start(let duration): start(duration)
     case .setScope(let scope): setScope(scope)
+    case .adjust(let delta): adjust(by: delta)
     case .turnOff: turnOff()
     }
   }
 
   /// Démarre, ou relance avec une nouvelle durée si c'est déjà actif.
   func start(_ duration: StayAwakeDuration) {
-    guard provider.hold(state.scope) else { return }
+    guard state.isActive || provider.hold(state.scope) else { return }
     state.duration = duration
     deadline = duration.seconds.map { now().addingTimeInterval($0) }
     state.remaining = duration.seconds
+    state.total = duration.seconds
+    state.isAdjusted = false
     scheduleTimer()
+    onStateChanged?(state)
+  }
+
+  /// Déplace l'échéance de `delta` secondes, bornée à [1 min, 12 h]. Ne touche pas à la prise.
+  func adjust(by delta: TimeInterval) {
+    guard let deadline, state.isActive else { return }
+    let current = deadline.timeIntervalSince(now())
+    let target = min(Self.maximumRemaining, max(Self.minimumRemaining, current + delta))
+    guard target != current else { return }
+    self.deadline = deadline.addingTimeInterval(target - current)
+    state.remaining = target
+    state.total = max(state.total ?? target, target)
+    state.isAdjusted = true
     onStateChanged?(state)
   }
 
@@ -62,6 +84,8 @@ final class StayAwakeViewModel {
     guard state.isActive else { return }
     state.duration = nil
     state.remaining = nil
+    state.total = nil
+    state.isAdjusted = false
     onStateChanged?(state)
   }
 
@@ -71,6 +95,7 @@ final class StayAwakeViewModel {
     let remaining = deadline.timeIntervalSince(now())
     if remaining <= 0 {
       turnOff()
+      onExpired?()
     } else {
       state.remaining = remaining
       onStateChanged?(state)

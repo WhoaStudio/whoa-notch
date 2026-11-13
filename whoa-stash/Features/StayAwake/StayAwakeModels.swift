@@ -4,20 +4,16 @@ import Foundation
 /// met fin.
 enum StayAwakeDuration: CaseIterable, Equatable {
   case minutes15
-  case minutes30
   case hour1
   case hours2
-  case hours5
   case forever
 
   /// Durée en secondes, `nil` pour `forever`.
   var seconds: TimeInterval? {
     switch self {
     case .minutes15: 15 * 60
-    case .minutes30: 30 * 60
     case .hour1: 60 * 60
     case .hours2: 2 * 60 * 60
-    case .hours5: 5 * 60 * 60
     case .forever: nil
     }
   }
@@ -26,10 +22,8 @@ enum StayAwakeDuration: CaseIterable, Equatable {
   var label: String {
     switch self {
     case .minutes15: "15m"
-    case .minutes30: "30m"
     case .hour1: "1h"
     case .hours2: "2h"
-    case .hours5: "5h"
     case .forever: "∞"
     }
   }
@@ -59,6 +53,8 @@ enum StayAwakeScope: CaseIterable, Equatable {
 enum StayAwakeAction: Equatable {
   case start(StayAwakeDuration)
   case setScope(StayAwakeScope)
+  /// Ajoute (ou retire, si négatif) du temps à l'échéance en cours. Sans effet sans échéance.
+  case adjust(TimeInterval)
   case turnOff
 }
 
@@ -68,6 +64,26 @@ struct StayAwakeState: Equatable {
   var scope: StayAwakeScope = .macAndDisplay
   var duration: StayAwakeDuration?
   var remaining: TimeInterval?
+  /// Durée de référence de l'anneau : ce que `remaining` vide. `nil` sans échéance.
+  var total: TimeInterval?
+  /// Vrai quand le temps a été ajusté à la main : plus aucune pastille de durée n'est la bonne.
+  var isAdjusted = false
+
+  /// Part restante de l'anneau, entre 0 et 1 ; pleine sans échéance.
+  var fraction: Double {
+    guard let remaining, let total, total > 0 else { return isActive ? 1 : 0 }
+    return min(1, max(0, remaining / total))
+  }
+
+  /// Compte à rebours en grands chiffres : « 47:12 », « 1:59:03 », « ∞ ».
+  var countdownText: String {
+    guard isActive else { return "0:00" }
+    guard let remaining else { return "∞" }
+    let seconds = max(0, Int(remaining.rounded(.up)))
+    let (h, m, s) = (seconds / 3600, seconds % 3600 / 60, seconds % 60)
+    return h > 0
+      ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+  }
 
   var isActive: Bool { duration != nil }
 
