@@ -110,4 +110,17 @@ struct MonthGridLayoutTests {
       layout.days.compactMap(\.self) == Array(1...31),
       "octobre devrait s'étendre du 1 au 31, dans l'ordre")
   }
+
+  @Test(
+    "la grille compte les semaines que le mois occupe : février 2027 en quatre, août 2026 en six")
+  func rowCountFollowsTheMonth() {
+    let calendar = Self.calendar(firstWeekday: 2)
+    let february = MonthGridLayout(date: Self.date(2027, 2, 10, in: calendar), calendar: calendar)
+    let october = MonthGridLayout(date: Self.date(2026, 10, 10, in: calendar), calendar: calendar)
+    let august = MonthGridLayout(date: Self.date(2026, 8, 10, in: calendar), calendar: calendar)
+
+    #expect(february.rowCount == 4, "février 2027 part d'un lundi et tient en quatre semaines")
+    #expect(october.rowCount == 5, "octobre 2026 tient en cinq semaines")
+    #expect(august.rowCount == 6, "août 2026 part d'un samedi et déborde sur une sixième semaine")
+  }
 }

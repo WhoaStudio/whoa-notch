@@ -243,4 +243,21 @@ struct CalendarAgendaTests {
     #expect(state == .unavailable(.denied), "l'écriteau d'accès refusé doit rester atteignable")
     #expect(provider.fetchCount == 0, "aucune lecture sans accès")
   }
+
+  @Test("un accès accordé après coup est rattrapé à la lecture suivante d'un jour")
+  func accessGrantedLaterIsPickedUpByDayRead() async {
+    let provider = FakeProvider(accessStatus: .denied)
+    let viewModel = CalendarAgendaViewModel(provider: provider)
+    viewModel.activate()
+    await Self.waitForState(of: viewModel)
+    #expect(viewModel.state == .unavailable(.denied), "l'état de départ devrait porter le refus")
+
+    // L'utilisateur accorde l'accès (carte d'accès ou Réglages Système), puis l'onglet relit un
+    // jour : l'agenda partagé doit suivre, sans redémarrage.
+    provider.accessStatus = .granted
+    _ = await viewModel.dayState(for: Date())
+    await Self.waitForState(of: viewModel) { $0.agenda == nil }
+
+    #expect(viewModel.state.agenda != nil, "l'agenda partagé devrait être relu une fois l'accès accordé")
+  }
 }

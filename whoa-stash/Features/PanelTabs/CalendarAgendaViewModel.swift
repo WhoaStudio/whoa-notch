@@ -105,6 +105,7 @@ final class CalendarAgendaViewModel {
   /// refusé et le « No events » viennent alors de `AgendaListView`, sans second texte à tenir.
   func dayState(for date: Date) async -> CalendarAgendaState {
     guard provider.accessStatus == .granted else { return .unavailable(provider.accessStatus) }
+    recheckAccess()
 
     do {
       let agenda = try await provider.fetchAgenda(for: date)
@@ -114,6 +115,22 @@ final class CalendarAgendaViewModel {
         "lecture du jour échouée — \(error.localizedDescription, privacy: .public)")
       return .unavailable(provider.accessStatus)
     }
+  }
+
+  /// Rattrape un accès accordé après coup — par la carte d'accès des onglets, ou dans les
+  /// Réglages Système pendant que l'app tournait. Sans ça, l'état partagé resterait sur
+  /// `.unavailable` jusqu'au redémarrage, alors que les lectures d'un jour, elles, passent.
+  /// Appelé par `dayState(for:)`, que chaque dépliage du panneau déclenche.
+  private func recheckAccess() {
+    // `.unavailable(.granted)` est une lecture ratée malgré l'accès, pas un accès à rattraper :
+    // la relancer à chaque jour lu ferait clignoter l'agenda pour rien.
+    guard case .unavailable(let previous) = state, previous != .granted,
+      provider.accessStatus == .granted
+    else { return }
+    Log.calendar.info("accès aux calendriers accordé après coup — relecture")
+    state = .loading
+    refresh(force: true)
+    if changesTask == nil { observeChanges() }
   }
 
   /// Suit `EKEventStoreChanged` — sans le nommer : le flux vient de la source, et c'est ce qui
