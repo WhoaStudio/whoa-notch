@@ -15,6 +15,7 @@ enum PrivacyPermission: CaseIterable, Identifiable {
   case contacts
   case location
   case photos
+  case camera
   case microphone
   case accessibility
   case systemAudio
@@ -29,6 +30,7 @@ enum PrivacyPermission: CaseIterable, Identifiable {
     case .contacts: return "Contacts"
     case .location: return "Location"
     case .photos: return "Photos"
+    case .camera: return "Camera"
     case .microphone: return "Microphone"
     case .accessibility: return "Accessibility"
     case .systemAudio: return "System Audio Recording"
@@ -43,6 +45,7 @@ enum PrivacyPermission: CaseIterable, Identifiable {
     case .contacts: return "Reserved for a contacts widget. Not used yet"
     case .location: return "Reserved for local weather. Not used yet"
     case .photos: return "Reserved for a recent photo widget. Not used yet"
+    case .camera: return "Mirror tab: live preview, on only while the tab is open"
     case .microphone: return "Reserved for a voice memo. Not used yet"
     case .accessibility: return "Bring back minimised windows in the dock"
     case .systemAudio:
@@ -61,6 +64,7 @@ enum PrivacyPermission: CaseIterable, Identifiable {
     case .contacts: pane = "Privacy_Contacts"
     case .location: pane = "Privacy_LocationServices"
     case .photos: pane = "Privacy_Photos"
+    case .camera: pane = "Privacy_Camera"
     case .microphone: pane = "Privacy_Microphone"
     case .accessibility: pane = "Privacy_Accessibility"
     case .systemAudio: pane = "Privacy_ScreenCapture"
@@ -102,6 +106,8 @@ enum PrivacyPermissionService {
       return photosState(PHPhotoLibrary.authorizationStatus(for: .readWrite))
     case .microphone:
       return captureState(AVCaptureDevice.authorizationStatus(for: .audio))
+    case .camera:
+      return captureState(AVCaptureDevice.authorizationStatus(for: .video))
     case .accessibility:
       return AXIsProcessTrusted() ? .allowed : .denied
     case .systemAudio:
@@ -126,6 +132,8 @@ enum PrivacyPermissionService {
       _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
     case .microphone:
       _ = await AVCaptureDevice.requestAccess(for: .audio)
+    case .camera:
+      _ = await AVCaptureDevice.requestAccess(for: .video)
     case .accessibility:
       AccessibilityPermissionService.shared.requestAccess()
     case .systemAudio:

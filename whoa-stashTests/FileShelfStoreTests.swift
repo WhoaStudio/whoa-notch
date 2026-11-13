@@ -82,6 +82,35 @@ struct FileShelfStoreTests {
 
     #expect(second.urls == moved)
   }
+
+  @Test("mettre un fichier à la corbeille le retire du bac et du disque")
+  func trashingRemovesFileFromTrayAndDisk() throws {
+    let fixture = try Fixture()
+    let source = fixture.root.appendingPathComponent("note.txt")
+    try Data("hello".utf8).write(to: source)
+    let store = FileShelfStore(
+      defaults: fixture.defaults,
+      trayDirectory: fixture.trayDirectory
+    )
+    let moved = store.add([source])
+
+    let trashed = store.trash(moved[0])
+
+    #expect(trashed)
+    #expect(store.isEmpty)
+    #expect(!FileManager.default.fileExists(atPath: moved[0].path))
+  }
+
+  @Test("mettre à la corbeille un fichier inconnu ne change rien")
+  func trashingUnknownFileIsIgnored() throws {
+    let fixture = try Fixture()
+    let store = FileShelfStore(
+      defaults: fixture.defaults,
+      trayDirectory: fixture.trayDirectory
+    )
+
+    #expect(!store.trash(fixture.root.appendingPathComponent("absent.txt")))
+  }
 }
 
 private final class Fixture {
