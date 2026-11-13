@@ -77,7 +77,7 @@ final class AboutSettingsViewController: SettingsSectionViewController {
   }
 
   @objc private func showOnboarding() {
-    OnboardingWindowController.shared.show()
+    SettingsWindowController.shared.onReplayOnboarding?()
   }
 
   @objc private func openGitHub() {

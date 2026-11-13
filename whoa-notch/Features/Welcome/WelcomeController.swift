@@ -22,6 +22,9 @@ final class WelcomeController {
   /// Appelée quand le parcours se termine (Finish, Skip tour ou Échap), panneau replié.
   var onFinish: (() -> Void)?
 
+  /// Vrai tant que le panneau est à l'écran (dépliage, parcours ou repli compris).
+  var isActive: Bool { panel != nil }
+
   private var panel: NSPanel?
   private var root: WelcomeRootView?
   private var input: OnboardingInput?

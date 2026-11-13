@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var sidePanelController: SidePanelController?
   private var notchPanelController: NotchPanelController?
   private var welcomeController: WelcomeController?
+  private var welcomeLauncher: WelcomeLauncher?
   private var clipboardHistoryViewModel: ClipboardHistoryViewModel?
   private var notesViewModel: NotesViewModel?
   private var stayAwakeViewModel: StayAwakeViewModel?
@@ -486,18 +487,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // `OnboardingFlow`). Le réglage `hasSeenOnboarding` est posé dès qu'il s'affiche, pour qu'un
     // relancement en cours de route ne le rejoue pas. `--show-welcome` le rejoue pour le vérifier,
     // `--onboarding-step=<nom>` l'ouvre sur une étape.
-    if WelcomeController.shouldShow(
-      hasSeenOnboarding: settings.settings.hasSeenOnboarding,
-      forced: CommandLine.arguments.contains("--show-welcome"))
-    {
+    let launcher = WelcomeLauncher { [weak self] step in
+      // Un parcours déjà à l'écran n'est pas empilé par un second clic sur « Show Onboarding ».
+      guard self?.welcomeController?.isActive != true else { return }
       let welcome = WelcomeController()
-      let start = CommandLine.arguments
-        .first { $0.hasPrefix("--onboarding-step=") }
-        .flatMap { OnboardingStep(launchName: String($0.dropFirst("--onboarding-step=".count))) }
-      welcomeController = welcome
-      settings.settings.hasSeenOnboarding = true
-      welcome.activate(tour: start ?? .hello)
+      self?.welcomeController = welcome
+      welcome.activate(tour: step)
     }
+    welcomeLauncher = launcher
+    SettingsWindowController.shared.onReplayOnboarding = { launcher.replay() }
+    let start = CommandLine.arguments
+      .first { $0.hasPrefix("--onboarding-step=") }
+      .flatMap { OnboardingStep(launchName: String($0.dropFirst("--onboarding-step=".count))) }
+    launcher.launchIfNeeded(
+      forced: CommandLine.arguments.contains("--show-welcome"), start: start ?? .hello)
 
     // La fenêtre de bienvenue s'ouvre après le panneau de l'encoche ; `--show-onboarding`
     // l'ouvre d'emblée pour la vérifier.

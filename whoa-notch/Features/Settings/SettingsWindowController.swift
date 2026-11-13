@@ -11,6 +11,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTo
 
   private let settingsViewModel = SettingsViewModel()
 
+  /// Rejoue le parcours d'accueil (bouton « Show Onboarding » de About) ; branché par l'`AppDelegate`.
+  var onReplayOnboarding: (() -> Void)?
+
   private convenience init() {
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: SettingsMetrics.windowSize),
