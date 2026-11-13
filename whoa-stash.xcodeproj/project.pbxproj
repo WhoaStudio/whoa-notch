@@ -348,6 +348,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Whoa Stash";
@@ -357,7 +358,7 @@
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "whoa-stash utilise la caméra pour l'aperçu miroir du panneau de l'encoche. Rien n'est enregistré.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "whoa-stash a besoin de vos contacts pour les afficher dans un widget.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Ugolin O. and WhoaStudio";
 				INFOPLIST_KEY_NSLocationUsageDescription = "whoa-stash a besoin de votre position pour afficher la météo locale.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "whoa-stash a besoin du micro pour un mémo vocal.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "whoa-stash a besoin de vos photos pour afficher une photo récente dans un widget.";
@@ -396,6 +397,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Whoa Stash";
@@ -405,7 +407,7 @@
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "whoa-stash a besoin de vos calendriers pour afficher les événements du jour dans le panneau de l'encoche.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "whoa-stash utilise la caméra pour l'aperçu miroir du panneau de l'encoche. Rien n'est enregistré.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "whoa-stash a besoin de vos contacts pour les afficher dans un widget.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Ugolin O. and WhoaStudio";
 				INFOPLIST_KEY_NSLocationUsageDescription = "whoa-stash a besoin de votre position pour afficher la météo locale.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "whoa-stash a besoin du micro pour un mémo vocal.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "whoa-stash a besoin de vos photos pour afficher une photo récente dans un widget.";
