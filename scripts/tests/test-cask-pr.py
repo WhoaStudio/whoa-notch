@@ -19,7 +19,7 @@ class CaskPRTests(unittest.TestCase):
         self.repo = self.work / "checkout"
         (self.repo / "scripts").mkdir(parents=True)
         (self.repo / "Casks").mkdir()
-        self.cask = self.repo / "Casks/whoa-stash.rb"
+        self.cask = self.repo / "Casks/whoa-notch.rb"
         self.cask.write_text('  version "1"\n  sha256 "initial"\n')
         for name in ("open-cask-pr.sh", "release-version.py", "update-cask.py"):
             shutil.copy(ROOT / "scripts" / name, self.repo / "scripts" / name)
@@ -75,7 +75,7 @@ fi
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("pr create --base stable --head codex/cask-v1.2", self.calls.read_text())
         remote_cask = self.git("--git-dir", str(self.remote), "show",
-                               "codex/cask-v1.2:Casks/whoa-stash.rb")
+                               "codex/cask-v1.2:Casks/whoa-notch.rb")
         self.assertIn('version "1.2"', remote_cask)
         self.assertIn(hashlib.sha256(self.dmg.read_bytes()).hexdigest(), remote_cask)
         self.assert_stable_unchanged()

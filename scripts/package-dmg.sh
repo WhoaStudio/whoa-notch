@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [[ $# -ne 2 || ! -d "$1" || "$1" != *.app || "$2" != *.dmg ]]; then
-    echo "Usage : $0 /chemin/whoa-stash.app /chemin/whoa-stash.dmg" >&2
+    echo "Usage : $0 /chemin/whoa-notch.app /chemin/whoa-notch.dmg" >&2
     exit 1
 fi
 
@@ -18,7 +18,7 @@ if [[ -e "$output_path" ]]; then
     exit 1
 fi
 
-work_dir="$(mktemp -d "${TMPDIR:-/tmp}/whoa-stash-dmg.XXXXXX")"
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/whoa-notch-dmg.XXXXXX")"
 mount_path="$work_dir/volume"
 mounted=false
 cleanup() {
@@ -38,7 +38,7 @@ ditto "$app_path" "$work_dir/staging/$app_name"
 ln -s /Applications "$work_dir/staging/Applications"
 tiffutil -cathidpicheck "$script_dir/dmg/background.png" \
     "$script_dir/dmg/background@2x.png" -out "$work_dir/staging/.background/background.tiff"
-hdiutil create -volname "Whoa Stash" -srcfolder "$work_dir/staging" \
+hdiutil create -volname "Whoa Notch" -srcfolder "$work_dir/staging" \
     -fs HFS+ -format UDRW "$work_dir/writable.dmg"
 hdiutil attach "$work_dir/writable.dmg" -mountpoint "$mount_path" -nobrowse -noautoopen -quiet
 mounted=true

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Reconstruit la bibliothèque MediaRemoteAdapter (universelle, signature ad hoc) depuis ces sources
-# et la copie dans whoa-stash/Resources/MediaRemoteAdapter. Source : github.com/ungive/mediaremote-adapter
+# et la copie dans whoa-notch/Resources/MediaRemoteAdapter. Source : github.com/ungive/mediaremote-adapter
 # (BSD-3), commit 0e82bf1. Pas de CMake requis : clang suffit. Extension `.bin` : Xcode ne copie
 # pas un `.dylib` du groupe synchronisé dans les ressources.
 #
@@ -9,7 +9,7 @@
 # de vrai bundle .framework : le groupe synchronisé d'Xcode ne le copierait pas dans Resources.
 set -eu
 cd "$(dirname "$0")"
-OUT=../../whoa-stash/Resources/MediaRemoteAdapter/MediaRemoteAdapter.bin
+OUT=../../whoa-notch/Resources/MediaRemoteAdapter/MediaRemoteAdapter.bin
 clang -fobjc-arc -fvisibility=default -dynamiclib -arch arm64 -arch x86_64 -mmacosx-version-min=26.0 \
   -Iinclude -Isrc -framework Foundation -framework AppKit -framework UniformTypeIdentifiers \
   -install_name @rpath/MediaRemoteAdapter.bin \

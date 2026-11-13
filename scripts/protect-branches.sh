@@ -13,11 +13,11 @@
 # Les rulesets s'appliquent aussi à `main` tant qu'elle n'existe pas.
 # Relancer le script met les rulesets à jour (repérés par leur nom).
 #
-# Usage : scripts/protect-branches.sh [owner/repo]   (défaut : WhoaStudio/whoa-stash)
+# Usage : scripts/protect-branches.sh [owner/repo]   (défaut : WhoaStudio/whoa-notch)
 # Requiert : gh authentifié avec un compte admin du dépôt.
 set -euo pipefail
 
-REPO="${1:-WhoaStudio/whoa-stash}"
+REPO="${1:-WhoaStudio/whoa-notch}"
 CI_CHECK="Build and test"     # `name:` du job dans .github/workflows/ci.yml
 ACTIONS_APP_ID=15368          # application GitHub Actions, qui publie le check CI
 ADMIN_ROLE_ID=5               # rôle de dépôt « admin »

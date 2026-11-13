@@ -3,7 +3,7 @@
 Package an already-built app without changing its signature or notarization:
 
 ```bash
-./scripts/package-dmg.sh "/path/to/whoa-stash.app" "Build/whoa-stash.dmg"
+./scripts/package-dmg.sh "/path/to/whoa-notch.app" "Build/whoa-notch.dmg"
 ```
 
 `scripts/build-dmg.sh` uses this same packaging step for GitHub Releases. The

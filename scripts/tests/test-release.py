@@ -16,9 +16,9 @@ class ReleaseTests(unittest.TestCase):
         self.repo = pathlib.Path(self.temp.name) / "checkout"
         self.repo.mkdir()
         shutil.copytree(ROOT / "scripts", self.repo / "scripts")
-        (self.repo / "whoa-stash.xcodeproj").mkdir()
-        shutil.copy(ROOT / "whoa-stash.xcodeproj/project.pbxproj",
-                    self.repo / "whoa-stash.xcodeproj/project.pbxproj")
+        (self.repo / "whoa-notch.xcodeproj").mkdir()
+        shutil.copy(ROOT / "whoa-notch.xcodeproj/project.pbxproj",
+                    self.repo / "whoa-notch.xcodeproj/project.pbxproj")
         self.git("init", "-b", "stable")
         self.git("config", "core.hooksPath", "/dev/null")
         self.git("config", "commit.gpgsign", "false")
@@ -73,7 +73,7 @@ class ReleaseTests(unittest.TestCase):
         self.refuse("stable doit être à jour")
 
     def test_version_modifie_uniquement_les_metadonnees(self):
-        project = self.repo / "whoa-stash.xcodeproj/project.pbxproj"
+        project = self.repo / "whoa-notch.xcodeproj/project.pbxproj"
         original = project.read_text()
         subprocess.run(["python3", "scripts/release-version.py", "1.2", str(project)],
                        cwd=self.repo, check=True)
@@ -83,7 +83,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_cask_verifie_condensat_et_refuse_retour_arriere(self):
         import hashlib
-        cask = self.repo / "Casks/whoa-stash.rb"
+        cask = self.repo / "Casks/whoa-notch.rb"
         cask.parent.mkdir()
         cask.write_text('  version "1"\n  sha256 "initial"\n')
         dmg = self.repo / "fixture.dmg"

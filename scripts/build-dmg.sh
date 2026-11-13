@@ -32,17 +32,17 @@ if [[ -n ${MACOS_CERTIFICATE_P12_BASE64:-} && -n ${MACOS_CERTIFICATE_PASSWORD:-}
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
     -k "$keychain_password" "$keychain" >/dev/null 2>&1
 fi
-xcodebuild -project whoa-stash.xcodeproj -scheme whoa-stash -configuration Release \
+xcodebuild -project whoa-notch.xcodeproj -scheme whoa-notch -configuration Release \
   -destination 'generic/platform=macOS' -derivedDataPath "$root/Build/ReleaseDerivedData" \
   -skipPackagePluginValidation ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO \
   CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM= \
   MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$version" build
-app="$work/stage/whoa-stash.app"
+app="$work/stage/whoa-notch.app"
 mkdir -p "$work/stage"
-ditto "$root/Build/ReleaseDerivedData/Build/Products/Release/whoa-stash.app" "$app"
+ditto "$root/Build/ReleaseDerivedData/Build/Products/Release/whoa-notch.app" "$app"
 [[ $(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist") == "$version" ]]
 [[ $(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$app/Contents/Info.plist") == "$version" ]]
-architectures=$(lipo -archs "$app/Contents/MacOS/whoa-stash")
+architectures=$(lipo -archs "$app/Contents/MacOS/whoa-notch")
 [[ " $architectures " == *" arm64 "* && " $architectures " == *" x86_64 "* ]]
 # Signe d’abord les binaires imbriqués, dont MediaRemoteAdapter, puis le bundle.
 while IFS= read -r -d '' binary; do
@@ -69,7 +69,7 @@ else
   status='Unsigned release (ad-hoc signature only), not notarized: signing/notarization secrets are missing. macOS Gatekeeper may block this download.'
 fi
 codesign --verify --deep --strict "$app"
-dmg="$output/whoa-stash-$version.dmg"
+dmg="$output/whoa-notch-$version.dmg"
 rm -f "$dmg"
 scripts/package-dmg.sh "$app" "$dmg"
 if [[ $signed == 1 ]]; then
@@ -82,11 +82,11 @@ fi
 hdiutil verify "$dmg"
 hdiutil attach "$dmg" -readonly -nobrowse -mountpoint "$work/mount" -quiet
 mounted=1
-[[ -d "$work/mount/whoa-stash.app" && -L "$work/mount/Applications" ]]
-[[ $(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$work/mount/whoa-stash.app/Contents/Info.plist") == "$version" ]]
+[[ -d "$work/mount/whoa-notch.app" && -L "$work/mount/Applications" ]]
+[[ $(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$work/mount/whoa-notch.app/Contents/Info.plist") == "$version" ]]
 hdiutil detach "$work/mount" -quiet
 mounted=0
-(cd "$output" && shasum -a 256 "whoa-stash-$version.dmg" > SHA256SUMS)
+(cd "$output" && shasum -a 256 "whoa-notch-$version.dmg" > SHA256SUMS)
 printf '%s\n' "$status" > "$output/signing-status.txt"
 echo "$status"
 echo "DMG : $dmg"

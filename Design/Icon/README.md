@@ -1,15 +1,15 @@
-# Whoa Stash — hexagonal chest
+# Whoa Notch — hexagonal chest
 
 The purple open chest is traced geometrically from the supplied reference. All SVG artwork is made of paths, without embedded bitmaps, text or filters.
 
 - `icon-master.svg`: colour master; named groups `lid`, `lid-interior`, `clasp`, `body`, `opening`, `eyes` can be animated independently.
 - `icon-small.svg`: colour export source for 16 and 32 px.
 - `menubar.svg`: black and alpha template; eye cutouts use even-odd filling. An 18 pt canvas includes clear space around the silhouette.
-- `icon-1024.png`: rendered colour master.
+- `whoa-notch.png`: current app icon source (1254 px, mustache tile). The app icon PNGs are downscaled from it. The SVGs above and the menu-bar, launch and onboarding art still show the older chest design.
 
-App icon PNGs live in `whoa-stash/Resources/Assets.xcassets/AppIcon.appiconset`. Settings uses this application icon automatically. Menu bar PNGs at 18 and 36 px live in `MenuBarIcon.imageset`; both the asset and `StatusBarController` enable template rendering so AppKit supplies normal and highlighted colours.
+App icon PNGs live in `whoa-notch/Resources/Assets.xcassets/AppIcon.appiconset`. Settings uses this application icon automatically. Menu bar PNGs at 18 and 36 px live in `MenuBarIcon.imageset`; both the asset and `StatusBarController` enable template rendering so AppKit supplies normal and highlighted colours.
 
-To regenerate PNGs, render each SVG on a transparent square canvas at the destination size. App icon sizes are 16, 32, 64, 128, 256, 512 and 1024 px; use `icon-small.svg` for 16 and 32 px.
+To regenerate the app icon PNGs, run `sips -z <size> <size> Design/Icon/whoa-notch.png --out whoa-notch/Resources/Assets.xcassets/AppIcon.appiconset/icon_<size>.png` for 16, 32, 64, 128, 256, 512 and 1024 px. The menu-bar and launch PNGs are still rendered from the SVGs.
 
 ## Menu animation
 

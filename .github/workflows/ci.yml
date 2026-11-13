@@ -34,10 +34,10 @@ jobs:
 
       - name: Build
         run: |
-          xcodebuild -scheme whoa-stash -destination 'platform=macOS' \
+          xcodebuild -scheme whoa-notch -destination 'platform=macOS' \
             -derivedDataPath DerivedData $SIGNING $PLUGINS build
 
       - name: Test
         run: |
-          xcodebuild -scheme whoa-stash -destination 'platform=macOS' \
+          xcodebuild -scheme whoa-notch -destination 'platform=macOS' \
             -derivedDataPath DerivedData $SIGNING $PLUGINS test

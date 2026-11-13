@@ -9,7 +9,7 @@ import sys
 version, dmg = sys.argv[1:]
 subprocess.run([sys.executable, "scripts/release-version.py", version], check=True)
 checksum = hashlib.sha256(pathlib.Path(dmg).read_bytes()).hexdigest()
-cask = pathlib.Path("Casks/whoa-stash.rb")
+cask = pathlib.Path("Casks/whoa-notch.rb")
 text = cask.read_text()
 current = re.search(r'^  version "([^"]+)"$', text, re.M)
 if current is None:

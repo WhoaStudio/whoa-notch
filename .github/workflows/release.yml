@@ -99,7 +99,7 @@ jobs:
           # Réutilise l’artefact publié si seule la mise à jour du cask doit être reprise.
           published=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null || true)
           if [[ "$published" == false ]]; then
-            gh release download "$TAG" --pattern "whoa-stash-$VERSION.dmg" \
+            gh release download "$TAG" --pattern "whoa-notch-$VERSION.dmg" \
               --dir "Build/release/$VERSION" --clobber
           else
             previous=$(git describe --tags --match 'v*' --abbrev=0 "$TAG^" 2>/dev/null || true)
@@ -113,10 +113,10 @@ jobs:
             if [[ "$published" == true ]]; then
               gh release edit "$TAG" --notes-file "$full_notes"
             else
-              gh release create "$TAG" --verify-tag --draft --title "Whoa Stash $TAG" \
+              gh release create "$TAG" --verify-tag --draft --title "Whoa Notch $TAG" \
                 --notes-file "$full_notes"
             fi
-            gh release upload "$TAG" "Build/release/$VERSION/whoa-stash-$VERSION.dmg" \
+            gh release upload "$TAG" "Build/release/$VERSION/whoa-notch-$VERSION.dmg" \
               "Build/release/$VERSION/SHA256SUMS" --clobber
             gh release edit "$TAG" --draft=false
           fi

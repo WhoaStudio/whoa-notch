@@ -43,6 +43,6 @@ body:
     attributes:
       label: Logs
       description: |
-        Optional. `log show --last 10m --predicate 'subsystem == "ugolin-olle.whoa-stash"' --style compact`.
+        Optional. `log show --last 10m --predicate 'subsystem == "ugolin-olle.whoa-notch"' --style compact`.
         Remove anything personal (track names, calendar events, file names) before pasting.
       render: text

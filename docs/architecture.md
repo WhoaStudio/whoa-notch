@@ -45,7 +45,7 @@ the notch panel.
 ## Agent cards
 
 Claude Code hooks reach the app through a local socket: the `whoa-hook` script sends one JSON line to
-`AgentHookServer` (`Application Support/whoa-stash/agent.sock`), which decodes an `AgentEvent` and calls
+`AgentHookServer` (`Application Support/whoa-notch/agent.sock`), which decodes an `AgentEvent` and calls
 `AppDelegate.showAgentEvent`. `NotchPanelController` keeps the requests still waiting in an `AgentPromptStore`
 (one per session; the first later event of the same session clears it) and the tool progress in an
 `AgentActivityStore`. A request is drawn twice: as wings (`AgentEventPillView`) while the notch is folded, and as
@@ -57,12 +57,12 @@ the card's height (`NotchPanelGeometry`, `aiTabHeight` as the base). A click, a 
 
 ## Persisted state
 
-Both blobs are in `UserDefaults.standard`. Nothing else writes defaults. Other stores live elsewhere: clipboard history in `Application Support/whoa-stash/Clipboard/` (JSON and PNG files, via `ClipboardHistoryStore`), notes in `Application Support/whoa-stash/Notes/notes.json` (via `NotesStore`, written on every edit), the tray files in `Application Support/whoa-stash/Tray/`, the agent socket and relay script in `Application Support/whoa-stash/`, the hook entries (and a `.whoa-stash.bak` backup written once) in `~/.claude/settings.json`, and Keychain items (Spotify tokens, the IMAP password).
+Both blobs are in `UserDefaults.standard`. Nothing else writes defaults. Other stores live elsewhere: clipboard history in `Application Support/whoa-notch/Clipboard/` (JSON and PNG files, via `ClipboardHistoryStore`), notes in `Application Support/whoa-notch/Notes/notes.json` (via `NotesStore`, written on every edit), the tray files in `Application Support/whoa-notch/Tray/`, the agent socket and relay script in `Application Support/whoa-notch/`, the hook entries (and a `.whoa-notch.bak` backup written once) in `~/.claude/settings.json`, and Keychain items (Spotify tokens, the IMAP password).
 
 | Key | Owner | Contents |
 |---|---|---|
-| `com.whoastudio.whoa-stash.appSettings` | `SettingsStorage` | JSON of `AppSettings` (`general`, `brightness`, `edgeSlider`, `notchPanel`, `spotify`, `dock`, `radialMenu`, `ai`, `mail`, `colorPicker`, plus `hasSeenOnboarding`). Written only when a value actually changes. |
-| `com.whoastudio.whoa-stash.fileShelf` | `FileShelfStore` | Bookmark data for up to 4 tray files. Dropped files are moved into the tray folder. Bookmarks that no longer resolve are dropped on load. |
+| `com.whoastudio.whoa-notch.appSettings` | `SettingsStorage` | JSON of `AppSettings` (`general`, `brightness`, `edgeSlider`, `notchPanel`, `spotify`, `dock`, `radialMenu`, `ai`, `mail`, `colorPicker`, plus `hasSeenOnboarding`). Written only when a value actually changes. |
+| `com.whoastudio.whoa-notch.fileShelf` | `FileShelfStore` | Bookmark data for up to 4 tray files. Dropped files are moved into the tray folder. Bookmarks that no longer resolve are dropped on load. |
 
 `AppSettings` decoding is tolerant (`AppSettings+Decoding.swift`): a missing key keeps its
 default, a removed key is ignored, and an unknown enum value falls back to the default. Schema

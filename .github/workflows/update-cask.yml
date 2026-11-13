@@ -41,11 +41,11 @@ jobs:
         run: |
           python3 scripts/release-version.py "$VERSION"
           mkdir -p "$RUNNER_TEMP/cask"
-          gh release download "v$VERSION" --pattern "whoa-stash-$VERSION.dmg" \
+          gh release download "v$VERSION" --pattern "whoa-notch-$VERSION.dmg" \
             --dir "$RUNNER_TEMP/cask" --clobber
 
       - name: Open cask pull request
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          scripts/open-cask-pr.sh "$VERSION" "$RUNNER_TEMP/cask/whoa-stash-$VERSION.dmg"
+          scripts/open-cask-pr.sh "$VERSION" "$RUNNER_TEMP/cask/whoa-notch-$VERSION.dmg"

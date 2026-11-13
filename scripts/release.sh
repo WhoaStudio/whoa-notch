@@ -17,8 +17,8 @@ if git show-ref --verify --quiet "refs/tags/$tag"; then
 fi
 [[ $(git rev-parse HEAD) == "$(git rev-parse refs/remotes/origin/stable)" ]] || fail 'stable doit être à jour avec origin/stable (ni en avance ni en retard).'
 [[ -z $(git ls-remote --tags origin "refs/tags/$tag") ]] || fail "Le tag distant $tag existe déjà."
-python3 scripts/release-version.py "$version" whoa-stash.xcodeproj/project.pbxproj
-git add -- whoa-stash.xcodeproj/project.pbxproj
+python3 scripts/release-version.py "$version" whoa-notch.xcodeproj/project.pbxproj
+git add -- whoa-notch.xcodeproj/project.pbxproj
 # Autorise la première version même si les métadonnées portent déjà cette version.
 git commit --allow-empty -m "chore(release): $tag"
 tag_message=$tag

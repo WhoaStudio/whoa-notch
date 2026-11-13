@@ -1,13 +1,13 @@
-# whoa-stash
+# whoa-notch
 
 macOS menu-bar app (Swift 6, AppKit with a SwiftUI `App` shell) that shows overlay panels at the screen edges. See @README.md for the features and launch flags.
 
 ## Commands
 
-- Build: `xcodebuild -scheme whoa-stash -destination 'platform=macOS' build`
-- Test: `xcodebuild -scheme whoa-stash -destination 'platform=macOS' test`
-- One suite: append `-only-testing:whoa-stashTests/<SuiteName>` before `test`
-- Logs: `log stream --predicate 'subsystem == "ugolin-olle.whoa-stash"'`
+- Build: `xcodebuild -scheme whoa-notch -destination 'platform=macOS' build`
+- Test: `xcodebuild -scheme whoa-notch -destination 'platform=macOS' test`
+- One suite: append `-only-testing:whoa-notchTests/<SuiteName>` before `test`
+- Logs: `log stream --predicate 'subsystem == "ugolin-olle.whoa-notch"'`
 - TODO: no lint or format tooling is configured.
 
 ## Architecture

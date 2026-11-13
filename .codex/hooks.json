@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node '/Users/uolle/Developer/whoa-projects/whoa-stash/.codex/hooks/pre-edit.cjs'"
+            "command": "node '/Users/uolle/Developer/whoa-projects/whoa-notch/.codex/hooks/pre-edit.cjs'"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node '/Users/uolle/Developer/whoa-projects/whoa-stash/.codex/hooks/context-snapshot.cjs'"
+            "command": "node '/Users/uolle/Developer/whoa-projects/whoa-notch/.codex/hooks/context-snapshot.cjs'"
           }
         ]
       }
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node '/Users/uolle/Developer/whoa-projects/whoa-stash/.codex/hooks/context-snapshot.cjs'"
+            "command": "node '/Users/uolle/Developer/whoa-projects/whoa-notch/.codex/hooks/context-snapshot.cjs'"
           }
         ]
       }
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node '/Users/uolle/Developer/whoa-projects/whoa-stash/.codex/hooks/context-guard.cjs'"
+            "command": "node '/Users/uolle/Developer/whoa-projects/whoa-notch/.codex/hooks/context-guard.cjs'"
           }
         ]
       }

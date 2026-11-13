@@ -1,4 +1,4 @@
-# Contributing to Whoa Stash
+# Contributing to Whoa Notch
 
 Thanks for your interest. Bug reports, fixes and small features are welcome. For anything large,
 open an issue first so we can agree on the approach before you write code.
@@ -14,8 +14,8 @@ SwiftTerm, which Xcode resolves itself. Xcode asks once to trust its `SwiftTermB
 build plugin; `xcodebuild` fails until you do (or pass `-skipPackagePluginValidation`, as CI does).
 
 ```bash
-git clone https://github.com/WhoaStudio/whoa-stash.git
-cd whoa-stash
+git clone https://github.com/WhoaStudio/whoa-notch.git
+cd whoa-notch
 ```
 
 ### Building without the maintainer's signing team
@@ -32,7 +32,7 @@ cp Config/Local.xcconfig.example Config/Local.xcconfig
 command-line build, you can pass the same settings instead:
 
 ```bash
-xcodebuild -scheme whoa-stash -destination 'platform=macOS' DEVELOPMENT_TEAM= CODE_SIGN_IDENTITY=- test
+xcodebuild -scheme whoa-notch -destination 'platform=macOS' DEVELOPMENT_TEAM= CODE_SIGN_IDENTITY=- test
 ```
 
 Don't change the team under *Signing & Capabilities*: that edits the shared project file.
@@ -54,7 +54,7 @@ review and a passing **Build and test** check, and force-pushes and branch delet
 Releases are cut from `stable` by the maintainer; see [Releasing](README.md#releasing).
 
 Report bugs and ideas with the
-[issue forms](https://github.com/WhoaStudio/whoa-stash/issues/new/choose). Remove personal data
+[issue forms](https://github.com/WhoaStudio/whoa-notch/issues/new/choose). Remove personal data
 (track names, calendar events, file names, mail) from logs before pasting.
 
 ## Conventions

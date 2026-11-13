@@ -45,7 +45,7 @@ to disk or logged.
 
 | Store | Item service | Notes |
 |---|---|---|
-| `IMAPCredentialStore` | `ugolin-olle.whoa-stash.imap`, account `<user>@<host>` | The IMAP password, as UTF-8. Written from Preferences ▸ Mail, read when connecting. |
+| `IMAPCredentialStore` | `ugolin-olle.whoa-notch.imap`, account `<user>@<host>` | The IMAP password, as UTF-8. Written from Preferences ▸ Mail, read when connecting. |
 | `ClaudeUsageCredentialStore` | `Claude Code-credentials` or `Claude Code-credentials-<hash>` | Finds the item by attributes first (no prompt), takes the most recently modified one, then reads its data through `/usr/bin/security find-generic-password -w` (no prompt). The JSON is `claudeAiOauth.accessToken` plus `expiresAt` in **milliseconds**. The token is cached until 30 s before expiry, or for 5 min when there is no expiry. An expired token raises "relance `claude`". |
 | `CopilotUsageCredentialStore` | `github-copilot-app`, then `gh:github.com` | The value may be `go-keyring-base64:`-prefixed (GitHub CLI). It must start with `gho_`, `ghp_` or `github_pat_`. Cached for 5 min. |
 
@@ -65,7 +65,7 @@ in the item's ACL and matches `apple-tool:`, so it never prompts.
 ## Claude Code hooks (agent cards in the notch)
 
 `ClaudeHookInstaller` merges one entry per event into `~/.claude/settings.json` (backup first, only
-our own entries touched) and writes the relay script `Application Support/whoa-stash/whoa-hook`. The
+our own entries touched) and writes the relay script `Application Support/whoa-notch/whoa-hook`. The
 script sends the hook's JSON to the local socket `agent.sock` (0600, no network) and exits 0 when the
 app is not running. `AgentHookServer` reads one JSON line per connection; for a request that can be
 answered it keeps the connection open and writes the reply on it.
@@ -88,8 +88,8 @@ replies has not been checked on a real session.
 
 ## Update check
 
-`GitHubReleaseProvider` makes one `GET https://api.github.com/repos/WhoaStudio/whoa-stash/releases/latest`
-(`Accept: application/vnd.github+json`, `User-Agent: whoa-stash`, 15 s timeout, no token). It reads `tag_name`
+`GitHubReleaseProvider` makes one `GET https://api.github.com/repos/WhoaStudio/whoa-notch/releases/latest`
+(`Accept: application/vnd.github+json`, `User-Agent: whoa-notch`, 15 s timeout, no token). It reads `tag_name`
 and `html_url` and compares the tag with `CFBundleShortVersionString`, component by component. `UpdateChecker`
 runs it at launch and every 24 h while Preferences ▸ General ▸ Updates is on, and from **Check for Updates…**.
 Anything other than a 200 response is shown as a failed check. Nothing is downloaded or installed: the app shows
@@ -147,5 +147,5 @@ The Info.plist strings are in French and live in the target's build settings
   Spotify redirects to `http://127.0.0.1:48731/callback`, served by a loopback socket that only
   listens while connecting. The user creates the Spotify app, registers that redirect URI and pastes its
   Client ID in Preferences, General. Tokens live in the Keychain (service
-  `ugolin-olle.whoa-stash.spotify`), never in `UserDefaults`. Scope: `user-read-playback-state`.
+  `ugolin-olle.whoa-notch.spotify`), never in `UserDefaults`. Scope: `user-read-playback-state`.
 - Launch flags: `--now-playing=playing|paused`, `--playing-next=mock`.

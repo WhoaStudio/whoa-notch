@@ -11,7 +11,7 @@ mkdir -p "$(dirname "$path")"
 ln -s "$PWD" "$path"
 trap 'rm -f "$path"; rm -rf "$work"' EXIT
 if brew help trust >/dev/null 2>&1; then
-  brew trust --cask "$tap/whoa-stash"
+  brew trust --cask "$tap/whoa-notch"
 fi
-brew audit --cask --strict "$tap/whoa-stash"
-brew style "$PWD/Casks/whoa-stash.rb"
+brew audit --cask --strict "$tap/whoa-notch"
+brew style "$PWD/Casks/whoa-notch.rb"

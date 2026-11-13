@@ -2,17 +2,17 @@
 
 ## Logs
 
-All logging goes through `Log` (`whoa-stash/Core/Log.swift`) into OSLog with subsystem
-`ugolin-olle.whoa-stash`. The categories are `brightness`, `settings`, `side-panel`,
+All logging goes through `Log` (`whoa-notch/Core/Log.swift`) into OSLog with subsystem
+`ugolin-olle.whoa-notch`. The categories are `brightness`, `settings`, `side-panel`,
 `calendar`, `camera`, `now-playing`, `clipboard`, `notes`, `sound`, `dock`, `radial-menu`, `agents`, `mail`,
 `terminal`, `notch-panel`, `color-picker`, `onboarding`, `updates` and `stay-awake`.
 
 ```bash
-log stream --predicate 'subsystem == "ugolin-olle.whoa-stash"'
+log stream --predicate 'subsystem == "ugolin-olle.whoa-notch"'
 ```
 
 ```bash
-log show --last 10m --predicate 'subsystem == "ugolin-olle.whoa-stash"' --style compact
+log show --last 10m --predicate 'subsystem == "ugolin-olle.whoa-notch"' --style compact
 ```
 
 `.debug` messages only appear when you enable debug level, either in Console.app (Action ▸
@@ -41,5 +41,5 @@ To develop the brightness band without driving a real display, swap
 | Preferences ▸ AI says "Partly installed" | Hooks from an older version lack `Elicitation` or the longer `Stop` handling | **Install hooks** replaces them |
 | Brightness doesn't change on an external monitor | No I2C line, or the `IOAVService` symbols are missing (Intel Macs) | Check the `brightness` log category. Without DDC, the code falls back to DisplayServices. |
 | After a test run, logs show `File shelf move source does not exist` and `lecture de l'agenda échouée` | Tests exercise those error paths on purpose | Nothing to fix |
-| Calendar card stays on "denied" after you change your mind | macOS doesn't show the prompt a second time | Re-enable it in System Settings ▸ Privacy & Security ▸ Calendars. To reset it fully: `tccutil reset Calendar ugolin-olle.whoa-stash` (not run while writing this doc: it revokes the grant). |
+| Calendar card stays on "denied" after you change your mind | macOS doesn't show the prompt a second time | Re-enable it in System Settings ▸ Privacy & Security ▸ Calendars. To reset it fully: `tccutil reset Calendar ugolin-olle.whoa-notch` (not run while writing this doc: it revokes the grant). |
 | Unit tests move your real screen brightness | The XCTest guard at the top of `applicationDidFinishLaunching` was removed | Restore it |

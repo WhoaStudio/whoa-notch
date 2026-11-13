@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Whoa Stash are listed here. Versions follow the Git tags (`v1.0`, `v1.0.1`, …).
+All notable changes to Whoa Notch are listed here. Versions follow the Git tags (`v1.0`, `v1.0.1`, …).
 
 ## [1.0.1] - Unreleased
 
@@ -37,5 +37,5 @@ All notable changes to Whoa Stash are listed here. Versions follow the Git tags 
 
 First public release.
 
-[1.0.1]: https://github.com/WhoaStudio/whoa-stash/compare/v1.0...v1.0.1
-[1.0]: https://github.com/WhoaStudio/whoa-stash/releases/tag/v1.0
+[1.0.1]: https://github.com/WhoaStudio/whoa-notch/compare/v1.0...v1.0.1
+[1.0]: https://github.com/WhoaStudio/whoa-notch/releases/tag/v1.0
