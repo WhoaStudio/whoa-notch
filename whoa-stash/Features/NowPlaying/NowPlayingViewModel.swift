@@ -31,6 +31,10 @@ final class NowPlayingViewModel {
     provider.send(command)
   }
 
+  func seek(to seconds: TimeInterval) {
+    provider.seek(to: seconds)
+  }
+
   func receive(_ update: NowPlayingState?) {
     // Plus aucune session : le lecteur garde le dernier morceau, à l'arrêt.
     if let update {

@@ -8,6 +8,8 @@ protocol NowPlayingProviding: AnyObject {
   func start()
   func stop()
   func send(_ command: NowPlayingCommand)
+  /// Déplace la lecture à `seconds` depuis le début du morceau.
+  func seek(to seconds: TimeInterval)
 }
 
 /// `--now-playing=playing|paused` : un morceau fixe, sans MediaRemote, pour vérifier la vue.
@@ -17,11 +19,18 @@ final class MockNowPlayingProvider: NowPlayingProviding {
 
   private var state: NowPlayingState
 
-  init(isPlaying: Bool) {
-    state = NowPlayingState(
-      title: "Midnight City", artist: "M83", album: "Hurry Up, We're Dreaming", artwork: nil,
-      isPlaying: isPlaying, bundleIdentifier: "com.apple.Music", duration: 243, elapsed: 20,
-      timestamp: .now)
+  init(isPlaying: Bool, longTrack: Bool = false) {
+    state =
+      longTrack
+      ? NowPlayingState(
+        title: "❄️ 1930s Winter Oldies Playing in Another Room | Vintage Radio Mix",
+        artist: "Moon Night Heaven", album: "", artwork: nil, isPlaying: isPlaying,
+        bundleIdentifier: "com.apple.Safari", duration: 10_482, elapsed: 10_482 - 633,
+        timestamp: .now)
+      : NowPlayingState(
+        title: "Midnight City", artist: "M83", album: "Hurry Up, We're Dreaming", artwork: nil,
+        isPlaying: isPlaying, bundleIdentifier: "com.apple.Music", duration: 243, elapsed: 20,
+        timestamp: .now)
   }
 
   static func fromLaunchArguments(_ arguments: [String] = CommandLine.arguments)
@@ -33,6 +42,7 @@ final class MockNowPlayingProvider: NowPlayingProviding {
     switch argument.dropFirst("--now-playing=".count) {
     case "playing": return MockNowPlayingProvider(isPlaying: true)
     case "paused": return MockNowPlayingProvider(isPlaying: false)
+    case "long": return MockNowPlayingProvider(isPlaying: true, longTrack: true)
     default: return nil
     }
   }
@@ -55,5 +65,11 @@ final class MockNowPlayingProvider: NowPlayingProviding {
     case .nextTrack, .previousTrack:
       break
     }
+  }
+
+  func seek(to seconds: TimeInterval) {
+    state.elapsed = seconds
+    state.timestamp = .now
+    onUpdate?(state)
   }
 }
