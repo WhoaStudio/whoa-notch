@@ -24,8 +24,8 @@ final class SettingsGroupView: NSView {
     rowStack.translatesAutoresizingMaskIntoConstraints = false
     card.addSubview(rowStack)
     NSLayoutConstraint.activate([
-      rowStack.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
-      rowStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12),
+      rowStack.topAnchor.constraint(equalTo: card.topAnchor, constant: 10),
+      rowStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -10),
       rowStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: inset),
       rowStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -inset),
     ])
@@ -84,8 +84,8 @@ final class SettingsGroupView: NSView {
 
   private func updateColors() {
     effectiveAppearance.performAsCurrentDrawingAppearance {
-      card.layer?.backgroundColor = SettingsPalette.fill.cgColor
-      card.layer?.borderColor = SettingsPalette.rule.cgColor
+      card.layer?.backgroundColor = SettingsPalette.groupFill.cgColor
+      card.layer?.borderColor = SettingsPalette.groupBorder.cgColor
     }
   }
 }

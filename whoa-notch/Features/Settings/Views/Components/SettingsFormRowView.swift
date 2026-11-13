@@ -44,7 +44,7 @@ final class SettingsFormRowView: NSView {
       let captionLabel = NSTextField(wrappingLabelWithString: caption)
       captionLabel.font = .systemFont(ofSize: 11)
       captionLabel.textColor = .secondaryLabelColor
-      captionLabel.preferredMaxLayoutWidth = stacked ? 520 : SettingsMetrics.captionMaxWidth
+      captionLabel.preferredMaxLayoutWidth = stacked ? 440 : SettingsMetrics.captionMaxWidth
       captionLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
       textViews.append(captionLabel)
     }

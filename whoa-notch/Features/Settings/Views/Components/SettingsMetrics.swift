@@ -5,15 +5,20 @@ import AppKit
 enum SettingsMetrics {
   /// Hauteur taillée sur l'écran le plus dense — « General ». Le scroll view de
   /// `SettingsSectionViewController` reste le filet de sécurité.
-  static let windowSize = NSSize(width: 900, height: 760)
+  static let windowSize = NSSize(width: 760, height: 640)
 
-  static let sidebarWidth: CGFloat = 230
-  static let sidebarRowHeight: CGFloat = 36
-  static let sidebarIconSize: CGFloat = 24
+  static let sidebarWidth: CGFloat = 224
+  static let sidebarRowHeight: CGFloat = 38
+  static let sidebarIconSize: CGFloat = 22
 
-  static let contentInset: CGFloat = 32
-  static let contentTopInset: CGFloat = 44
-  static let contentBottomInset: CGFloat = 28
+  static let contentInset: CGFloat = 16
+
+  /// Barre d'en-tête fixe du volet ; le contenu commence 16 pt sous elle.
+  static let headerHeight: CGFloat = 38
+  static let contentTopInset: CGFloat = headerHeight + contentInset
+  /// Haut du contenu d'un volet sans en-tête commun (« About »).
+  static let headerlessTopInset: CGFloat = 44
+  static let contentBottomInset: CGFloat = 16
   static let rowSpacing: CGFloat = 18
 
   /// Hauteur minimale d'une ligne de formulaire.
@@ -21,9 +26,9 @@ enum SettingsMetrics {
   static let rowControlGap: CGFloat = 16
   static let captionMaxWidth: CGFloat = 300
 
-  static let headerIconSize: CGFloat = 44
-  static let groupCornerRadius: CGFloat = 12
-  static let groupInset: CGFloat = 16
+  static let headerIconSize: CGFloat = 22
+  static let groupCornerRadius: CGFloat = 14
+  static let groupInset: CGFloat = 12
   static let groupRowSpacing: CGFloat = 10
 
   static let sliderWidth: CGFloat = 180

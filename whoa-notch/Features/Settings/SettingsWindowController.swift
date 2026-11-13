@@ -5,7 +5,7 @@ import OSLog
 /// Gère la fenêtre de Préférences : instance unique, ramenée au premier plan à chaque
 /// ouverture. Compose la sidebar et le volet courant ; ne contient aucune logique métier —
 /// tout passe par `SettingsViewModel` et les view models de section.
-final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
   static let shared = SettingsWindowController()
 
@@ -24,6 +24,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTo
     window.title = "Whoa Notch Settings"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
+    window.titlebarSeparatorStyle = .none
+    window.backgroundColor = SettingsPalette.windowBackground
     window.isMovableByWindowBackground = true
     window.isReleasedWhenClosed = false
     window.center()
@@ -36,35 +38,17 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTo
       SettingsStorage.shared.settings.general.enableAnimations
     }
     let sidebar = NSSplitViewItem(
-      sidebarWithViewController: SettingsSidebarViewController(viewModel: settingsViewModel))
+      viewController: SettingsSidebarViewController(viewModel: settingsViewModel))
     sidebar.minimumThickness = SettingsMetrics.sidebarWidth
     sidebar.maximumThickness = SettingsMetrics.sidebarWidth
+    sidebar.canCollapse = false
     let split = NSSplitViewController()
     split.addSplitViewItem(sidebar)
     split.addSplitViewItem(NSSplitViewItem(viewController: detail))
     window.contentViewController = split
     window.setContentSize(SettingsMetrics.windowSize)
     window.center()
-
-    let toolbar = NSToolbar(identifier: "SettingsToolbar")
-    toolbar.delegate = self
-    window.toolbar = toolbar
   }
-
-  // MARK: - NSToolbarDelegate
-
-  func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.toggleSidebar]
-  }
-
-  func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.toggleSidebar]
-  }
-
-  func toolbar(
-    _ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
-    willBeInsertedIntoToolbar flag: Bool
-  ) -> NSToolbarItem? { nil }
 
   /// Seul chemin d'ouverture de la fenêtre — la menu bar, le menu contextuel des panneaux,
   /// `--show-settings` et ⌘, y aboutissent tous. L'icône du Dock apparaît donc exactement

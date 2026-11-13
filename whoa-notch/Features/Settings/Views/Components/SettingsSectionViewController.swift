@@ -7,14 +7,16 @@ private final class FlippedView: NSView {
   override var isFlipped: Bool { true }
 }
 
-/// Base commune aux écrans de Préférences : l'en-tête du volet (`SettingsPaneHeaderView`) puis des
-/// groupes (`SettingsGroupView`) dans un scroll view sans chrome visible, avec une apparition en
+/// Base commune aux écrans de Préférences : des groupes (`SettingsGroupView`) dans un scroll view sans chrome visible, sous la barre
+/// d'en-tête fixe du volet (`SettingsPaneHeaderView`), avec une apparition en
 /// fondu/glissé légère à chaque affichage. Les sous-classes fournissent soit leurs groupes
 /// (`makeSections`), soit des lignes que les filets découpent en groupes (`makeRows`).
 class SettingsSectionViewController: NSViewController {
 
   private let animationsEnabled: () -> Bool
   private let stack = NSStackView()
+  private var header: SettingsPaneHeaderView?
+  private var scrollView: NSScrollView?
 
   /// Catégorie affichée, posée par la fenêtre avant le chargement de la vue.
   var category: SettingsCategory = .general
@@ -64,7 +66,8 @@ class SettingsSectionViewController: NSViewController {
       documentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
 
       stack.topAnchor.constraint(
-        equalTo: documentView.topAnchor, constant: SettingsMetrics.contentTopInset),
+        equalTo: documentView.topAnchor,
+        constant: showsHeader ? SettingsMetrics.contentTopInset : SettingsMetrics.headerlessTopInset),
       stack.leadingAnchor.constraint(
         equalTo: documentView.leadingAnchor, constant: SettingsMetrics.contentInset),
       stack.trailingAnchor.constraint(
@@ -73,16 +76,29 @@ class SettingsSectionViewController: NSViewController {
         equalTo: documentView.bottomAnchor, constant: -SettingsMetrics.contentBottomInset),
     ])
 
+    self.scrollView = scrollView
     if showsHeader {
       let header = SettingsPaneHeaderView(category: category)
-      stack.addArrangedSubview(header)
-      stack.setCustomSpacing(26, after: header)
-      header.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+      view.addSubview(header)
+      NSLayoutConstraint.activate([
+        header.topAnchor.constraint(equalTo: view.topAnchor),
+        header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+        header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      ])
+      self.header = header
+      scrollView.contentView.postsBoundsChangedNotifications = true
+      NotificationCenter.default.addObserver(
+        self, selector: #selector(contentDidScroll), name: NSView.boundsDidChangeNotification,
+        object: scrollView.contentView)
     }
     for section in makeSections() {
       stack.addArrangedSubview(section)
       section.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     }
+  }
+
+  @objc private func contentDidScroll(_ notification: Notification) {
+    header?.setScrolled((scrollView?.contentView.bounds.origin.y ?? 0) > 0.5)
   }
 
   override func viewWillAppear() {
