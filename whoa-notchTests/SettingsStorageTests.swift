@@ -54,6 +54,18 @@ struct SettingsStorageTests {
     #expect(SettingsStorage(defaults: defaults).settings.hasSeenOnboarding == true)
   }
 
+  @Test("le dernier volet des Préférences est « general » par défaut, absent d'un ancien blob, et persiste")
+  func lastSettingsPaneDefaultsAndPersists() {
+    let defaults = Self.makeDefaults()
+    defaults.set(Data(#"{"general":{}}"#.utf8), forKey: "com.whoastudio.whoa-notch.appSettings")
+
+    let first = SettingsStorage(defaults: defaults)
+    #expect(first.settings.lastSettingsPane == "general")
+
+    first.settings.lastSettingsPane = SettingsCategory.dock.rawValue
+    #expect(SettingsStorage(defaults: defaults).settings.lastSettingsPane == "dock")
+  }
+
   @Test("une forme d'encoche inconnue ou absente retombe sur la valeur par défaut")
   func unknownNotchlessStyleFallsBack() {
     let defaults = Self.makeDefaults()

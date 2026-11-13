@@ -171,6 +171,8 @@ struct AppSettings: Codable, Equatable, Sendable {
   var colorPicker = ColorPickerSettings()
   /// Vrai une fois la fenêtre de bienvenue fermée : elle ne s'affiche qu'au premier lancement.
   var hasSeenOnboarding = false
+  /// Dernier volet ouvert dans Préférences (`SettingsCategory.rawValue`) : rouvert tel quel.
+  var lastSettingsPane = SettingsCategory.general.rawValue
 
   static let `default` = AppSettings()
 }

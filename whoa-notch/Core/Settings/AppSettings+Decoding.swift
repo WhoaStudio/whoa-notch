@@ -199,6 +199,7 @@ extension AppSettings {
     case mail
     case colorPicker
     case hasSeenOnboarding
+    case lastSettingsPane
   }
 
   init(from decoder: Decoder) throws {
@@ -215,7 +216,8 @@ extension AppSettings {
       ai: container.value(.ai, defaults.ai),
       mail: container.value(.mail, defaults.mail),
       colorPicker: container.value(.colorPicker, defaults.colorPicker),
-      hasSeenOnboarding: container.value(.hasSeenOnboarding, defaults.hasSeenOnboarding)
+      hasSeenOnboarding: container.value(.hasSeenOnboarding, defaults.hasSeenOnboarding),
+      lastSettingsPane: container.value(.lastSettingsPane, defaults.lastSettingsPane)
     )
   }
 }
