@@ -57,3 +57,19 @@ The requested macOS build and targeted CalendarAgendaTests passed. Existing Dock
 
 ## Dynamic island tab padding
 The tab capsule already uses the same metrics in both modes. Use the notch's 12 pt top clearance for the shared tab body, keeping the island's existing 2 pt frame allowance. Use the notch’s 12 pt visible side gutters without its 28 pt shoulder offset in island mode. The bottom inset, Mirror rim, and separate Transform view keep their existing spacing.
+
+## Notch container transition
+
+Keep a fixed AppKit window and drive the painted silhouette, rim, and mask together. Reveal the body and tab switcher when the opening spring settles. Separate the current shape from its destination and reject stale completions. The collapsed player keeps fixed artwork and visualizer positions while the hover variant adds a title below. Vertical swipes start in the island or the free center of the header, and horizontal swipes keep the existing dominant-axis tracker. Trackpad commits use alignment haptics. No changes to individual tab contents.
+
+The final macOS build and 25 targeted tests passed. The desktop capture returned a blank overlay, so visual reversal, hardware alignment, frame pacing, and physical haptic checks are pending.
+
+The opening reveal now starts with the shape spring in both styles. Blur and opacity use separate animations so a close can fade from the visible opacity. Shape completion still handles the artwork handoff.
+
+## Stay Awake tab rework
+
+Use a stable status card and intrinsic control widths at the 440 pt content floor. The card toggles a 15-minute session on click, switches to indefinite after a half-second hold with an alignment haptic, and adjusts timed sessions in five-minute scroll steps. The folded island shows a passive amber cup. The approved host hook mounts and positions the indicator and informs the tab when it folds. Existing view-model and IOKit code supply the countdown, adjustment bounds, and assertion lifecycle.
+
+An AppKit geometry check passed at 440 pt for off, timed, adjusted maximum, and indefinite states. A standalone harness with the real provider confirmed assertion creation, manual release, and timer expiry with an accelerated clock in `pmset -g assertions`. The focused suite reports a pre-existing failure in `adjustMovesDeadline`: four comparisons capture optional TimeInterval values and integer literals as different types despite identical numeric values.
+
+The folded indicator also appears in notch mode. On hardware with a camera notch, reserve a 20 pt extension beneath the hardware for the cup while keeping the existing wing content aligned to the original band.
