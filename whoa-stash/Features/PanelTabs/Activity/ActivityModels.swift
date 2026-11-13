@@ -50,23 +50,23 @@ nonisolated struct ActivityFilter: Equatable, Sendable {
 
 nonisolated struct ActivitySummary: Equatable, Sendable {
   let tokens: Int
-  /// `nil` quand aucun modèle de la période n'a de tarif connu.
-  let cost: Double?
-  /// Coût projeté à la fin du mois ; un mois passé vaut son coût final.
-  let forecast: Double?
   let activeDays: Int
   let daysInPeriod: Int
 
-  static let empty = ActivitySummary(
-    tokens: 0, cost: nil, forecast: nil, activeDays: 0, daysInPeriod: 0)
+  static let empty = ActivitySummary(tokens: 0, activeDays: 0, daysInPeriod: 0)
 }
 
 /// Une ligne de l'onglet Analytics : ce qu'un modèle a consommé sur la période.
 nonisolated struct ActivityBreakdownRow: Equatable, Sendable {
   let model: String
   let tokens: Int
-  /// `nil` quand le modèle n'a pas de tarif connu.
-  let cost: Double?
+}
+
+/// Un point de la courbe d'usage : les jetons d'un jour (entrée et sortie).
+nonisolated struct ActivityDay: Equatable, Sendable {
+  /// Début du jour, dans le calendrier de la mesure.
+  let date: Date
+  let tokens: Int
 }
 
 /// Les valeurs proposées par les menus de filtre, tirées de la période affichée.

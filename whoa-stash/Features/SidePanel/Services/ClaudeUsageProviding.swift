@@ -19,6 +19,7 @@ struct MockClaudeUsageProvider: ClaudeUsageProviding {
   /// même texte de réinitialisation : 51 min pour la session (sous les 24 h → format relatif),
   /// et 3 jours pour l'hebdomadaire (au-delà → format jour + heure).
   func fetchSnapshot() async throws -> ClaudeUsageSnapshot {
+    try await MockUsageBehavior.apply(provider: "claude")
     let now = Date()
     return ClaudeUsageSnapshot(
       session: ClaudeUsageWindow(

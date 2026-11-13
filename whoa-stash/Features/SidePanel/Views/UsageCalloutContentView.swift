@@ -26,6 +26,7 @@ final class UsageCalloutContentView: NSView {
   private let backgroundLayer = CAShapeLayer()
   private let strokeLayer = CAShapeLayer()
   private let usageView = ClaudeUsagePanelView()
+  private var shownProvider: Provider?
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -77,6 +78,23 @@ final class UsageCalloutContentView: NSView {
     provider: Provider,
     animated: Bool
   ) {
+    // Bulle déjà à l'écran et carte d'un autre service : la nouvelle carte se fond dans
+    // l'ancienne au lieu de la remplacer sèchement pendant que la bulle glisse.
+    if let shownProvider, shownProvider != provider, window?.isVisible == true,
+      OverlayAnimation.isEnabled
+    {
+      usageView.wantsLayer = true
+      if let layer = usageView.layer {
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.toValue = layer.opacity
+        fade.duration = PanelFold.fadeDuration
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(fade, forKey: "providerFade")
+      }
+    }
+    shownProvider = provider
+
     switch provider {
     case .claude:
       usageView.apply(claudeState, animated: animated)
@@ -96,9 +114,16 @@ final class UsageCalloutContentView: NSView {
 
     let path = calloutPath(in: bounds)
     backgroundLayer.frame = bounds
-    backgroundLayer.path = path
     strokeLayer.frame = bounds
-    strokeLayer.path = path
+    // Bulle déjà affichée dont la pointe change de place ou de côté : la silhouette y va au
+    // ressort au lieu de claquer, comme le reste du déplacement.
+    if window?.isVisible == true, let current = backgroundLayer.path, current != path {
+      backgroundLayer.springAnimate(keyPath: "path", to: path, preset: .gentle)
+      strokeLayer.springAnimate(keyPath: "path", to: path, preset: .gentle)
+    } else {
+      backgroundLayer.path = path
+      strokeLayer.path = path
+    }
 
     // Le contenu tient dans le corps : la pointe est une excroissance, rien ne s'y dessine.
     usageView.frame = bodyRect(in: bounds)
@@ -161,32 +186,61 @@ final class UsageCalloutContentView: NSView {
 
   // MARK: - Animation
 
-  /// La bulle vient de la bague : elle glisse de quelques points depuis le côté de sa pointe.
-  private var revealOffset: CGFloat { tail.edge == .right ? 12 : -12 }
+  /// La bulle vient de la bague : sa fenêtre glisse de quelques points depuis le côté de sa
+  /// pointe. Le glissement est porté par la fenêtre (`UsageCalloutWindow`) et non par ce
+  /// calque, que le cadre de la fenêtre rognerait. Nul quand le mouvement est coupé : la bulle
+  /// n'a alors que son fondu.
+  var entryOffset: CGFloat {
+    guard OverlayAnimation.allowsMotion else { return 0 }
+    return tail.edge == .right ? 12 : -12
+  }
 
   func prepareForReveal() {
     guard let layer else { return }
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    layer.setValue(revealOffset, forKeyPath: "transform.translation.x")
+    layer.removeAnimation(forKey: "opacity")
     layer.opacity = 0
     CATransaction.commit()
   }
 
+  /// Repart toujours de l'état affiché : un survol qui revient pendant la sortie inverse le
+  /// fondu au lieu de relancer l'entrée depuis zéro.
   func animateIn() {
-    guard let layer else { return }
-    layer.springAnimate(keyPath: "transform.translation.x", to: CGFloat(0), preset: .gentle)
-    PanelFold.fade(layer, to: 1)
+    fade(to: 1, completion: nil)
   }
 
   func animateOut(completion: @escaping () -> Void) {
+    fade(to: 0, completion: completion)
+  }
+
+  /// Fondu de `PanelFold.fadeDuration`. Il reste quand « Réduire les animations » coupe le
+  /// glissement ; seul le réglage de l'overlay le coupe, et la complétion est alors immédiate.
+  private func fade(to opacity: Float, completion: (() -> Void)?) {
     guard let layer else {
-      completion()
+      completion?()
       return
     }
-    layer.springAnimate(
-      keyPath: "transform.translation.x", to: revealOffset, preset: .gentle, completion: completion)
-    PanelFold.fade(layer, to: 0)
+    guard OverlayAnimation.isEnabled else {
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      layer.removeAnimation(forKey: "opacity")
+      layer.opacity = opacity
+      CATransaction.commit()
+      completion?()
+      return
+    }
+
+    CATransaction.begin()
+    if let completion { CATransaction.setCompletionBlock(completion) }
+    let animation = CABasicAnimation(keyPath: "opacity")
+    animation.fromValue = layer.presentation()?.opacity ?? layer.opacity
+    animation.toValue = opacity
+    animation.duration = PanelFold.fadeDuration
+    animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+    layer.opacity = opacity
+    layer.add(animation, forKey: "opacity")
+    CATransaction.commit()
   }
 
 }

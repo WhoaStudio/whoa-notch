@@ -20,9 +20,10 @@ final class ClaudeUsageViewModel {
 
   private let provider: ClaudeUsageProviding
 
-  /// Le quota ne bouge qu'au rythme des requêtes faites dans Claude Code : une minute suffit
-  /// largement, et évite de marteler un point d'entrée non documenté.
-  private let refreshInterval: TimeInterval = 60
+  /// Le quota ne bouge qu'au rythme des requêtes faites dans Claude Code : cinq minutes
+  /// suffisent, et le jeton OAuth est partagé avec Claude Code — un sondage plus serré
+  /// déclenche des 429 sur un point d'entrée non documenté.
+  private let refreshInterval: TimeInterval = 300
   /// Le texte « Resets in 51 min » est recalculé localement à partir de `resetsAt`, sans
   /// réseau — le compte à rebours reste juste entre deux rafraîchissements.
   private let countdownInterval: TimeInterval = 30
@@ -32,8 +33,16 @@ final class ClaudeUsageViewModel {
   private var wakeObserver: NSObjectProtocol?
   private var inFlight: Task<Void, Never>?
 
-  init(provider: ClaudeUsageProviding) {
+  /// Après un 429, aucun appel avant cette date : le point d'entrée n'est pas sollicité tant que
+  /// le serveur demande d'attendre.
+  private var retryNotBefore: Date?
+  /// Nombre de 429 de suite, pour allonger l'attente quand le serveur ne dit pas combien.
+  private var consecutiveRateLimits = 0
+  private let now: @MainActor () -> Date
+
+  init(provider: ClaudeUsageProviding, now: @escaping @MainActor () -> Date = { Date() }) {
     self.provider = provider
+    self.now = now
   }
 
   func activate() {
@@ -62,17 +71,29 @@ final class ClaudeUsageViewModel {
     }
   }
 
-  /// Rafraîchissement immédiat — appelé à l'activation, par les timers, et à chaque ouverture
-  /// du panneau latéral pour que la première image montrée soit à jour.
+  /// Rafraîchissement — appelé à l'activation, par le timer, au réveil et par le bouton
+  /// d'actualisation de l'onglet Analytics. Tous passent par ici : pendant une attente imposée
+  /// par un 429, aucun ne touche au réseau.
   func refresh() {
     guard inFlight == nil else { return }
+    if let retryNotBefore, now() < retryNotBefore { return }
 
     inFlight = Task { [weak self] in
       guard let self else { return }
       do {
         let snapshot = try await provider.fetchSnapshot()
+        self.retryNotBefore = nil
+        self.consecutiveRateLimits = 0
         self.state = .loaded(snapshot)
       } catch {
+        var reason = error.localizedDescription
+        if case ClaudeUsageServiceError.rateLimited(let retryAfter) = error {
+          self.consecutiveRateLimits += 1
+          let retryAt = self.now().addingTimeInterval(
+            Self.rateLimitDelay(retryAfter: retryAfter, attempt: self.consecutiveRateLimits))
+          self.retryNotBefore = retryAt
+          reason += " — nouvel essai à \(retryAt.formatted(date: .omitted, time: .shortened))"
+        }
         if case ClaudeUsageCredentialError.expired = error {
           // Un jeton périmé ne se réparera pas tout seul : on le dit, même par-dessus un
           // instantané devenu trop vieux pour être fiable.
@@ -80,14 +101,21 @@ final class ClaudeUsageViewModel {
         } else if self.state.snapshot == nil {
           // Un échec ponctuel ne doit pas effacer un instantané déjà affiché : la bague
           // garde sa dernière valeur connue et ne clignote pas à chaque coupure réseau.
-          self.state = .unavailable(reason: error.localizedDescription)
+          self.state = .unavailable(reason: reason)
         }
         Log.sidePanel.error(
-          "rafraîchissement de l'utilisation Claude échoué — \(error.localizedDescription, privacy: .public)"
+          "rafraîchissement de l'utilisation Claude échoué — \(reason, privacy: .public)"
         )
       }
       self.inFlight = nil
     }
+  }
+
+  /// Un `Retry-After` du serveur est respecté tel quel (au moins une minute). Sans lui, l'attente
+  /// double à chaque 429 de suite : 5, 10, 20, 40 puis 60 min au plus.
+  nonisolated static func rateLimitDelay(retryAfter: TimeInterval?, attempt: Int) -> TimeInterval {
+    if let retryAfter { return max(60, retryAfter) }
+    return min(3600, 300 * pow(2, Double(max(0, attempt - 1))))
   }
 
   private func schedule(interval: TimeInterval, tick: @escaping @Sendable @MainActor () -> Void)

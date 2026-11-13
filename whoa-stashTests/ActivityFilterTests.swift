@@ -72,18 +72,6 @@ import Testing
     #expect(none.activeDays == 0)
   }
 
-  @Test func leCoutSuitLesFiltresEtUnModeleSansTarifNEnADonc() {
-    let priced = summary(ActivityFilter(agent: .claudeCode))
-    #expect((priced.cost ?? 0) > 0)
-    #expect((priced.forecast ?? 0) > (priced.cost ?? 0))
-
-    let unpriced = summary(ActivityFilter(agent: .codex))
-    #expect(unpriced.cost == nil)
-    #expect(unpriced.forecast == nil)
-
-    #expect(summary(ActivityFilter(monthOffset: 3)).cost == 0)
-  }
-
   @Test func lesMenusNeProposentQueCeQueLePerimetreContient() {
     let all = ActivityAggregator.options(
       records: records, filter: ActivityFilter(), now: now, calendar: calendar)
@@ -105,9 +93,6 @@ import Testing
     #expect(ActivityFormatting.tokens(12_300) == "12.3K")
     #expect(ActivityFormatting.tokens(4_600_000) == "4.6M")
     #expect(ActivityFormatting.tokens(1_000_000_000) == "1B")
-    #expect(ActivityFormatting.money(12.345) == "$12.35")
-    #expect(ActivityFormatting.money(nil) == "n/a")
-    #expect(ActivityFormatting.money(2_500) == "$2.5K")
     #expect(ActivityFormatting.activeDays(summary()) == "2/30")
   }
 }

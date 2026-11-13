@@ -6,11 +6,11 @@ import Testing
 /// Texte de la pastille d'usage posée dans l'en-tête du panneau de l'encoche.
 @Suite struct ActivityFormattingTests {
 
-  @Test("la pastille montre les jetons et le coût du mois sur une ligne")
-  func chipShowsTokensAndCost() {
-    let summary = ActivitySummary(
-      tokens: 1_800_000, cost: 49.13, forecast: 851.75, activeDays: 2, daysInPeriod: 30)
-    #expect(ActivityFormatting.chip(summary) == "1.8M · $49.13")
+  @Test("la pastille montre les jetons du mois")
+  func chipShowsTokens() {
+    let summary = ActivitySummary(tokens: 1_800_000, activeDays: 2, daysInPeriod: 30)
+    #expect(ActivityFormatting.chip(summary) == "1.8M")
+    #expect(ActivityFormatting.chip(ActivitySummary(tokens: 842, activeDays: 1, daysInPeriod: 30)) == "842")
   }
 
   @Test("l'onglet Analytics classe les modèles du mois par jetons décroissants")
@@ -40,12 +40,5 @@ import Testing
       records: records, filter: ActivityFilter(), now: now, calendar: calendar, limit: 5)
     #expect(all.map(\.model) == ["claude-sonnet-5-5", "claude-opus-5-5"])
     #expect(all[1].tokens == 3_000)
-  }
-
-  @Test("la pastille affiche n/a quand aucun tarif n'est connu")
-  func chipWithoutKnownPrice() {
-    let summary = ActivitySummary(
-      tokens: 842, cost: nil, forecast: nil, activeDays: 1, daysInPeriod: 30)
-    #expect(ActivityFormatting.chip(summary) == "842 · n/a")
   }
 }
