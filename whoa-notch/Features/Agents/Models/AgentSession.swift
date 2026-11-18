@@ -264,6 +264,18 @@ nonisolated struct AgentSessionStore {
     sessions[position].log[entry].content = .steer(text, delivered: true)
   }
 
+  /// L'utilisateur écarte une session close de la liste. Une session encore en vie reste.
+  @discardableResult
+  mutating func dismiss(_ id: String) -> Bool {
+    guard let position = index(of: id), sessions[position].status == .done else { return false }
+    sessions.remove(at: position)
+    // La sélection passe à la voisine (la suivante, sinon la précédente), pas en tête de liste.
+    if selectedID == id {
+      selectedID = sessions.isEmpty ? nil : sessions[min(position, sessions.count - 1)].id
+    }
+    return true
+  }
+
   /// Retire les sessions sans nouvelle depuis trop longtemps (processus tué : aucun `SessionEnd`).
   @discardableResult
   mutating func expire(now: Date = Date()) -> Bool {

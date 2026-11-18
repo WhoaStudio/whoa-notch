@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "ambient-jazz.jpg",
+      "idiom" : "universal",
+      "scale" : "2x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

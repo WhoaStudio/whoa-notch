@@ -172,9 +172,11 @@ enum NotchPanelGeometry {
   /// Onglet AI : une carte d'agent à la fois, à la hauteur des onglets Terminal et Notes.
   static let aiTabHeight: CGFloat = 240
 
-  /// Onglet Analytics : un seul bloc vertical (en-tête, carte du fournisseur, filtres, activité), plus haut que les autres onglets. Le panneau ne grandit donc que pour lui (voir
-  /// `panelRect`).
-  static let analyticsTabHeight: CGFloat = 320
+  /// Onglet Analytics : un seul bloc vertical (en-tête, barre d'onglets, puis la page : carte du
+  /// fournisseur, filtres, activité), plus haut que les autres onglets. Le panneau ne grandit donc
+  /// que pour lui (voir `panelRect`). La barre d'onglets ajoute sa hauteur aux 320 pt qu'avait la
+  /// page Usage seule.
+  static let analyticsTabHeight: CGFloat = 320 + NotchAnalyticsHostView.barBlockHeight
 
   /// Largeur du contenu par défaut, celle des onglets Global, Calendar, Mirror et Stay Awake.
   static let aiTabWidth: CGFloat = 440

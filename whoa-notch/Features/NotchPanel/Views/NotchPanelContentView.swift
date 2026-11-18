@@ -62,6 +62,11 @@ final class NotchPanelContentView: NSView {
   private let usageChip = NotchUsageChipView()
   private var monthSummary: ActivitySummary?
   private let analyticsTab = NotchAnalyticsTabView()
+  private let actionsPage = NotchActionsPageView()
+  private let serversPage = NotchServersPageView()
+  /// L'en-tête fixe, la barre d'onglets et les pages Usage, Actions et Servers.
+  private lazy var analyticsHost = NotchAnalyticsHostView(
+    header: analyticsTab.header, pages: [analyticsTab, actionsPage, serversPage])
   /// L'onglet que la pastille a quitté, où un second clic ramène (comme `tabBeforeStayAwake`).
   private var tabBeforeAnalytics: NotchTab = .global
   private let stayAwakeTab = StayAwakeTabView()
@@ -180,7 +185,12 @@ final class NotchPanelContentView: NSView {
 
   /// Une demande à laquelle on peut répondre est affichée sur l'onglet AI : la fenêtre peut prendre le
   /// clavier au clic (sans le voler à l'ouverture), pour les touches de la carte et ses champs.
-  var cardAcceptsKeyboard: Bool { isExpanded && selectedTab == .ai && usageTab.showsAnswerablePrompt }
+  var cardAcceptsKeyboard: Bool {
+    guard isExpanded else { return false }
+    // La page Actions a des champs de saisie : même règle, le clavier vient au clic.
+    if selectedTab == .analytics { return analyticsHost.selectedPage.acceptsTyping }
+    return selectedTab == .ai && usageTab.showsAnswerablePrompt
+  }
 
   /// Échap sur la carte : le contrôleur replie le panneau.
   var onFoldRequested: (() -> Void)? {
@@ -318,7 +328,8 @@ final class NotchPanelContentView: NSView {
     contentContainer.addSubview(terminalTab)
     contentContainer.addSubview(colorPickerTab)
     contentContainer.addSubview(stayAwakeTab)
-    contentContainer.addSubview(analyticsTab)
+    contentContainer.addSubview(analyticsHost)
+    analyticsHost.onPageChanged = { [weak self] in self?.onKeyboardNeedChanged?() }
     stayAwakeButton.onClick = { [weak self] in self?.toggleStayAwakeTab() }
     contentContainer.addSubview(stayAwakeButton)
     usageChip.isHidden = true
@@ -523,7 +534,7 @@ final class NotchPanelContentView: NSView {
   private var tabContentViews: [NSView] {
     [
       globalTab, calendarTab, fileTray, clipboardTab, notesTab, mirrorTab, usageTab, terminalTab,
-      colorPickerTab, stayAwakeTab, analyticsTab,
+      colorPickerTab, stayAwakeTab, analyticsHost,
     ]
   }
 
@@ -539,7 +550,7 @@ final class NotchPanelContentView: NSView {
     case .terminal: terminalTab
     case .colorPicker: colorPickerTab
     case .stayAwake: stayAwakeTab
-    case .analytics: analyticsTab
+    case .analytics: analyticsHost
     }
   }
 
@@ -549,6 +560,19 @@ final class NotchPanelContentView: NSView {
 
   func apply(notes: [Note]) {
     notesTab.apply(notes: notes)
+  }
+
+  /// Les gestes des pages Actions et Servers.
+  var devServersCommands = DevServersCommands() {
+    didSet {
+      actionsPage.commands = devServersCommands
+      serversPage.commands = devServersCommands
+    }
+  }
+
+  func apply(devServers state: DevServersState) {
+    actionsPage.apply(state)
+    serversPage.apply(state)
   }
 
   func apply(colorPickerState: ColorPickerState) {
@@ -1308,6 +1332,11 @@ final class NotchPanelContentView: NSView {
   var onAgentSessionSelected: ((String) -> Void)? {
     get { usageTab.onAgentSessionSelected }
     set { usageTab.onAgentSessionSelected = newValue }
+  }
+
+  var onAgentSessionDismissed: ((String) -> Void)? {
+    get { usageTab.onAgentSessionDismissed }
+    set { usageTab.onAgentSessionDismissed = newValue }
   }
 
   var onAgentPromote: ((AgentEvent) -> Void)? {

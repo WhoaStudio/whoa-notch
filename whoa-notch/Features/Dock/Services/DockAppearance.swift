@@ -33,11 +33,9 @@ struct DockStyle: Equatable, Sendable {
 }
 
 /// Réglages du Dock macOS que le dock personnalisé reprend par défaut : taille des icônes,
-/// agrandissement au survol, masquage auto, rebond au lancement. Lus dans `com.apple.dock`.
+/// masquage auto, rebond au lancement. Lus dans `com.apple.dock`.
 struct DockAppearance: Equatable, Sendable {
   var iconSize: CGFloat = 48
-  var magnification = false
-  var magnifiedSize: CGFloat = 128
   var autohide = false
   /// Délai avant l'apparition au contact du bord, en secondes.
   var revealDelay: Double = 0.5
@@ -53,9 +51,6 @@ struct DockAppearance: Equatable, Sendable {
   {
     var result = DockAppearance()
     if let size = defaults.double("tilesize"), size > 0 { result.iconSize = CGFloat(size) }
-    result.magnification = defaults.bool("magnification") ?? false
-    if let large = defaults.double("largesize"), large > 0 { result.magnifiedSize = CGFloat(large) }
-    result.magnifiedSize = max(result.magnifiedSize, result.iconSize)
     result.bounceOnLaunch = defaults.bool("launchanim") ?? true
     if let saved {
       result.autohide = saved.autohide ?? false

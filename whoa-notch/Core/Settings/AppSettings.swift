@@ -169,6 +169,7 @@ struct AppSettings: Codable, Equatable, Sendable {
   var ai = AISettings()
   var mail = MailSettings()
   var colorPicker = ColorPickerSettings()
+  var devActions = DevActionSettings()
   /// Vrai une fois la fenêtre de bienvenue fermée : elle ne s'affiche qu'au premier lancement.
   var hasSeenOnboarding = false
   /// Dernier volet ouvert dans Préférences (`SettingsCategory.rawValue`) : rouvert tel quel.

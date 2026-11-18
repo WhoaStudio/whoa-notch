@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var welcomeLauncher: WelcomeLauncher?
   private var clipboardHistoryViewModel: ClipboardHistoryViewModel?
   private var notesViewModel: NotesViewModel?
+  private var devServersViewModel: DevServersViewModel?
   private var stayAwakeViewModel: StayAwakeViewModel?
   private var colorPickerViewModel: ColorPickerViewModel?
   private var deviceStatusCoordinator: DeviceStatusCoordinator?
@@ -81,6 +82,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     settings.$settings.map(\.general.showMenuBarIcon).removeDuplicates()
       .sink { [weak statusBarController] in statusBarController?.setVisible($0) }
       .store(in: &dockCancellables)
+    statusBarController?.onSelectProfile = { [settings] in
+      settings.settings.dock.activeProfileID = $0
+    }
+    settings.$settings.map {
+      DockProfileState(list: $0.dock.profiles, activeID: $0.dock.activeProfileID)
+    }
+    .removeDuplicates()
+    .sink { [weak statusBarController] in
+      statusBarController?.apply(profiles: $0.list, activeID: $0.activeID)
+    }
+    .store(in: &dockCancellables)
 
     // Fenêtre flottante invisible qui gère le slider sur le bord de l'écran
     edgeSliderController = EdgeSliderController(storage: settings)
@@ -189,6 +201,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     notes.activate()
     notesViewModel = notes
 
+    // Actions et serveurs de l'onglet Analytics. `--dev-servers=sample` simule les processus.
+    let devServers = DevServersViewModel(
+      storage: settings, provider: MockDevProcessManager.fromLaunchArguments() ?? DevProcessManager(),
+      scanner: MockListeningProcessProvider.fromLaunchArguments() ?? ListeningProcessScanner())
+    devServers.onStateChanged = { [weak self] in self?.notchPanelController?.apply(devServers: $0) }
+    notchPanelController?.devServersCommands = devServers.commands
+    devServers.activate()
+    devServersViewModel = devServers
+
     // Stay Awake : garde le Mac (et l'écran, au choix) éveillé le temps demandé. Relâché à la fin
     // du minuteur, à « Turn Off » et à la fermeture de l'app. `--stay-awake=mock` branche une
     // fausse source qui ne touche pas à la gestion d'énergie.
@@ -244,6 +265,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     desktopWatcher.onEvent = showAgentEvent
     desktopWatcher.bind(to: settings)
     claudeDesktopWatcher = desktopWatcher
+    if let sample = AgentSessionSample.fromLaunchArguments() {
+      notchPanelController?.seedAgentSessions(sample)
+    }
     if let simulated = AgentEvent.fromLaunchArguments() {
       Task { @MainActor in
         try? await Task.sleep(for: .seconds(1))
@@ -299,7 +323,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let runningProvider: RunningAppsProviding =
       MockRunningAppsProvider.fromLaunchArguments() ?? WorkspaceRunningAppsProvider()
     runningProvider.onChange = { [weak dockModel] in dockModel?.setRunning($0) }
-    dock.apply(magnification: settings.settings.dock.magnification)
     dock.activate()
     dockModel.setPinned(settings.settings.dock.visibleApps)
     dock.apply(
@@ -318,8 +341,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     .removeDuplicates()
     .sink { [weak dock] in dock?.apply(profiles: $0.list, activeID: $0.activeID) }.store(
       in: &dockCancellables)
-    settings.$settings.map(\.dock.magnification).removeDuplicates()
-      .sink { [weak dock] in dock?.apply(magnification: $0) }.store(in: &dockCancellables)
     settings.$settings.map(\.dock.style).removeDuplicates()
       .sink { [weak dock] in dock?.apply(style: $0) }.store(in: &dockCancellables)
     settings.$settings.map { ($0.dock.screenMode, $0.dock.detachedDisplays) }
@@ -514,6 +535,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // au prochain lancement il sera masqué de nouveau.
     systemDockService?.restore()
     stayAwakeViewModel?.turnOff()
+    devServersViewModel?.stopAll()
     agentHookServer.stop()
   }
 }

@@ -21,4 +21,17 @@ enum DockAppDrag {
     guard parts.count == 2 else { return nil }
     return DockPinnedApp(bundleID: parts[0], path: parts[1])
   }
+
+  /// Une appli glissée, d'où qu'elle vienne : le sélecteur, la maquette, ou un fichier `.app` du
+  /// Finder (qui doit avoir un identifiant de bundle).
+  static func app(fromAny pasteboard: NSPasteboard) -> DockPinnedApp? {
+    if let app = app(from: pasteboard) { return app }
+    guard
+      let url = (pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL])?.first(where: {
+        $0.pathExtension == "app"
+      }),
+      let bundleID = Bundle(url: url)?.bundleIdentifier
+    else { return nil }
+    return DockPinnedApp(bundleID: bundleID, path: url.path)
+  }
 }

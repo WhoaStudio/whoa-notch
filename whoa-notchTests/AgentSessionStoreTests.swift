@@ -175,4 +175,23 @@ import Testing
     #expect(!cleared && !ended)
     #expect(store.sessions.isEmpty)
   }
+
+  @Test("seule une session close peut être écartée, et la sélection passe à sa voisine")
+  func dismissOnlyClosedSessions() {
+    var store = AgentSessionStore()
+    store.apply(turn("A", "a"), now: start)
+    store.apply(turn("B", "b"), now: start.addingTimeInterval(1))
+    store.apply(
+      AgentEvent(kind: .sessionEnd, project: "app-B", sessionID: "B"),
+      now: start.addingTimeInterval(2))
+    store.selectedID = "B"
+
+    let running = store.dismiss("A")
+    let unknown = store.dismiss("Z")
+    let closed = store.dismiss("B")
+    #expect(!running && !unknown)
+    #expect(closed)
+    #expect(store.sessions.map(\.id) == ["A"])
+    #expect(store.selectedID == "A")
+  }
 }
