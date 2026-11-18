@@ -1,6 +1,6 @@
 import AppKit
 
-/// Écran "About" : icône, nom, accroche, version, boutons d'action et crédits — une mise en page
+/// Écran "About" : aperçu du Dock, nom, accroche, version, boutons d'action et crédits — une mise en page
 /// centrée, sans l'en-tête commun.
 final class AboutSettingsViewController: SettingsSectionViewController {
 
@@ -10,12 +10,7 @@ final class AboutSettingsViewController: SettingsSectionViewController {
   override var showsHeader: Bool { false }
 
   override func makeSections() -> [NSView] {
-    let iconView = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
-    iconView.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      iconView.widthAnchor.constraint(equalToConstant: 110),
-      iconView.heightAnchor.constraint(equalToConstant: 110),
-    ])
+    let dockPreview = AboutDockPreviewView()
 
     let nameLabel = Self.label("Whoa Notch", size: 30, weight: .bold, color: .labelColor)
     let taglineLabel = Self.label(
@@ -38,12 +33,12 @@ final class AboutSettingsViewController: SettingsSectionViewController {
       size: 12, color: .secondaryLabelColor)
 
     let column = NSStackView(views: [
-      iconView, nameLabel, taglineLabel, versionLabel, buttons, rule, credits,
+      dockPreview, nameLabel, taglineLabel, versionLabel, buttons, rule, credits,
     ])
     column.orientation = .vertical
     column.alignment = .centerX
     column.spacing = 12
-    column.setCustomSpacing(22, after: iconView)
+    column.setCustomSpacing(22, after: dockPreview)
     column.setCustomSpacing(22, after: versionLabel)
     column.setCustomSpacing(28, after: buttons)
     column.setCustomSpacing(20, after: rule)

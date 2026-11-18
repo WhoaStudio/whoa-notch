@@ -56,14 +56,34 @@ final class ProfilesSettingsViewModel: ObservableObject {
   func setApp(_ app: DockPinnedApp, selected: Bool) {
     update { profile in
       let present = profile.apps.contains { $0.bundleID == app.bundleID }
-      if selected && !present { profile.apps.append(app) }
-      if !selected { profile.apps.removeAll { $0.bundleID == app.bundleID } }
+      if selected && !present { profile.insertApp(app, atRowIndex: .max) }
+      if !selected { profile.removeEntry(app.bundleID) }
     }
   }
 
   /// Met l'appli à `index` du dock du profil — la déplace si elle y est déjà, l'ajoute sinon.
   func placeApp(_ app: DockPinnedApp, at index: Int) {
     update { $0.apps.place(app, at: index) }
+  }
+
+  /// Déplace une case du profil (appli ou widget) à `index`, compté sans elle : la maquette
+  /// l'a levée de la rangée.
+  func moveEntry(_ id: String, toRemainingIndex index: Int) {
+    update { $0.moveEntry(id, toRemainingIndex: index) }
+  }
+
+  /// Ajoute une appli à `index` de la rangée ; sans effet si le profil l'a déjà.
+  func insertApp(_ app: DockPinnedApp, atRowIndex index: Int) {
+    update { $0.insertApp(app, atRowIndex: index) }
+  }
+
+  /// Ajoute un widget de ce type à `index` de la rangée.
+  func insertWidget(kind: String, atRowIndex index: Int) {
+    update { $0.insertWidget(kind: kind, atRowIndex: index) }
+  }
+
+  func removeEntry(_ id: String) {
+    update { $0.removeEntry(id) }
   }
 
   func addWidget(kind: String) { update { $0.addWidget(kind: kind) } }
@@ -76,5 +96,34 @@ final class ProfilesSettingsViewModel: ObservableObject {
       active
       ? id
       : (storage.settings.dock.activeProfileID == id ? nil : storage.settings.dock.activeProfileID)
+  }
+}
+
+extension ProfilesSettingsViewModel {
+
+  /// `--profile-apps=sample` : un profil de cinq applis système dans un stockage jetable, pour voir
+  /// et essayer la maquette de la section « Profiles » sans toucher aux vrais profils ni au dock.
+  static func fromLaunchArguments(_ arguments: [String] = CommandLine.arguments)
+    -> ProfilesSettingsViewModel?
+  {
+    guard arguments.contains("--profile-apps=sample") else { return nil }
+    let name = "whoa-notch.profile-sample.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name) ?? .standard
+    defaults.removePersistentDomain(forName: name)
+    let storage = SettingsStorage(defaults: defaults)
+    storage.settings.dock.profiles = [
+      DockProfile(
+        id: "sample", name: "Sample", symbol: "hammer.fill",
+        apps: [
+          DockPinnedApp(bundleID: "com.apple.Safari", path: "/Applications/Safari.app"),
+          DockPinnedApp(bundleID: "com.apple.Notes", path: "/System/Applications/Notes.app"),
+          DockPinnedApp(
+            bundleID: "com.apple.Terminal", path: "/System/Applications/Utilities/Terminal.app"),
+          DockPinnedApp(bundleID: "com.apple.iCal", path: "/System/Applications/Calendar.app"),
+          DockPinnedApp(bundleID: "com.apple.Music", path: "/System/Applications/Music.app"),
+        ],
+        widgets: [DockWidgetPlacement(kind: "battery", index: 2)])
+    ]
+    return ProfilesSettingsViewModel(storage: storage)
   }
 }

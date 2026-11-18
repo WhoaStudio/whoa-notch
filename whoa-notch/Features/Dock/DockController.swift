@@ -69,7 +69,7 @@ final class DockPanel {
     let shown = shownFrame
     return NSRect(
       x: shown.midX - size.width / 2,
-      y: shown.minY + content.capsuleHeight + content.magnificationReserve + 8,
+      y: shown.minY + content.capsuleHeight + 8,
       width: size.width, height: size.height)
   }
 
@@ -263,8 +263,6 @@ final class DockController {
   private let onWidgetsChanged: ([DockWidgetPlacement]) -> Void
   private let onAddWidget: (String) -> Void
   private var appearance = DockAppearance()
-  /// Réglage « Magnification » des Préférences : il l'emporte sur celui du Dock macOS.
-  private var magnification = true
   /// Réglages « Appearance » des Préférences, appliqués par-dessus le Dock macOS.
   private var style = DockStyle()
   /// « Show dock » : le dock peut être présenté, à condition qu'un écran soit permis.
@@ -388,12 +386,6 @@ final class DockController {
     panel.dismiss()
   }
 
-  /// Relit les réglages du Dock macOS ; appelé quand ils ont pu changer.
-  func apply(magnification: Bool) {
-    self.magnification = magnification
-    refreshAppearance()
-  }
-
   /// Taille, espacement, rayon et ombre choisis dans Préférences ▸ Appearance.
   func apply(style: DockStyle) {
     self.style = style
@@ -402,19 +394,15 @@ final class DockController {
 
   func refreshAppearance() {
     var next = readAppearance()
-    next.magnification = magnification
     next.style = style
     let scale = CGFloat(style.sizePercent / 100)
     next.iconSize *= scale
-    next.magnifiedSize = max(next.magnifiedSize * scale, next.iconSize)
     if style.adaptsToFit, let screen = panel.targetScreen {
       // Taille de la rangée actuelle : on la réduit si elle dépasse la largeur utile de l'écran.
       let fitted = DockStyle.fittedIconSize(
         base: next.iconSize, count: panel.content.rowCount, spacing: style.widgetSpacing,
         available: screen.visibleFrame.width - 32)
-      let ratio = fitted / next.iconSize
       next.iconSize = fitted
-      next.magnifiedSize = max(next.magnifiedSize * ratio, fitted)
     }
     guard next != appearance else { return }
     appearance = next
@@ -445,14 +433,12 @@ final class DockController {
     NSRect(x: screen.frame.midX - 120, y: screen.frame.minY, width: 240, height: 12)
   }
 
-  /// La zone où le curseur est « sur le dock » : la capsule et la réserve au-dessus d'elle, là où
-  /// les icônes agrandies se dressent.
+  /// La zone où le curseur est « sur le dock » : la capsule et une marge au-dessus d'elle.
   private var dockZone: NSRect {
     let capsule = panel.capsuleScreenRect
     let zone = NSRect(
       x: capsule.minX - 10, y: capsule.minY - 8, width: capsule.width + 20,
-      height: capsule.height + 8
-        + (appearance.magnification ? appearance.magnifiedSize - appearance.iconSize : 0))
+      height: capsule.height + 8)
     // Le panneau du dossier ouvert fait partie du dock : y rester ne le referme ni ne cache le dock.
     guard let popover = panel.content.expandedPopoverRect else { return zone }
     let shown = panel.shownFrame

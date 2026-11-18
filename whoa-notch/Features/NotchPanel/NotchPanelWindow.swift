@@ -104,6 +104,15 @@ final class NotchPanelWindow {
     contentView.apply(notes: notes)
   }
 
+  var devServersCommands: DevServersCommands {
+    get { contentView.devServersCommands }
+    set { contentView.devServersCommands = newValue }
+  }
+
+  func apply(devServers: DevServersState) {
+    contentView.apply(devServers: devServers)
+  }
+
   var onCreateNote: (() -> Void)? {
     get { contentView.onCreateNote }
     set { contentView.onCreateNote = newValue }
@@ -263,6 +272,11 @@ final class NotchPanelWindow {
   var onAgentSessionSelected: ((String) -> Void)? {
     get { contentView.onAgentSessionSelected }
     set { contentView.onAgentSessionSelected = newValue }
+  }
+
+  var onAgentSessionDismissed: ((String) -> Void)? {
+    get { contentView.onAgentSessionDismissed }
+    set { contentView.onAgentSessionDismissed = newValue }
   }
 
   var onAgentPromote: ((AgentEvent) -> Void)? {

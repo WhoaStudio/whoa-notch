@@ -3,17 +3,13 @@ import OSLog
 
 /// Gère l'icône dans la menu bar macOS (NSStatusItem) et son menu déroulant.
 @MainActor
-final class StatusBarController: NSObject, NSMenuDelegate {
+final class StatusBarController: NSObject {
 
   private let statusItem: NSStatusItem
-
-  private var animationTimer: Timer?
-  private var openness: CGFloat = 0
-  private var startOpenness: CGFloat = 0
-  private var targetOpenness: CGFloat = 0
-  private var animationStart: TimeInterval = 0
-  private let lid = NSImage(named: "MenuBarLid")
-  private let body = NSImage(named: "MenuBarBody")
+  private var profiles: [DockProfile] = []
+  private var activeProfileID: String?
+  /// Appelé avec l'identifiant du profil choisi dans le menu.
+  var onSelectProfile: ((String) -> Void)?
 
   override init() {
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -21,7 +17,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     super.init()
 
     if let button = statusItem.button {
-      // Glyphe monochrome dédié : l'icône d'application complète devient illisible à 18 pt.
+      // Glyphe monochrome tiré du logo (tuile, encoche, yeux, moustache) : l'icône
+      // d'application complète devient illisible à 18 pt. En image modèle, AppKit
+      // fournit les couleurs des barres claire, sombre et surlignée.
       let icon = NSImage(named: "MenuBarIcon")
       icon?.size = NSSize(width: 18, height: 18)
       icon?.isTemplate = true
@@ -29,7 +27,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
       button.image = icon
     }
 
-    updateIcon()
     buildMenu()
   }
 
@@ -38,9 +35,33 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     statusItem.isVisible = visible
   }
 
+  /// Met à jour le sous-menu des profils du dock. C'est l'accès au clavier de la pastille, dont la
+  /// fenêtre ne prend jamais le focus.
+  func apply(profiles newProfiles: [DockProfile], activeID: String?) {
+    profiles = newProfiles
+    activeProfileID = activeID
+    buildMenu()
+  }
+
   private func buildMenu() {
     let menu = NSMenu()
-    menu.delegate = self
+
+    if !profiles.isEmpty {
+      let submenu = NSMenu(title: "Profile")
+      for profile in profiles {
+        let item = NSMenuItem(
+          title: profile.name, action: #selector(selectProfile(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = profile.id
+        item.state = profile.id == activeProfileID ? .on : .off
+        item.image = NSImage(systemSymbolName: profile.symbol, accessibilityDescription: nil)
+        submenu.addItem(item)
+      }
+      let parent = NSMenuItem(title: "Profile", action: nil, keyEquivalent: "")
+      parent.submenu = submenu
+      menu.addItem(parent)
+      menu.addItem(NSMenuItem.separator())
+    }
 
     menu.addItem(
       NSMenuItem(
@@ -65,68 +86,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     statusItem.menu = menu
   }
 
-  func menuWillOpen(_ menu: NSMenu) {
-    animateLid(to: 1)
-  }
-
-  func menuDidClose(_ menu: NSMenu) {
-    animateLid(to: 0)
-  }
-
-  /// Le minuteur reste actif pendant le suivi du menu natif.
-  private func animateLid(to target: CGFloat) {
-    animationTimer?.invalidate()
-    animationTimer = nil
-    targetOpenness = target
-    guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
-      openness = target
-      updateIcon()
-      return
-    }
-    startOpenness = openness
-    animationStart = ProcessInfo.processInfo.systemUptime
-    let timer = Timer(
-      timeInterval: 1.0 / 60, target: self,
-      selector: #selector(advanceAnimation(_:)), userInfo: nil, repeats: true)
-    animationTimer = timer
-    RunLoop.main.add(timer, forMode: .common)
-    RunLoop.main.add(timer, forMode: .eventTracking)
-  }
-
-  @objc private func advanceAnimation(_ timer: Timer) {
-    let elapsed = ProcessInfo.processInfo.systemUptime - animationStart
-    let progress = min(elapsed / 0.18, 1)
-    // Courbe ease-out (0.23, 1, 0.32, 1), inversée sur son axe temporel.
-    var lower = 0.0
-    var upper = 1.0
-    for _ in 0..<12 {
-      let t = (lower + upper) / 2
-      let x =
-        3 * (1 - t) * (1 - t) * t * 0.23
-        + 3 * (1 - t) * t * t * 0.32 + t * t * t
-      if x < progress { lower = t } else { upper = t }
-    }
-    let eased = progress >= 1 ? 1 : 1 - pow(1 - (lower + upper) / 2, 3)
-    openness = startOpenness + (targetOpenness - startOpenness) * eased
-    updateIcon()
-    if progress >= 1 {
-      timer.invalidate()
-      animationTimer = nil
-    }
-  }
-
-  /// Compose les deux parties vectorielles en une image modèle pour AppKit.
-  private func updateIcon() {
-    guard let lid, let body else { return }
-    let image = NSImage(size: NSSize(width: 18, height: 18))
-    image.lockFocus()
-    body.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
-    let offset = -(1 - openness) * (28 * 0.9 * 18 / 256)
-    lid.draw(in: NSRect(x: 0, y: offset, width: 18, height: 18))
-    image.unlockFocus()
-    image.isTemplate = true
-    image.accessibilityDescription = "Whoa Notch"
-    statusItem.button?.image = image
+  @objc private func selectProfile(_ sender: NSMenuItem) {
+    guard let id = sender.representedObject as? String else { return }
+    onSelectProfile?(id)
   }
 
   @objc private func openPreferences() {

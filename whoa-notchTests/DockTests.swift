@@ -153,14 +153,14 @@ private func makeStorage() -> SettingsStorage {
 
   @Test func reprendLesReglagesDuDockMacOS() {
     let defaults = FakeDockDefaults([
-      "tilesize": 63.0, "largesize": 105.0, "magnification": true, "autohide": true,
+      "tilesize": 63.0, "autohide": true,
       "autohide-delay": 0.2,
     ])
     let look = DockAppearance.read(from: defaults, saved: nil)
     #expect(
       look
         == DockAppearance(
-          iconSize: 63, magnification: true, magnifiedSize: 105, autohide: true, revealDelay: 0.2,
+          iconSize: 63, autohide: true, revealDelay: 0.2,
           bounceOnLaunch: true))
   }
 

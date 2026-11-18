@@ -35,6 +35,8 @@ nonisolated enum AgentReplay {
     /// Lignes ajoutées ou retirées d'une édition.
     var detail: [CodeLine] = []
     var state: State
+    /// Le fichier d'une édition, pour en montrer le diff.
+    var diffTarget: DiffTarget?
   }
 
   /// Les actions de la session, de la plus ancienne à la plus récente.
@@ -100,6 +102,9 @@ nonisolated enum AgentReplay {
         state: isCurrent ? .active : .done)
       if isCurrent {
         item.path = relative(activity.filePath, to: activity.cwd)
+        if step == .edit {
+          item.diffTarget = diffTarget(for: activity.filePath, cwd: activity.cwd)
+        }
         switch step {
         case .edit: item.detail = activity.snippet.prefix(detailLimit).map { CodeLine(text: $0, kind: .added) }
         case .bash: item.summary = activity.snippet.first
@@ -116,6 +121,7 @@ nonisolated enum AgentReplay {
     switch call.step {
     case .edit:
       item.path = relative(call.filePath, to: call.cwd)
+      item.diffTarget = diffTarget(for: call.filePath, cwd: call.cwd)
       item.detail =
         call.removed.prefix(detailLimit).map { CodeLine(text: $0, kind: .removed) }
         + call.snippet.prefix(detailLimit).map { CodeLine(text: $0, kind: .added) }
@@ -125,6 +131,14 @@ nonisolated enum AgentReplay {
       item.path = relative(call.filePath, to: call.cwd)
     }
     return item
+  }
+
+  /// Le fichier d'une édition en chemin absolu ; `nil` sans chemin ou si on ne peut pas le situer.
+  static func diffTarget(for path: String?, cwd: String?) -> DiffTarget? {
+    guard let path, !path.isEmpty else { return nil }
+    if path.hasPrefix("/") { return DiffTarget(path: path, cwd: cwd) }
+    guard let cwd, !cwd.isEmpty else { return nil }
+    return DiffTarget(path: cwd + "/" + path, cwd: cwd)
   }
 
   /// Le chemin relatif au dossier de la session ; tel quel s'il est ailleurs.

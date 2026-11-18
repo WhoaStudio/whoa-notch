@@ -70,4 +70,6 @@ enum Log {
   /// Vérification des mises à jour : lancement, minuteur et résultat.
   nonisolated static let updates = Logger(subsystem: subsystem, category: "updates")
   nonisolated static let stayAwake = Logger(subsystem: subsystem, category: "stay-awake")
+  /// Actions et serveurs lancés depuis l'onglet Analytics.
+  nonisolated static let devServers = Logger(subsystem: subsystem, category: "dev-servers")
 }

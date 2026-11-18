@@ -23,7 +23,7 @@ final class ProfilesSettingsViewController: SettingsSectionViewController, NSTex
     ("Finance", "creditcard.fill"),
   ]
 
-  private let viewModel = ProfilesSettingsViewModel()
+  private let viewModel = ProfilesSettingsViewModel.fromLaunchArguments() ?? ProfilesSettingsViewModel()
   private var cancellable: AnyCancellable?
   private var installed: [InstalledApp] = []
 
@@ -36,7 +36,7 @@ final class ProfilesSettingsViewController: SettingsSectionViewController, NSTex
     "Show in the dock", target: self, action: #selector(activeChanged))
   private var picker: AppPickerView?
   private let widgetsView = ProfileWidgetsView()
-  private let preview = DockPreviewView(size: NSSize(width: 460, height: 76))
+  private let preview = DockPreviewView(size: NSSize(width: 460, height: 104))
   private var editingRows: [SettingsFormRowView] = []
 
   override func makeRows() -> [NSView] {
@@ -75,12 +75,20 @@ final class ProfilesSettingsViewController: SettingsSectionViewController, NSTex
     let nameRow = SettingsFormRowView(title: "Name", control: nameField)
     let logoRow = SettingsFormRowView(title: "Logo", control: symbolPopUp)
     let activeRow = SettingsFormRowView(title: "Dock", control: activeCheckbox)
-    preview.onPlace = { [weak self] app, index in self?.viewModel.placeApp(app, at: index) }
-    preview.onRemove = { [weak self] app in self?.viewModel.setApp(app, selected: false) }
+    preview.onMove = { [weak self] id, index in
+      self?.viewModel.moveEntry(id, toRemainingIndex: index)
+    }
+    preview.onInsertApp = { [weak self] app, index in
+      self?.viewModel.insertApp(app, atRowIndex: index)
+    }
+    preview.onInsertWidget = { [weak self] kind, index in
+      self?.viewModel.insertWidget(kind: kind, atRowIndex: index)
+    }
+    preview.onRemove = { [weak self] id in self?.viewModel.removeEntry(id) }
     let layoutRow = SettingsFormRowView(
       title: "Layout", control: preview,
       caption:
-        "Drag to reorder. Drop an app from the list below to add it, drag an icon out to remove it",
+        "Drag to reorder. Drop an app from the list below or from Finder, or a widget from the buttons below, to add it. Drag an item out or click its cross to remove it",
       alignsTop: true)
     installed = InstalledApps.scan()
     let picker = AppPickerView(apps: installed, size: NSSize(width: 460, height: 400))
@@ -90,11 +98,10 @@ final class ProfilesSettingsViewController: SettingsSectionViewController, NSTex
       title: "Apps", control: picker, caption: "The apps this profile shows in the dock",
       alignsTop: true)
     widgetsView.onAdd = { [weak self] in self?.viewModel.addWidget(kind: $0) }
-    widgetsView.onRemove = { [weak self] in self?.viewModel.removeWidget(id: $0) }
     let widgetsRow = SettingsFormRowView(
       title: "Widgets", control: widgetsView,
       caption:
-        "Widgets this profile shows in the dock. Drag one in the dock to move it, or out of the dock to remove it",
+        "Click to add a widget at the end of the dock, or drag it into the layout above to place it",
       alignsTop: true)
     editingRows = [nameRow, logoRow, activeRow, layoutRow, appsRow, widgetsRow]
 
@@ -134,8 +141,7 @@ final class ProfilesSettingsViewController: SettingsSectionViewController, NSTex
     guard let selected else {
       nameField.stringValue = ""
       picker?.setSelected([])
-      preview.setApps([])
-      widgetsView.apply([])
+      preview.setContent(apps: [], widgets: [])
       return
     }
     if nameField.currentEditor() == nil { nameField.stringValue = selected.name }
@@ -146,8 +152,7 @@ final class ProfilesSettingsViewController: SettingsSectionViewController, NSTex
     }
     activeCheckbox.state = settings.activeProfileID == selected.id ? .on : .off
     picker?.setSelected(Set(selected.apps.map(\.bundleID)))
-    preview.setApps(selected.apps)
-    widgetsView.apply(selected.widgets)
+    preview.setContent(apps: selected.apps, widgets: selected.widgets)
   }
 
   @objc private func profileSelected() {

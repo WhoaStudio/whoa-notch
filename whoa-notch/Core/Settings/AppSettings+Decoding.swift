@@ -186,6 +186,39 @@ extension ColorPickerSettings {
   }
 }
 
+extension DevAction {
+  enum CodingKeys: String, CodingKey {
+    case id, name, command, directory
+  }
+
+  /// Une action sans nom ou sans commande n'a aucun sens : elle est écartée par la liste.
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      id: container.value(.id, UUID()),
+      name: try container.decode(String.self, forKey: .name),
+      command: try container.decode(String.self, forKey: .command),
+      directory: container.value(.directory, nil))
+  }
+}
+
+extension DevActionSettings {
+  enum CodingKeys: String, CodingKey {
+    case actions
+  }
+
+  private struct Lossy: Decodable {
+    let action: DevAction?
+    init(from decoder: Decoder) throws { action = try? DevAction(from: decoder) }
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let lossy = ((try? container.decodeIfPresent([Lossy].self, forKey: .actions)) ?? nil) ?? []
+    self.init(actions: lossy.compactMap(\.action))
+  }
+}
+
 extension AppSettings {
   enum CodingKeys: String, CodingKey {
     case general
@@ -198,6 +231,7 @@ extension AppSettings {
     case ai
     case mail
     case colorPicker
+    case devActions
     case hasSeenOnboarding
     case lastSettingsPane
   }
@@ -216,6 +250,7 @@ extension AppSettings {
       ai: container.value(.ai, defaults.ai),
       mail: container.value(.mail, defaults.mail),
       colorPicker: container.value(.colorPicker, defaults.colorPicker),
+      devActions: container.value(.devActions, defaults.devActions),
       hasSeenOnboarding: container.value(.hasSeenOnboarding, defaults.hasSeenOnboarding),
       lastSettingsPane: container.value(.lastSettingsPane, defaults.lastSettingsPane)
     )
@@ -266,7 +301,6 @@ extension DockSettings {
     case launchExcluded
     case widgets
     case theme
-    case magnification
     case dockSize
     case widgetSpacing
     case cornerRadius
@@ -313,7 +347,6 @@ extension DockSettings {
       launchExcluded: container.value(.launchExcluded, defaults.launchExcluded),
       widgets: container.value(.widgets, defaults.widgets),
       theme: container.value(.theme, defaults.theme),
-      magnification: container.value(.magnification, defaults.magnification),
       dockSize: container.value(.dockSize, defaults.dockSize),
       widgetSpacing: container.value(.widgetSpacing, defaults.widgetSpacing),
       cornerRadius: container.value(.cornerRadius, defaults.cornerRadius),

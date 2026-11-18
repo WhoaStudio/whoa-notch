@@ -1,8 +1,8 @@
 import AppKit
 
-/// Onglet Analytics, ouvert depuis la pastille d'usage de l'en-tête du panneau, de haut en bas :
-/// l'en-tête d'usage (titre, actualiser, onglets des fournisseurs, réglages), la carte du
-/// fournisseur choisi, les pastilles de filtre puis la section Activity. Un clic sur un onglet de l'en-tête change le
+/// Page Usage de l'onglet Analytics, ouverte depuis la pastille d'usage de l'en-tête du panneau, de
+/// haut en bas : l'en-tête d'usage (titre, actualiser, onglets des fournisseurs, réglages — posé
+/// par `NotchAnalyticsHostView`), la carte du fournisseur choisi, les pastilles de filtre puis la section Activity. Un clic sur un onglet de l'en-tête change le
 /// fournisseur que montre la carte.
 ///
 /// Mise en page entièrement en frames, comme le reste de l'overlay.
@@ -27,7 +27,9 @@ final class NotchAnalyticsTabView: NSView {
   private let sectionGap: CGFloat = 12
   private let pillGap: CGFloat = 8
 
-  private let header = NotchUsageHeaderView()
+  /// L'en-tête n'est pas posé dans cette vue : `NotchAnalyticsHostView` le garde fixe au-dessus
+  /// des pages. Cette page n'en pilote que l'état (fournisseur choisi, mesures, actualisation).
+  let header = NotchUsageHeaderView()
   private let card = NotchUsageCardView()
   private let monthPill = NotchUsageFilterPillView(title: "Month")
   private let modelPill = NotchUsageFilterPillView(title: "All models")
@@ -64,7 +66,7 @@ final class NotchAnalyticsTabView: NSView {
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     wantsLayer = true
-    [header, card, activity, compare].forEach(addSubview)
+    [card, activity, compare].forEach(addSubview)
     pills.forEach(addSubview)
     compare.wantsLayer = true
     compare.isHidden = true
@@ -417,10 +419,6 @@ final class NotchAnalyticsTabView: NSView {
     super.layout()
 
     var top = bounds.maxY
-    header.frame = NSRect(
-      x: 0, y: top - NotchUsageHeaderView.height, width: bounds.width,
-      height: NotchUsageHeaderView.height)
-    top = header.frame.minY - sectionGap
 
     card.frame = NSRect(
       x: 0, y: top - NotchUsageCardView.height, width: bounds.width,

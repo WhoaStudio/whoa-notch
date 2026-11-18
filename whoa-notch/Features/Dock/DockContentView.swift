@@ -316,16 +316,6 @@ final class DockContentView: NSView {
   /// Pendant un glisser au-dessus du dock : l'emplacement vide où l'appli va tomber.
   private var gapIndex: Int?
 
-  // Agrandissement : le curseur et le degré d'agrandissement sont lissés image par image, pour
-  // que l'entrée et la sortie glissent au lieu de sauter.
-  private var hoverX: CGFloat?
-  private var smoothX: CGFloat?
-  private var magnify: CGFloat = 0
-  private var displayLink: CADisplayLink?
-  /// Léger agrandissement du dossier sous le curseur (0...1), lissé comme celui des icônes.
-  private var folderMagnify: CGFloat = 0
-  private var folderTarget: CGFloat = 0
-
   override init(frame: NSRect) {
     super.init(frame: frame)
     wantsLayer = true
@@ -362,11 +352,6 @@ final class DockContentView: NSView {
   private var k: CGFloat { dockLook.iconSize / Self.designIconSize }
   private var sidePadding: CGFloat { 12 * k }
   private var iconGap: CGFloat { dockLook.style.widgetSpacing * k }
-  /// Hauteur dont les icônes agrandies dépassent de la capsule.
-  var magnificationReserve: CGFloat { growth }
-  private var growth: CGFloat {
-    dockLook.magnification ? dockLook.magnifiedSize - dockLook.iconSize : 0
-  }
   private var iconRowBottom: CGFloat { 2 }
   private var iconTopPadding: CGFloat { 6 }
 
@@ -374,9 +359,9 @@ final class DockContentView: NSView {
   var capsuleHeight: CGFloat {
     iconRowBottom + DockIconView.dotGap + dockLook.iconSize + iconTopPadding
   }
-  /// Hauteur de la fenêtre : la capsule plus la place de l'agrandissement.
+  /// Hauteur de la fenêtre : la capsule plus la place du panneau du dossier.
   var panelHeight: CGFloat {
-    capsuleHeight + max(growth, overflow.isEmpty ? 0 : popoverSize.height + 8)
+    capsuleHeight + (overflow.isEmpty ? 0 : popoverSize.height + 8)
   }
 
   // Panneau du dossier : une grille de cellules (icône + nom), cinq par rangée au plus.
@@ -406,12 +391,11 @@ final class DockContentView: NSView {
   /// Place que le dossier ajoute à droite du dock.
   private var folderExtra: CGFloat { overflow.isEmpty ? 0 : folderGap + folderCapsuleWidth }
 
-  /// Largeur de la fenêtre pour `count` icônes : le contenu au repos plus la place de la
-  /// croissance des icônes agrandies.
+  /// Largeur de la fenêtre pour `count` icônes : le contenu au repos plus un peu d'air.
   func panelWidth(forIconCount count: Int) -> CGFloat {
     max(
-      contentWidth(sizes: Array(repeating: dockLook.iconSize, count: count)) + folderExtra + growth
-        * 3 + dockLook.iconSize + iconGap,
+      contentWidth(sizes: Array(repeating: dockLook.iconSize, count: count)) + folderExtra
+        + dockLook.iconSize + iconGap,
       popoverSize.width + 16)
   }
 
@@ -623,49 +607,13 @@ final class DockContentView: NSView {
     for (id, view) in iconViews { view.setBouncing(bouncing.contains(id)) }
   }
 
-  // MARK: - Agrandissement au survol
+  // MARK: - Survol
 
   /// Position du curseur dans la vue, ou `nil` hors du dock. C'est le contrôleur qui la fournit, à
   /// partir de la position globale du curseur : les marges transparentes des icônes ne livrent
   /// pas d'événements de souris, et une zone de survol propre à la vue clignoterait.
   func setHover(_ point: NSPoint?) {
     updateFolder(with: point)
-    // Les icônes ne s'agrandissent que sous le curseur qui les survole : ni au-dessus du panneau du
-    // dossier, ni sur le dossier lui-même, ni au-delà de la rangée — sinon la dernière icône gonflait
-    // quand on visait le dossier, jusque sur le panneau ouvert.
-    guard let point else {
-      setFolderTarget(0)
-      setMagnifyX(nil)
-      return
-    }
-    let overFolder =
-      !overflow.isEmpty && folderBackdrop.frame.insetBy(dx: -4, dy: -6).contains(point)
-    setFolderTarget(overFolder && dockLook.magnification ? 1 : 0)
-    let overPopover = isExpanded && popover.frame.insetBy(dx: -8, dy: -8).contains(point)
-    let rowStart = restRowStart()
-    let rowEnd = rowStart + CGFloat(items.count) * (dockLook.iconSize + iconGap)
-    let inRow = point.x >= rowStart - iconGap && point.x <= rowEnd
-    setMagnifyX(overFolder || overPopover || !inRow ? nil : point.x)
-  }
-
-  private func setMagnifyX(_ x: CGFloat?) {
-    guard dockLook.magnification || hoverX != nil else { return }
-    hoverX = x
-    if let x, smoothX == nil { smoothX = x }
-    startTicking()
-  }
-
-  private func setFolderTarget(_ target: CGFloat) {
-    guard target != folderTarget else { return }
-    folderTarget = target
-    startTicking()
-  }
-
-  private func startTicking() {
-    guard displayLink == nil else { return }
-    let link = displayLink(target: self, selector: #selector(tick(_:)))
-    link.add(to: .main, forMode: .common)
-    displayLink = link
   }
 
   // MARK: - Dossier
@@ -737,70 +685,12 @@ final class DockContentView: NSView {
     }
   }
 
-  @objc private func tick(_ link: CADisplayLink) {
-    let dt = max(0.001, link.targetTimestamp - link.timestamp)
-    let target: CGFloat = hoverX == nil ? 0 : 1
-    magnify += (target - magnify) * CGFloat(1 - exp(-dt * 16))
-    if let hoverX, let current = smoothX {
-      smoothX = current + (hoverX - current) * CGFloat(1 - exp(-dt * 40))
-    }
-    folderMagnify += (folderTarget - folderMagnify) * CGFloat(1 - exp(-dt * 16))
-    let folderSettled = abs(folderTarget - folderMagnify) < 0.003
-    let settled =
-      abs(target - magnify) < 0.003 && folderSettled
-      && (hoverX == nil || abs((smoothX ?? 0) - (hoverX ?? 0)) < 0.2)
-    if settled {
-      folderMagnify = folderTarget
-      magnify = target
-      if let hoverX { smoothX = hoverX } else { smoothX = nil }
-    }
-    layoutIcons(animated: false)
-    if settled {
-      link.invalidate()
-      displayLink = nil
-    }
-  }
-
-  /// Début de la rangée d'icônes quand tout est au repos.
+  /// Début de la rangée d'icônes au repos.
   private func restRowStart() -> CGFloat {
     let restWidth =
       contentWidth(sizes: Array(repeating: dockLook.iconSize, count: row.count)) + folderExtra
     let restOrigin = (bounds.width - restWidth) / 2
     return restOrigin + sidePadding
-  }
-
-  /// Taille de chaque icône : cosinus sur 2,5 pas autour du curseur, calculé sur la disposition
-  /// au repos pour que le résultat ne dépende pas de l'agrandissement déjà appliqué.
-  private func iconSizes() -> [CGFloat] {
-    let base = dockLook.iconSize
-    guard dockLook.magnification, magnify > 0, gapIndex == nil, let cursor = smoothX else {
-      return Array(repeating: base, count: row.count)
-    }
-    let first = restRowStart()
-    let pitch = base + iconGap
-    let radius = pitch * 2.5
-    return row.indices.map { index in
-      let center = first + CGFloat(index) * pitch + base / 2
-      let t = min(1, abs(center - cursor) / radius)
-      return base + (dockLook.magnifiedSize - base) * 0.5 * (1 + cos(.pi * t)) * magnify
-    }
-  }
-
-  /// Décalage horizontal qui garde sous le curseur le point de la rangée qu'il visait au repos :
-  /// sans lui, la rangée s'élargit autour de son centre et l'icône agrandie glisse hors du curseur.
-  private func anchorShift(sizes: [CGFloat], capsuleX: CGFloat) -> CGFloat {
-    guard let cursor = smoothX, dockLook.magnification, magnify > 0, gapIndex == nil, !row.isEmpty
-    else { return 0 }
-    let base = dockLook.iconSize
-    let pitch = base + iconGap
-    let rel = (cursor - restRowStart()) / pitch
-    guard rel >= 0, rel < CGFloat(row.count) else { return 0 }
-    let index = Int(rel)
-    let offset = (rel - CGFloat(index)) * pitch
-    let within = offset <= base ? offset / base * sizes[index] : sizes[index] + (offset - base)
-    let before = sizes[..<index].reduce(0, +) + CGFloat(index) * iconGap
-    let rowStart = capsuleX + sidePadding
-    return cursor - (rowStart + before + within)
   }
 
   // MARK: - Disposition
@@ -822,7 +712,7 @@ final class DockContentView: NSView {
 
   private func layoutIcons(animated: Bool) {
     applyItemStyle()
-    var sizes = iconSizes()
+    var sizes = Array(repeating: dockLook.iconSize, count: row.count)
     // Un glisser en cours : un emplacement vide s'ouvre là où l'appli va tomber.
     let slot = gapIndex.map { min($0, sizes.count) }
     if let slot { sizes.insert(dockLook.iconSize, at: slot) }
@@ -830,9 +720,8 @@ final class DockContentView: NSView {
     // Le dock et son dossier se centrent ensemble.
     let total = width + folderExtra
     var capsuleX = (bounds.width - total) / 2
-    capsuleX += anchorShift(sizes: sizes, capsuleX: capsuleX)
     capsuleX = max(0, min(capsuleX, bounds.width - total))
-    // La capsule colle au bas de la fenêtre : au-dessus d'elle, la réserve d'agrandissement.
+    // La capsule colle au bas de la fenêtre.
     let capsule = NSRect(x: capsuleX, y: 0, width: width, height: capsuleHeight)
     let midY = iconRowBottom + DockIconView.dotGap + dockLook.iconSize / 2
 
@@ -857,17 +746,8 @@ final class DockContentView: NSView {
       let inner = NSRect(
         x: base.minX + 10 * k, y: iconRowBottom + DockIconView.dotGap, width: dockLook.iconSize,
         height: dockLook.iconSize)
-      // Léger agrandissement au survol, autour du bas-centre de la capsule : il s'élève comme une icône.
-      let scale = 1 + 0.14 * folderMagnify
-      let anchor = NSPoint(x: base.midX, y: 0)
-      func scaled(_ rect: NSRect) -> NSRect {
-        NSRect(
-          x: anchor.x + (rect.minX - anchor.x) * scale,
-          y: anchor.y + (rect.minY - anchor.y) * scale,
-          width: rect.width * scale, height: rect.height * scale)
-      }
-      frames.append((folderBackdrop, scaled(base)))
-      frames.append((folderView, scaled(inner)))
+      frames.append((folderBackdrop, base))
+      frames.append((folderView, inner))
     }
 
     NSAnimationContext.runAnimationGroup { context in

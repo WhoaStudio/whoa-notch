@@ -264,6 +264,16 @@ final class NotchUsageHeaderView: NSView {
     fatalError("init(coder:) has not been implemented")
   }
 
+  /// Titre de la page affichée (« Usage », « Actions », « Servers »).
+  var title: String {
+    get { titleLabel.stringValue }
+    set {
+      guard newValue != titleLabel.stringValue else { return }
+      titleLabel.stringValue = newValue
+      needsLayout = true
+    }
+  }
+
   func apply(_ reading: NotchUsageReading, for provider: NotchUsageProvider) {
     tabs[provider.rawValue].apply(reading)
     needsLayout = true

@@ -73,6 +73,7 @@ extension Array where Element == DockPinnedApp {
     }
     insert(app, at: Swift.max(0, Swift.min(target, count)))
   }
+
 }
 
 /// Sur quels écrans le dock apparaît. `one` : seulement sur le premier écran attaché de la liste ;
@@ -121,8 +122,6 @@ struct DockSettings: Codable, Equatable, Sendable {
   var widgets: [DockWidgetPlacement] = []
   /// Fond du dock : `dark` (d'origine) ou `liquidGlass`.
   var theme: DockTheme = .dark
-  /// Agrandissement des icônes sous le curseur. La taille agrandie reste celle du Dock macOS.
-  var magnification: Bool = true
   /// Taille du dock en pourcentage de la taille d'icône du Dock macOS (50 à 150).
   var dockSize: Double = 100
   /// Écart entre les icônes et les widgets, en points de référence (0 à 16).

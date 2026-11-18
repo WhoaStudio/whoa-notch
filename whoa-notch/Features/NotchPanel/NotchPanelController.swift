@@ -60,6 +60,7 @@ final class NotchPanelController {
   private var agendaState: CalendarAgendaState = .loading
   private var clipboardItems: [ClipboardItem] = []
   private var notes: [Note] = []
+  private var devServers = DevServersState()
 
   var onCreateNote: (() -> Void)? {
     didSet { windows.values.forEach { $0.onCreateNote = onCreateNote } }
@@ -343,6 +344,16 @@ final class NotchPanelController {
     windows.values.forEach { $0.apply(clipboardItems: newItems) }
   }
 
+  /// Les gestes des pages Actions et Servers : posés sur chaque fenêtre, présente ou à venir.
+  var devServersCommands = DevServersCommands() {
+    didSet { windows.values.forEach { $0.devServersCommands = devServersCommands } }
+  }
+
+  func apply(devServers newState: DevServersState) {
+    devServers = newState
+    windows.values.forEach { $0.apply(devServers: newState) }
+  }
+
   func apply(notes newNotes: [Note]) {
     notes = newNotes
     windows.values.forEach { $0.apply(notes: newNotes) }
@@ -592,6 +603,19 @@ final class NotchPanelController {
   func selectAgentSession(_ id: String) {
     agentSessions.selectedID = id
     pushAgentSessions()
+  }
+
+  /// `--agent-sessions=sample` : remplit la liste des sessions sans passer par les demandes.
+  func seedAgentSessions(_ steps: [AgentSessionSample.Step]) {
+    let now = Date()
+    for step in steps { agentSessions.apply(step.event, now: now.addingTimeInterval(-step.secondsAgo)) }
+    if let id = AgentSessionSample.selectedSessionID { agentSessions.selectedID = id }
+    pushAgentSessions()
+  }
+
+  /// L'utilisateur écarte une session close.
+  func dismissAgentSession(_ id: String) {
+    if agentSessions.dismiss(id) { pushAgentSessions() }
   }
 
   /// Une consigne pour une seule session. Elle part par la réponse libre de la session si elle
@@ -1033,6 +1057,8 @@ final class NotchPanelController {
         window.onEditNote = onEditNote
         window.onDeleteNote = onDeleteNote
         window.apply(notes: notes)
+        window.devServersCommands = devServersCommands
+        window.apply(devServers: devServers)
         window.onStayAwakeAction = onStayAwakeAction
         window.onColorPickerAction = onColorPickerAction
         window.apply(colorPickerState: colorPickerState)
@@ -1049,6 +1075,7 @@ final class NotchPanelController {
           agentSessions: agentSessions.sessions, selectedID: agentSessions.selected?.id)
         window.onAgentSteer = { [weak self] id, text in self?.steerAgentSession(id, text: text) }
         window.onAgentSessionSelected = { [weak self] id in self?.selectAgentSession(id) }
+        window.onAgentSessionDismissed = { [weak self] id in self?.dismissAgentSession(id) }
         window.onAgentPromote = { [weak self] event in self?.promoteAgentPrompt(event) }
         window.onAgentDecision = { [weak self] event, decision in
           self?.agentSessions.record(decision, for: event)

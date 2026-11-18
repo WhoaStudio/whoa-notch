@@ -43,6 +43,12 @@ final class NotchUsageTabView: NSView {
     set { sessionsView.onSelect = newValue }
   }
 
+  /// Une session close est écartée de la liste.
+  var onAgentSessionDismissed: ((String) -> Void)? {
+    get { sessionsView.onDismiss }
+    set { sessionsView.onDismiss = newValue }
+  }
+
   /// L'action de l'état vide : aller là où on lance un agent.
   var onStartAgent: (() -> Void)? {
     get { sessionsView.onStartAgent }

@@ -38,9 +38,6 @@ final class DockHost {
     controllers.values.forEach(apply)
   }
 
-  func apply(magnification: Bool) {
-    record("magnification") { $0.apply(magnification: magnification) }
-  }
   func apply(profiles: [DockProfile], activeID: String?) {
     record("profiles") { $0.apply(profiles: profiles, activeID: activeID) }
   }
